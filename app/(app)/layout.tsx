@@ -11,14 +11,17 @@ import {
   CheckCircle,
   ChevronLeft,
   ChevronRight,
+  FileCode,
   FileText,
   LayoutDashboard,
   LogOut,
   Mail,
   Settings,
   Settings as SettingsIcon,
+  Shield,
   User,
   Users,
+  ClipboardList,
 } from "lucide-react"
 import { cn } from "@/lib/utils"
 import TourButton from "@/components/tour-button"
@@ -54,12 +57,15 @@ const navItems: NavItem[] = [
   { href: "/", label: "Dashboard", icon: LayoutDashboard },
   { href: "/emails", label: "Email", icon: Mail },
   { href: "/reports", label: "Báo cáo", icon: BarChart3 },
+  { href: "/employees", label: "Nhân viên", icon: ClipboardList },
 ]
 
 const adminItems: NavItem[] = [
+  { href: "/admin", label: "Admin Tổng", icon: Shield },
   { href: "/admin/users", label: "Tài khoản", icon: Users },
   { href: "/admin/settings", label: "Cấu hình", icon: Settings },
   { href: "/admin/logs", label: "Logs", icon: FileText },
+  { href: "/admin/templates", label: "Templates", icon: FileCode },
 ]
 
 const getBreadcrumbItems = (pathname: string) => {
@@ -94,6 +100,12 @@ const getBreadcrumbItems = (pathname: string) => {
   }
 
   if (pathname.startsWith("/admin")) {
+    if (pathname === "/admin") {
+      return [
+        { label: "Quản trị", href: "#" },
+        { label: "Admin Tổng", href: "#" },
+      ]
+    }
     if (pathname.includes("/users")) {
       return [
         { label: "Quản trị", href: "#" },
@@ -114,6 +126,18 @@ const getBreadcrumbItems = (pathname: string) => {
     }
 
     return [{ label: "Quản trị", href: "#" }]
+  }
+
+  if (pathname.startsWith("/employees")) {
+    const employeeId = pathname.split("/")[2]
+    if (employeeId) {
+      return [
+        { label: "Nhân viên", href: "/employees" },
+        { label: employeeId, href: "#" },
+      ]
+    }
+
+    return [{ label: "Nhân viên", href: "/employees" }]
   }
 
   return [{ label: "Trang chủ", href: "/" }]
@@ -380,3 +404,5 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
     </TooltipProvider>
   )
 }
+
+

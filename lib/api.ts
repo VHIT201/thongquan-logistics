@@ -53,6 +53,14 @@ export async function connectAccount(code: string, redirectUri: string) {
   return res.data.data
 }
 
+export async function getOAuthUrl(redirectUri: string, state: string) {
+  const res = await api.post<ApiResponse<{ authUrl: string; provider: string }>>("/mail-auth/oauth-url", {
+    redirectUri,
+    state,
+  })
+  return res.data.data
+}
+
 export async function deleteAccount(id: string) {
   await api.delete(`/mail-accounts/${id}`)
 }
@@ -76,9 +84,19 @@ export async function getMailMessages(params?: { accountId?: string; page?: numb
   return res.data.data || []
 }
 
+export async function getMailMessagesEnvelope(params?: { accountId?: string; page?: number; pageSize?: number; fromEmail?: string; hasAttachment?: boolean }) {
+  const res = await api.get<ApiResponse<MailMessage[]>>("/mail-messages", { params })
+  return res.data
+}
+
 export async function getMailMessage(id: string) {
   const res = await api.get<ApiResponse<MailMessageDetail>>(`/mail-messages/${id}`)
   return res.data.data
+}
+
+export async function getMailMessageAttachments(id: string) {
+  const res = await api.get<ApiResponse<MailMessageDetail["attachments"]>>(`/mail-messages/${id}/attachments`)
+  return res.data.data || []
 }
 
 export async function processEmail(id: string) {
@@ -109,6 +127,11 @@ export async function getAnalysisResults(status?: string) {
 
 export async function createAnalysisResult(emailMessageId: string) {
   const res = await api.post<ApiResponse<EmailAnalysisResult>>("/email-analysis-results", { emailMessageId })
+  return res.data.data
+}
+
+export async function getAnalysisResult(id: string) {
+  const res = await api.get<ApiResponse<EmailAnalysisResult>>(`/email-analysis-results/${id}`)
   return res.data.data
 }
 

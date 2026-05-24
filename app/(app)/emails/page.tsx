@@ -1,39 +1,24 @@
 "use client"
 
-import { useState } from "react"
+import { useEffect, useMemo, useState } from "react"
 import Link from "next/link"
-import { Mail, Search, Filter, AlertCircle, Clock, ChevronLeft, ChevronRight, Paperclip, Loader } from "lucide-react"
-import dayjs from "dayjs"
 import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select"
-
-const allEmails = [
-  { id: "1", subject: "Invoice #INV-001 - ABC Logistics", fromName: "ABC Logistics", fromEmail: "billing@abclogistics.com", receivedAt: "2026-05-22T09:30:00Z", processStatus: "unprocessed", hasAttachments: true },
-  { id: "2", subject: "Shipping confirmation XYZ-2026", fromName: "XYZ Shipping", fromEmail: "ops@xyzshipping.com", receivedAt: "2026-05-22T08:15:00Z", processStatus: "processed", hasAttachments: false },
-  { id: "3", subject: "Freight quote request", fromName: "Global Freight", fromEmail: "sales@globalfreight.com", receivedAt: "2026-05-21T16:45:00Z", processStatus: "processing", hasAttachments: false },
-  { id: "4", subject: "Cargo manifest - Voyage 4521", fromName: "Ocean Cargo", fromEmail: "manifest@oceancargo.com", receivedAt: "2026-05-21T14:20:00Z", processStatus: "processed", hasAttachments: true },
-  { id: "5", subject: "Delivery receipt #DR-8821", fromName: "Fast Delivery", fromEmail: "receipts@fastdelivery.com", receivedAt: "2026-05-21T11:00:00Z", processStatus: "processing", hasAttachments: true },
-  { id: "6", subject: "Customs declaration #CD-1122", fromName: "Customs Dept", fromEmail: "customs@gov.vn", receivedAt: "2026-05-20T15:30:00Z", processStatus: "unprocessed", hasAttachments: true },
-  { id: "7", subject: "Booking confirmation BL-7723", fromName: "Maersk Line", fromEmail: "booking@maersk.com", receivedAt: "2026-05-20T12:10:00Z", processStatus: "processed", hasAttachments: true },
-  { id: "8", subject: "Warehouse inbound notice", fromName: "Saigon Depot", fromEmail: "inbound@saigondepot.vn", receivedAt: "2026-05-20T09:00:00Z", processStatus: "processing", hasAttachments: false },
-  { id: "9", subject: "Payment reminder PO-4451", fromName: "Vietnam Freight", fromEmail: "finance@vietnamfreight.vn", receivedAt: "2026-05-19T17:20:00Z", processStatus: "processed", hasAttachments: true },
-  { id: "10", subject: "Container release order", fromName: "Hapag-Lloyd", fromEmail: "release@hlag.com", receivedAt: "2026-05-19T14:00:00Z", processStatus: "unprocessed", hasAttachments: false },
-  { id: "11", subject: "Airway bill AWB-998712", fromName: "DHL Express", fromEmail: "docs@dhl.com", receivedAt: "2026-05-19T10:45:00Z", processStatus: "processed", hasAttachments: true },
-  { id: "12", subject: "Import license renewal", fromName: "Ministry of Trade", fromEmail: "licensing@moit.gov.vn", receivedAt: "2026-05-18T16:30:00Z", processStatus: "processing", hasAttachments: true },
-  { id: "13", subject: "Quotation #QT-5567", fromName: "Pacific Shipping", fromEmail: "quotes@pacificship.com", receivedAt: "2026-05-18T11:15:00Z", processStatus: "processed", hasAttachments: false },
-  { id: "14", subject: "Delivery delay notice", fromName: "FedEx Logistics", fromEmail: "alerts@fedex.com", receivedAt: "2026-05-18T08:00:00Z", processStatus: "unprocessed", hasAttachments: false },
-  { id: "15", subject: "Insurance policy #IP-3321", fromName: "Bao Viet Insurance", fromEmail: "marine@baoviet.vn", receivedAt: "2026-05-17T15:00:00Z", processStatus: "processed", hasAttachments: true },
-  { id: "16", subject: "Port clearance document", fromName: "Hai Phong Port", fromEmail: "clearance@haiphongport.vn", receivedAt: "2026-05-17T10:30:00Z", processStatus: "processing", hasAttachments: true },
-]
+  AlertCircle,
+  ChevronLeft,
+  ChevronRight,
+  Clock,
+  Filter,
+  Loader,
+  Mail,
+  Paperclip,
+  Search,
+} from "lucide-react"
+import dayjs from "dayjs"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { getErrorMessage } from "@/lib/get-error-message"
+import { useMailAccountsQuery, useMailMessagesQuery } from "@/hooks/use-mail-queries"
 
 const ITEMS_PER_PAGE = 10
-
-const allSenders = [...new Set(allEmails.map((e) => e.fromName))].sort()
 
 export default function EmailsPage() {
   const [search, setSearch] = useState("")
@@ -41,22 +26,62 @@ export default function EmailsPage() {
   const [senderFilter, setSenderFilter] = useState("all")
   const [page, setPage] = useState(1)
 
-  const filtered = allEmails.filter((e) => {
-    const matchSearch =
-      e.subject.toLowerCase().includes(search.toLowerCase()) ||
-      e.fromEmail.toLowerCase().includes(search.toLowerCase())
-    if (!matchSearch) return false
-    if (statusFilter !== "all" && statusFilter !== "hasAttachment") {
-      if (e.processStatus !== statusFilter) return false
-    }
-    if (statusFilter === "hasAttachment" && !e.hasAttachments) return false
-    if (senderFilter !== "all" && e.fromName !== senderFilter) return false
-    return true
+  const { data: accounts = [], isPending: accountsPending } = useMailAccountsQuery()
+  const activeAccountId = accounts[0]?.id
+
+  const mailQuery = useMailMessagesQuery({
+    accountId: activeAccountId,
+    page,
+    pageSize: ITEMS_PER_PAGE,
+    hasAttachment: statusFilter === "hasAttachment" ? true : undefined,
   })
 
-  const totalPages = Math.ceil(filtered.length / ITEMS_PER_PAGE) || 1
-  const start = (page - 1) * ITEMS_PER_PAGE
-  const paginated = filtered.slice(start, start + ITEMS_PER_PAGE)
+  const pagedEmails = mailQuery.data?.data ?? []
+  const pagination = mailQuery.data?.meta?.pagination
+  const totalPages = Math.max(1, pagination?.totalPages ?? 1)
+  const totalItems = pagination?.totalItems ?? pagedEmails.length
+
+  useEffect(() => {
+    if (page > totalPages) {
+      setPage(totalPages)
+    }
+  }, [page, totalPages])
+
+  const allSenders = useMemo(
+    () => [...new Set(pagedEmails.map((email) => email.fromName).filter(Boolean) as string[])].sort(),
+    [pagedEmails]
+  )
+
+  const visibleEmails = useMemo(() => {
+    return pagedEmails.filter((email) => {
+      const subject = email.subject || ""
+      const senderEmail = email.fromEmail || ""
+      const senderName = email.fromName || ""
+
+      const keyword = search.toLowerCase()
+      const matchSearch =
+        subject.toLowerCase().includes(keyword) ||
+        senderEmail.toLowerCase().includes(keyword) ||
+        senderName.toLowerCase().includes(keyword)
+
+      if (!matchSearch) return false
+      if (statusFilter !== "all" && statusFilter !== "hasAttachment" && email.processStatus !== statusFilter) {
+        return false
+      }
+      if (senderFilter !== "all" && senderName !== senderFilter) {
+        return false
+      }
+      return true
+    })
+  }, [pagedEmails, search, senderFilter, statusFilter])
+
+  const visiblePageNumbers = useMemo(() => {
+    if (totalPages <= 7) return Array.from({ length: totalPages }, (_, index) => index + 1)
+    const pages = new Set([1, totalPages, page - 1, page, page + 1])
+    return Array.from(pages)
+      .filter((pageNumber) => pageNumber >= 1 && pageNumber <= totalPages)
+      .sort((firstPage, secondPage) => firstPage - secondPage)
+  }, [page, totalPages])
 
   return (
     <div className="space-y-4">
@@ -64,21 +89,40 @@ export default function EmailsPage() {
         <h1 className="text-2xl font-bold text-neutral-300">Danh sách Email</h1>
       </div>
 
+      {mailQuery.error && (
+        <div className="rounded-lg bg-red-50 p-3 text-sm text-red-700">
+          {getErrorMessage(mailQuery.error, "Không tải được danh sách email.")}
+        </div>
+      )}
+
+      {!accountsPending && !activeAccountId && (
+        <div className="rounded-lg bg-amber-50 p-3 text-sm text-amber-700">
+          Chưa có mail account khả dụng. Kết nối account trước để tải email.
+        </div>
+      )}
+
       <div className="flex flex-wrap items-center gap-3">
-        <div id="tour-emails-search" className="relative flex-1 min-w-[200px]">
+        <div id="tour-emails-search" className="relative min-w-[240px] flex-1">
           <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-primary-100" />
           <input
             type="text"
             placeholder="Tìm kiếm email, người gửi..."
             value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            className="w-full rounded-lg border border-neutral-100 py-2 pl-9 pr-4 text-sm outline-none focus:border-primary focus:ring-1 focus:ring-primary/20 bg-white transition-colors"
+            onChange={(event) => setSearch(event.target.value)}
+            className="w-full rounded-lg border border-neutral-100 bg-white py-2 pl-9 pr-4 text-sm outline-none transition-colors focus:border-primary focus:ring-1 focus:ring-primary/20"
           />
         </div>
-        <div id="tour-emails-filter" className="flex items-center gap-2">
+
+        <div id="tour-emails-filter" className="flex w-full flex-wrap items-center gap-2 lg:w-auto lg:flex-nowrap">
           <Filter className="h-4 w-4 text-neutral-200" />
-          <Select value={statusFilter} onValueChange={(v: string) => { setStatusFilter(v); setPage(1) }}>
-            <SelectTrigger className="w-[160px] h-9">
+          <Select
+            value={statusFilter}
+            onValueChange={(value: string) => {
+              setStatusFilter(value)
+              setPage(1)
+            }}
+          >
+            <SelectTrigger className="h-9 w-full sm:w-[170px]">
               <SelectValue placeholder="Trạng thái" />
             </SelectTrigger>
             <SelectContent>
@@ -89,52 +133,142 @@ export default function EmailsPage() {
               <SelectItem value="hasAttachment">Có đính kèm</SelectItem>
             </SelectContent>
           </Select>
-          <Select value={senderFilter} onValueChange={(v: string) => { setSenderFilter(v); setPage(1) }}>
-            <SelectTrigger className="w-[180px] h-9">
-              <SelectValue placeholder="Nhân sự" />
+
+          <Select
+            value={senderFilter}
+            onValueChange={(value: string) => {
+              setSenderFilter(value)
+              setPage(1)
+            }}
+          >
+            <SelectTrigger className="h-9 w-full sm:w-[180px]">
+              <SelectValue placeholder="Người gửi" />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="all">Tất cả nhân sự</SelectItem>
-              {allSenders.map((s) => (
-                <SelectItem key={s} value={s}>{s}</SelectItem>
+              <SelectItem value="all">Tất cả người gửi</SelectItem>
+              {allSenders.map((senderName) => (
+                <SelectItem key={senderName} value={senderName}>
+                  {senderName}
+                </SelectItem>
               ))}
             </SelectContent>
           </Select>
         </div>
       </div>
 
-      <div id="tour-emails-table" className="rounded-xl border border-neutral-100 bg-white overflow-hidden">
-        <table className="w-full text-sm">
-          <thead className="bg-primary">
-            <tr>
-              <th className="px-4 py-3 text-left font-medium text-white/80">Tiêu đề</th>
-              <th className="px-4 py-3 text-left font-medium text-white/80">Người gửi</th>
-              <th className="px-4 py-3 text-left font-medium text-white/80">Nhận lúc</th>
-              <th className="px-4 py-3 text-left font-medium text-white/80">Trạng thái</th>
-              <th className="px-4 py-3 text-left font-medium text-white/80">Đính kèm</th>
-              <th className="px-4 py-3 text-right font-medium text-white/80"></th>
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-primary/15">
-            {filtered.length === 0 && (
+      <div id="tour-emails-table" className="overflow-hidden rounded-xl border border-neutral-100 bg-white">
+        <div className="hidden overflow-x-auto md:block">
+          <table className="w-full min-w-[880px] text-sm">
+            <thead className="bg-primary">
               <tr>
-                <td colSpan={6} className="px-4 py-8 text-center text-neutral-200">Không tìm thấy email nào</td>
+                <th className="px-4 py-3 text-left font-medium text-white/80">Tiêu đề</th>
+                <th className="px-4 py-3 text-left font-medium text-white/80">Người gửi</th>
+                <th className="px-4 py-3 text-left font-medium text-white/80">Nhận lúc</th>
+                <th className="px-4 py-3 text-left font-medium text-white/80">Trạng thái</th>
+                <th className="px-4 py-3 text-left font-medium text-white/80">Đính kèm</th>
+                <th className="px-4 py-3 text-right font-medium text-white/80"></th>
               </tr>
-            )}
-            {paginated.map((email) => {
-              const status = email.processStatus
-              const needsAttention = status === "unprocessed" || status === "processing"
-              return (
-                <tr key={email.id} className={`hover:bg-neutral-50 transition-colors ${needsAttention ? "border-l-2 border-l-primary bg-primary-50/30" : ""}`}>
-                  <td className="px-4 py-3">
-                    <div className="flex items-center gap-2">
-                      <Mail className={`h-4 w-4 ${needsAttention ? "text-primary" : "text-neutral-200"}`} />
-                      <span className="font-medium text-neutral-300">{email.subject}</span>
-                    </div>
+            </thead>
+            <tbody className="divide-y divide-primary/15">
+              {(accountsPending || mailQuery.isPending) && (
+                <tr>
+                  <td colSpan={6} className="px-4 py-8 text-center text-neutral-200">
+                    Đang tải email...
                   </td>
-                  <td className="px-4 py-3 text-neutral-200">{email.fromName}</td>
-                  <td className="px-4 py-3 text-neutral-200">{dayjs(email.receivedAt).format("DD/MM/YYYY HH:mm")}</td>
-                  <td className="px-4 py-3">
+                </tr>
+              )}
+
+              {!accountsPending && !mailQuery.isPending && visibleEmails.length === 0 && (
+                <tr>
+                  <td colSpan={6} className="px-4 py-8 text-center text-neutral-200">
+                    Không tìm thấy email nào
+                  </td>
+                </tr>
+              )}
+
+              {visibleEmails.map((email) => {
+                const status = email.processStatus
+                const needsAttention = status === "unprocessed" || status === "processing"
+                return (
+                  <tr
+                    key={email.id}
+                    className={`transition-colors hover:bg-neutral-50 ${
+                      needsAttention ? "border-l-2 border-l-primary bg-primary-50/30" : ""
+                    }`}
+                  >
+                    <td className="px-4 py-3">
+                      <div className="flex items-center gap-2">
+                        <Mail className={`h-4 w-4 ${needsAttention ? "text-primary" : "text-neutral-200"}`} />
+                        <span className="font-medium text-neutral-300">{email.subject || "(Không có tiêu đề)"}</span>
+                      </div>
+                    </td>
+                    <td className="px-4 py-3 text-neutral-200">{email.fromName || email.fromEmail || "—"}</td>
+                    <td className="px-4 py-3 text-neutral-200">
+                      {email.receivedAt ? dayjs(email.receivedAt).format("DD/MM/YYYY HH:mm") : "—"}
+                    </td>
+                    <td className="px-4 py-3">
+                      {status === "unprocessed" ? (
+                        <span className="inline-flex items-center gap-1 rounded-full bg-amber-50 px-2 py-0.5 text-xs font-medium text-amber-700">
+                          <Clock className="h-3 w-3" /> Chờ xử lý
+                        </span>
+                      ) : status === "processing" ? (
+                        <span className="inline-flex items-center gap-1 rounded-full bg-primary-50 px-2 py-0.5 text-xs font-medium text-primary">
+                          <Loader className="h-3 w-3" /> Đang xử lý
+                        </span>
+                      ) : (
+                        <span className="inline-flex items-center gap-1 rounded-full bg-green-50 px-2 py-0.5 text-xs font-medium text-green-700">
+                          <AlertCircle className="h-3 w-3" /> Đã xử lý
+                        </span>
+                      )}
+                    </td>
+                    <td className="px-4 py-3">
+                      {email.hasAttachments ? (
+                        <Paperclip className="h-4 w-4 text-primary" />
+                      ) : (
+                        <span className="text-neutral-100">—</span>
+                      )}
+                    </td>
+                    <td className="px-4 py-3 text-right">
+                      <Link
+                        href={`/emails/${email.id}`}
+                        className="inline-flex items-center rounded-md bg-primary-50 px-2.5 py-1 text-xs font-medium text-primary transition-colors hover:bg-primary hover:text-white"
+                      >
+                        Xử lý
+                      </Link>
+                    </td>
+                  </tr>
+                )
+              })}
+            </tbody>
+          </table>
+        </div>
+
+        <div className="divide-y divide-primary/15 md:hidden">
+          {(accountsPending || mailQuery.isPending) && (
+            <div className="px-4 py-8 text-center text-sm text-neutral-200">Đang tải email...</div>
+          )}
+
+          {!accountsPending && !mailQuery.isPending && visibleEmails.length === 0 && (
+            <div className="px-4 py-8 text-center text-sm text-neutral-200">Không tìm thấy email nào</div>
+          )}
+
+          {visibleEmails.map((email) => {
+            const status = email.processStatus
+            const needsAttention = status === "unprocessed" || status === "processing"
+            return (
+              <div key={email.id} className={`space-y-2 p-4 ${needsAttention ? "bg-primary-50/30" : ""}`}>
+                <div className="flex items-start justify-between gap-3">
+                  <p className="break-words text-sm font-medium text-neutral-300">
+                    {email.subject || "(Không có tiêu đề)"}
+                  </p>
+                  {email.hasAttachments ? <Paperclip className="h-4 w-4 shrink-0 text-primary" /> : null}
+                </div>
+                <p className="text-xs text-neutral-200">{email.fromName || email.fromEmail || "—"}</p>
+                <p className="text-xs text-neutral-200">
+                  {email.receivedAt ? dayjs(email.receivedAt).format("DD/MM/YYYY HH:mm") : "—"}
+                </p>
+                <div className="flex items-center justify-between gap-2">
+                  <div>
                     {status === "unprocessed" ? (
                       <span className="inline-flex items-center gap-1 rounded-full bg-amber-50 px-2 py-0.5 text-xs font-medium text-amber-700">
                         <Clock className="h-3 w-3" /> Chờ xử lý
@@ -148,55 +282,56 @@ export default function EmailsPage() {
                         <AlertCircle className="h-3 w-3" /> Đã xử lý
                       </span>
                     )}
-                  </td>
-                  <td className="px-4 py-3">
-                    {email.hasAttachments ? (
-                      <Paperclip className="h-4 w-4 text-primary" />
-                    ) : (
-                      <span className="text-neutral-100">—</span>
-                    )}
-                  </td>
-                  <td className="px-4 py-3 text-right">
-                    <Link href={`/emails/${email.id}`} className="inline-flex items-center rounded-md bg-primary-50 px-2.5 py-1 text-xs font-medium text-primary hover:bg-primary hover:text-white transition-colors">
-                      Xử lý
-                    </Link>
-                  </td>
-                </tr>
-              )
-            })}
-          </tbody>
-        </table>
+                  </div>
+                  <Link
+                    href={`/emails/${email.id}`}
+                    className="inline-flex items-center rounded-md bg-primary-50 px-2.5 py-1 text-xs font-medium text-primary transition-colors hover:bg-primary hover:text-white"
+                  >
+                    Xử lý
+                  </Link>
+                </div>
+              </div>
+            )
+          })}
+        </div>
 
-        {/* Pagination */}
-        <div className="flex items-center justify-between border-t border-neutral-100 px-4 py-3">
-          <p className="text-sm text-neutral-200">
-            Hiển thị <span className="font-medium text-neutral-300">{paginated.length}</span> / <span className="font-medium text-neutral-300">{filtered.length}</span> email
+        <div className="flex flex-col gap-3 border-t border-neutral-100 px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
+          <p className="text-xs text-neutral-200 sm:text-sm">
+            Trang <span className="font-medium text-neutral-300">{page}</span> /{" "}
+            <span className="font-medium text-neutral-300">{totalPages}</span> · Tổng{" "}
+            <span className="font-medium text-neutral-300">{totalItems}</span> email
           </p>
-          <div className="flex items-center gap-1">
+          <div className="flex flex-wrap items-center gap-1">
             <button
-              onClick={() => setPage((p) => Math.max(1, p - 1))}
-              disabled={page === 1}
-              className="inline-flex h-8 w-8 items-center justify-center rounded-md border border-neutral-100 bg-white text-neutral-300 transition-colors hover:bg-neutral-50 disabled:opacity-40 disabled:cursor-not-allowed"
+              onClick={() => setPage((previousPage) => Math.max(1, previousPage - 1))}
+              disabled={!activeAccountId || page === 1}
+              className="inline-flex h-8 w-8 items-center justify-center rounded-md border border-neutral-100 bg-white text-neutral-300 transition-colors hover:bg-neutral-50 disabled:cursor-not-allowed disabled:opacity-40"
             >
               <ChevronLeft className="h-4 w-4" />
             </button>
-            {Array.from({ length: totalPages }, (_, i) => i + 1).map((p) => (
-              <button
-                key={p}
-                onClick={() => setPage(p)}
-                className={`inline-flex h-8 w-8 items-center justify-center rounded-md text-sm font-medium transition-colors ${
-                  p === page
-                    ? "bg-primary text-white"
-                    : "border border-neutral-100 bg-white text-neutral-300 hover:bg-neutral-50"
-                }`}
-              >
-                {p}
-              </button>
-            ))}
+            {visiblePageNumbers.map((pageNumber, index) => {
+              const previousPageNumber = visiblePageNumbers[index - 1]
+              const shouldShowGap = previousPageNumber && pageNumber - previousPageNumber > 1
+              return (
+                <div key={pageNumber} className="flex items-center gap-1">
+                  {shouldShowGap ? <span className="px-1 text-neutral-200">…</span> : null}
+                  <button
+                    onClick={() => setPage(pageNumber)}
+                    className={`inline-flex h-8 min-w-8 items-center justify-center rounded-md px-2 text-sm font-medium transition-colors ${
+                      pageNumber === page
+                        ? "bg-primary text-white"
+                        : "border border-neutral-100 bg-white text-neutral-300 hover:bg-neutral-50"
+                    }`}
+                  >
+                    {pageNumber}
+                  </button>
+                </div>
+              )
+            })}
             <button
-              onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
-              disabled={page === totalPages}
-              className="inline-flex h-8 w-8 items-center justify-center rounded-md border border-neutral-100 bg-white text-neutral-300 transition-colors hover:bg-neutral-50 disabled:opacity-40 disabled:cursor-not-allowed"
+              onClick={() => setPage((previousPage) => Math.min(totalPages, previousPage + 1))}
+              disabled={!activeAccountId || page === totalPages}
+              className="inline-flex h-8 w-8 items-center justify-center rounded-md border border-neutral-100 bg-white text-neutral-300 transition-colors hover:bg-neutral-50 disabled:cursor-not-allowed disabled:opacity-40"
             >
               <ChevronRight className="h-4 w-4" />
             </button>
