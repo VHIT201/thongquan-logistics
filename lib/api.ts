@@ -67,7 +67,7 @@ export async function deleteAccount(id: string) {
 
 export async function triggerSync(id: string) {
   const res = await api.post<ApiResponse<{ jobId: string; status: string }>>(`/mail-accounts/${id}/sync`, {
-    syncType: "full",
+    syncType: "MANUAL_RESYNC",
     folderIds: ["INBOX"],
   })
   return res.data.data

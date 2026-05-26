@@ -145,7 +145,7 @@ export default function AdminTemplatesPage() {
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between">
-        <Link href="/admin" className="flex items-center gap-1 text-sm text-neutral-200 hover:text-neutral-300">
+        <Link href="/admin" className="flex cursor-pointer items-center gap-1 text-sm text-neutral-200 hover:text-neutral-300">
           <ArrowLeft className="h-4 w-4" /> Quay lại Admin
         </Link>
       </div>
@@ -159,7 +159,7 @@ export default function AdminTemplatesPage() {
             {editingTemplateId && (
               <button
                 onClick={resetForm}
-                className="rounded-md border border-neutral-100 px-2 py-1 text-xs text-neutral-200 hover:bg-neutral-50"
+                className="cursor-pointer rounded-md border border-neutral-100 px-2 py-1 text-xs text-neutral-200 hover:bg-neutral-50"
               >
                 Hủy sửa
               </button>
@@ -173,49 +173,49 @@ export default function AdminTemplatesPage() {
               value={formState.templateCode}
               onChange={(event) => setFormState((state) => ({ ...state, templateCode: event.target.value }))}
               disabled={Boolean(editingTemplateId)}
-              className="w-full rounded-lg border border-neutral-100 px-3 py-2 text-sm outline-none focus:border-primary focus:ring-2 focus:ring-primary/20 disabled:bg-neutral-50"
+              className="w-full rounded-lg border border-neutral-100 px-3 py-2 text-sm text-neutral-800 outline-none focus:border-primary focus:ring-2 focus:ring-primary/20 disabled:bg-neutral-50"
             />
             <input
               type="text"
               placeholder="Template name"
               value={formState.templateName}
               onChange={(event) => setFormState((state) => ({ ...state, templateName: event.target.value }))}
-              className="w-full rounded-lg border border-neutral-100 px-3 py-2 text-sm outline-none focus:border-primary focus:ring-2 focus:ring-primary/20"
+              className="w-full rounded-lg border border-neutral-100 px-3 py-2 text-sm text-neutral-800 outline-none focus:border-primary focus:ring-2 focus:ring-primary/20"
             />
             <input
               type="text"
               placeholder="Subject pattern"
               value={formState.subjectPattern}
               onChange={(event) => setFormState((state) => ({ ...state, subjectPattern: event.target.value }))}
-              className="w-full rounded-lg border border-neutral-100 px-3 py-2 text-sm outline-none focus:border-primary focus:ring-2 focus:ring-primary/20"
+              className="w-full rounded-lg border border-neutral-100 px-3 py-2 text-sm text-neutral-800 outline-none focus:border-primary focus:ring-2 focus:ring-primary/20"
             />
             <textarea
               placeholder="Description"
               value={formState.description}
               onChange={(event) => setFormState((state) => ({ ...state, description: event.target.value }))}
               rows={2}
-              className="w-full rounded-lg border border-neutral-100 px-3 py-2 text-sm outline-none focus:border-primary focus:ring-2 focus:ring-primary/20"
+              className="w-full rounded-lg border border-neutral-100 px-3 py-2 text-sm text-neutral-800 outline-none focus:border-primary focus:ring-2 focus:ring-primary/20"
             />
             <textarea
               placeholder="Body pattern"
               value={formState.bodyPattern}
               onChange={(event) => setFormState((state) => ({ ...state, bodyPattern: event.target.value }))}
               rows={3}
-              className="w-full rounded-lg border border-neutral-100 px-3 py-2 text-sm outline-none focus:border-primary focus:ring-2 focus:ring-primary/20"
+              className="w-full rounded-lg border border-neutral-100 px-3 py-2 text-sm text-neutral-800 outline-none focus:border-primary focus:ring-2 focus:ring-primary/20"
             />
             <textarea
               placeholder='Expected fields JSON, ví dụ {"invoiceNumber":"Mã hóa đơn"}'
               value={formState.expectedFieldsJson}
               onChange={(event) => setFormState((state) => ({ ...state, expectedFieldsJson: event.target.value }))}
               rows={5}
-              className="w-full rounded-lg border border-neutral-100 px-3 py-2 font-mono text-xs outline-none focus:border-primary focus:ring-2 focus:ring-primary/20"
+              className="w-full rounded-lg border border-neutral-100 px-3 py-2 font-mono text-xs text-neutral-800 outline-none focus:border-primary focus:ring-2 focus:ring-primary/20"
             />
             <input
               type="text"
               placeholder="Document types (csv) ví dụ invoice,receipt"
               value={formState.documentTypesCsv}
               onChange={(event) => setFormState((state) => ({ ...state, documentTypesCsv: event.target.value }))}
-              className="w-full rounded-lg border border-neutral-100 px-3 py-2 text-sm outline-none focus:border-primary focus:ring-2 focus:ring-primary/20"
+              className="w-full rounded-lg border border-neutral-100 px-3 py-2 text-sm text-neutral-800 outline-none focus:border-primary focus:ring-2 focus:ring-primary/20"
             />
             <label className="flex items-center gap-2 text-sm text-neutral-200">
               <input
@@ -231,7 +231,7 @@ export default function AdminTemplatesPage() {
           <button
             onClick={handleSubmit}
             disabled={isSaving}
-            className="flex w-full items-center justify-center gap-2 rounded-lg bg-primary px-4 py-2 text-sm font-medium text-white hover:bg-primary-500 disabled:opacity-50"
+            className="flex w-full cursor-pointer items-center justify-center gap-2 rounded-lg bg-primary px-4 py-2 text-sm font-medium text-white hover:bg-primary-500 disabled:opacity-50 disabled:cursor-not-allowed"
           >
             {editingTemplateId ? <Save className="h-4 w-4" /> : <Plus className="h-4 w-4" />}
             {isSaving ? "Đang lưu..." : editingTemplateId ? "Cập nhật" : "Tạo mới"}
@@ -257,7 +257,7 @@ export default function AdminTemplatesPage() {
             {sortedTemplates.map((template) => (
               <div
                 key={template.id}
-                className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-neutral-100 p-3 hover:bg-neutral-50"
+                className="flex cursor-pointer flex-wrap items-center justify-between gap-2 rounded-lg border border-neutral-100 p-3 hover:bg-neutral-50"
               >
                 <div className="min-w-0">
                   <p className="text-sm font-medium text-neutral-300">
@@ -275,14 +275,14 @@ export default function AdminTemplatesPage() {
                 <div className="flex items-center gap-2">
                   <button
                     onClick={() => handleEdit(template.id || "")}
-                    className="rounded-md border border-neutral-100 px-2 py-1 text-xs text-neutral-200 hover:bg-neutral-50"
+                    className="cursor-pointer rounded-md border border-neutral-100 px-2 py-1 text-xs text-neutral-200 hover:bg-neutral-50"
                   >
                     Sửa
                   </button>
                   <button
                     onClick={() => handleDelete(template.id || "")}
                     disabled={deleteTemplateMutation.isPending}
-                    className="inline-flex items-center gap-1 rounded-md border border-rose-200 px-2 py-1 text-xs text-rose-600 hover:bg-rose-50 disabled:opacity-50"
+                    className="inline-flex cursor-pointer items-center gap-1 rounded-md border border-rose-200 px-2 py-1 text-xs text-rose-600 hover:bg-rose-50 disabled:opacity-50 disabled:cursor-not-allowed"
                   >
                     <Trash2 className="h-3 w-3" /> Xóa
                   </button>

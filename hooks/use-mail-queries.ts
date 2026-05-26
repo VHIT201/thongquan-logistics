@@ -5,8 +5,11 @@ import { MAIL_CONNECTOR_AXIOS } from "@/lib/orval/mail-connector-mutator"
 import { getMailConnectorAPI } from "@/lib/generated/mail-connector/endpoints"
 import type { MailAnalysisResultDto } from "@/lib/generated/mail-connector/model/mailAnalysisResultDto"
 import type { CreateTemplateRequest } from "@/lib/generated/mail-connector/model/createTemplateRequest"
+import type { CreateWebhookSubscriptionRequest } from "@/lib/generated/mail-connector/model/createWebhookSubscriptionRequest"
+import type { GetApiV1MailAnalysisResultsParams } from "@/lib/generated/mail-connector/model/getApiV1MailAnalysisResultsParams"
 import type { GetApiV1MailMessagesParams } from "@/lib/generated/mail-connector/model/getApiV1MailMessagesParams"
 import type { UpdateTemplateRequest } from "@/lib/generated/mail-connector/model/updateTemplateRequest"
+import type { UpdateWebhookSubscriptionRequest } from "@/lib/generated/mail-connector/model/updateWebhookSubscriptionRequest"
 
 const mailApi = getMailConnectorAPI()
 
@@ -48,6 +51,9 @@ export const mailQueryKeys = {
   analysis: (id: string) => ["mail-analysis", id] as const,
   latestAnalysisByMessage: (messageId: string) => ["mail-analysis-latest", messageId] as const,
   templates: ["mail-templates"] as const,
+  analysisResults: (params: GetApiV1MailAnalysisResultsParams) =>
+    ["mail-analysis-results", params] as const,
+  webhooks: ["webhook-subscriptions"] as const,
 }
 
 export function useMailAccountsQuery() {
@@ -118,7 +124,7 @@ export function useTriggerSyncMutation(accountId: string | null) {
   return useMutation({
     mutationFn: () =>
       mailApi.postApiV1MailAccountsIdSync(accountId as string, {
-        syncType: "full",
+        syncType: "MANUAL_RESYNC",
         folderIds: ["INBOX"],
       }),
     onSuccess: () => {
@@ -149,7 +155,7 @@ export function useMailMessagesQuery(params: {
     Page: params.page,
     PageSize: params.pageSize,
     Filters: filters.join("&") || undefined,
-    SortField: params.sortField ?? "receivedAt",
+    SortField: params.sortField ?? "sentAt",
     SortOrder: params.sortOrder ?? "desc",
   }
 
@@ -334,6 +340,35 @@ export function useRejectAnalysisMutation(analysisId: string | null) {
   })
 }
 
+export function useAnalysisResultsQuery(params: {
+  status?: string
+  category?: string
+  sortField?: string
+  sortOrder?: "asc" | "desc"
+  page: number
+  pageSize: number
+}) {
+  const filters: string[] = []
+  if (params.status) filters.push(`status==${params.status}`)
+  if (params.category) filters.push(`category==${params.category}`)
+
+  const queryParams: GetApiV1MailAnalysisResultsParams = {
+    Filters: filters.join("&") || undefined,
+    SortField: params.sortField ?? "createdAt",
+    SortOrder: params.sortOrder ?? "desc",
+    Page: params.page,
+    PageSize: params.pageSize,
+  }
+
+  return useQuery({
+    queryKey: mailQueryKeys.analysisResults(queryParams),
+    queryFn: async () => {
+      const response = await mailApi.getApiV1MailAnalysisResults(queryParams)
+      return getAnalysisItems(response.data)
+    },
+  })
+}
+
 export function useEmailTemplatesQuery() {
   return useQuery({
     queryKey: mailQueryKeys.templates,
@@ -375,5 +410,65 @@ export function useDeleteEmailTemplateMutation() {
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: mailQueryKeys.templates })
     },
+  })
+}
+
+const getWebhookItems = (data: unknown): Record<string, unknown>[] => {
+  if (!Array.isArray(data)) return []
+  return data as Record<string, unknown>[]
+}
+
+export function useWebhookSubscriptionsQuery() {
+  return useQuery({
+    queryKey: mailQueryKeys.webhooks,
+    queryFn: async () => {
+      const response = await mailApi.getApiV1WebhookSubscriptions()
+      return getWebhookItems(response.data)
+    },
+  })
+}
+
+export function useCreateWebhookMutation() {
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: (payload: CreateWebhookSubscriptionRequest) =>
+      mailApi.postApiV1WebhookSubscriptions(payload),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: mailQueryKeys.webhooks })
+    },
+  })
+}
+
+export function useUpdateWebhookMutation(webhookId: string | null) {
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: (payload: UpdateWebhookSubscriptionRequest) =>
+      mailApi.putApiV1WebhookSubscriptionsId(webhookId as string, payload),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: mailQueryKeys.webhooks })
+    },
+  })
+}
+
+export function useDeleteWebhookMutation() {
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: (webhookId: string) => mailApi.deleteApiV1WebhookSubscriptionsId(webhookId),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: mailQueryKeys.webhooks })
+    },
+  })
+}
+
+export function useTestWebhookMutation(webhookId: string | null) {
+  return useMutation({
+    mutationFn: (payload: { eventType?: string; payload?: unknown }) =>
+      mailApi.postApiV1WebhookSubscriptionsIdTest(webhookId as string, {
+        eventType: payload.eventType,
+        payload: payload.payload,
+      }),
   })
 }

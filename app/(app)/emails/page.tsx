@@ -28,7 +28,7 @@ export default function EmailsPage() {
   const [statusFilter, setStatusFilter] = useState("all")
   const [senderFilter, setSenderFilter] = useState("all")
   const [page, setPage] = useState(1)
-  const [sortField, setSortField] = useState("receivedAt")
+  const [sortField, setSortField] = useState("sentAt")
   const [sortOrder, setSortOrder] = useState<"asc" | "desc">("desc")
 
   const { data: accounts = [], isPending: accountsPending } = useMailAccountsQuery()
@@ -248,27 +248,27 @@ export default function EmailsPage() {
                       </div>
                     </td>
                     <td className="px-4 py-3 text-neutral-200">{email.fromName || email.fromEmail || "—"}</td>
-                    <td className="px-4 py-3 text-neutral-200">
+                    <td className="px-4 py-3 whitespace-nowrap text-neutral-200">
                       {email.receivedAt ? dayjs(email.receivedAt).format("DD/MM/YYYY HH:mm") : "—"}
                     </td>
                     <td className="px-4 py-3">
                       {status === "unprocessed" ? (
-                        <span className="inline-flex items-center gap-1 rounded-full bg-amber-50 px-2 py-0.5 text-xs font-medium text-amber-700">
+                        <span className="inline-flex items-center gap-1 whitespace-nowrap rounded-full bg-amber-50 px-2 py-0.5 text-xs font-medium text-amber-700">
                           <Clock className="h-3 w-3" /> Chờ xử lý
                         </span>
                       ) : status === "processing" ? (
-                        <span className="inline-flex items-center gap-1 rounded-full bg-primary-50 px-2 py-0.5 text-xs font-medium text-primary">
+                        <span className="inline-flex items-center gap-1 whitespace-nowrap rounded-full bg-primary-50 px-2 py-0.5 text-xs font-medium text-primary">
                           <Loader className="h-3 w-3" /> Đang xử lý
                         </span>
                       ) : (
-                        <span className="inline-flex items-center gap-1 rounded-full bg-green-50 px-2 py-0.5 text-xs font-medium text-green-700">
+                        <span className="inline-flex items-center gap-1 whitespace-nowrap rounded-full bg-green-50 px-2 py-0.5 text-xs font-medium text-green-700">
                           <AlertCircle className="h-3 w-3" /> Đã xử lý
                         </span>
                       )}
                     </td>
-                    <td className="px-4 py-3">
+                    <td className="px-4 py-3 text-center whitespace-nowrap">
                       {email.hasAttachments ? (
-                        <Paperclip className="h-4 w-4 text-primary" />
+                        <Paperclip className="mx-auto h-4 w-4 text-primary" />
                       ) : (
                         <span className="text-neutral-100">—</span>
                       )}

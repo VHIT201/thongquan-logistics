@@ -23,6 +23,7 @@ import {
   Users,
   ClipboardList,
   Inbox,
+  Webhook,
 } from "lucide-react"
 import { cn } from "@/lib/utils"
 import TourButton from "@/components/tour-button"
@@ -58,6 +59,8 @@ const navItems: NavItem[] = [
   { href: "/", label: "Dashboard", icon: LayoutDashboard },
   { href: "/mail-accounts", label: "Tài khoản Email", icon: Inbox },
   { href: "/emails", label: "Email", icon: Mail },
+  { href: "/analysis-results", label: "Kết quả AI", icon: ClipboardList },
+  { href: "/webhooks", label: "Webhooks", icon: Webhook },
   { href: "/reports", label: "Báo cáo", icon: BarChart3 },
 ]
 
@@ -71,6 +74,14 @@ const adminItems: NavItem[] = [
 
 const getBreadcrumbItems = (pathname: string) => {
   if (pathname === "/") return [{ label: "Dashboard", href: "/" }]
+
+  if (pathname.startsWith("/analysis-results")) {
+    return [{ label: "Kết quả AI", href: "/analysis-results" }]
+  }
+
+  if (pathname.startsWith("/webhooks")) {
+    return [{ label: "Webhooks", href: "/webhooks" }]
+  }
 
   if (pathname.startsWith("/mail-accounts")) {
     return [{ label: "Tài khoản Email", href: "/mail-accounts" }]
@@ -127,6 +138,12 @@ const getBreadcrumbItems = (pathname: string) => {
       return [
         { label: "Quản trị", href: "#" },
         { label: "Logs", href: "#" },
+      ]
+    }
+    if (pathname.includes("/templates")) {
+      return [
+        { label: "Quản trị", href: "#" },
+        { label: "Templates", href: "#" },
       ]
     }
 
