@@ -8,6 +8,7 @@
 import type {
   ApproveAnalysisResultRequest,
   AttachmentDtoListApiResponse,
+  BatchExportRequest,
   ConnectAccountRequest,
   CreateAnalysisResultRequest,
   CreateMailAccountDto,
@@ -15,20 +16,21 @@ import type {
   CreateWebhookSubscriptionRequest,
   DocumentProcessingRequest,
   DocumentProcessingResponseApiResponse,
-  EmailAnalysisResultDtoApiResponse,
-  EmailTemplateDtoApiResponse,
-  EmailTemplateDtoListApiResponse,
   ExchangeTokenRequest,
-  ExtractEmailRequest,
   GetApiV1AiOpenaiUsageParams,
-  GetApiV1EmailAnalysisResultsParams,
+  GetApiV1AiQuotaMailAccountIdUsageParams,
+  GetApiV1MailAnalysisResultsParams,
   GetApiV1MailMessagesParams,
   GetApiV1WebhookSubscriptionsParams,
   GetOauthCallbackParams,
   MailAccountDtoApiResponse,
   MailAccountDtoListApiResponse,
+  MailAnalysisResultDtoApiResponse,
+  MailExtractionRequest,
   MailMessageDetailDtoApiResponse,
   MailMessageDtoListApiResponse,
+  MailTemplateDtoApiResponse,
+  MailTemplateDtoListApiResponse,
   OAuthUrlRequest,
   OAuthUrlResponseDataApiResponse,
   ObjectApiResponse,
@@ -36,6 +38,7 @@ import type {
   RefreshTokenRequest,
   RefreshTokenResponseDataApiResponse,
   RejectAnalysisResultRequest,
+  SetBlockedRequest,
   SyncJobResponseDataApiResponse,
   SyncStatusDtoApiResponse,
   TestWebhookRequest,
@@ -44,7 +47,8 @@ import type {
   UpdateAnalysisResultRequest,
   UpdateMailAccountDto,
   UpdateTemplateRequest,
-  UpdateWebhookSubscriptionRequest
+  UpdateWebhookSubscriptionRequest,
+  UpsertQuotaRequest
 } from './model';
 
 import { mailConnectorInstance } from '../../orval/mail-connector-mutator';
@@ -55,6 +59,50 @@ type SecondParameter<T extends (...args: never) => unknown> = Parameters<T>[1];
 
 
   export const getMailConnectorAPI = () => {
+const getApiV1AiQuotaMailAccountIdUsage = (
+    mailAccountId: string,
+    params?: GetApiV1AiQuotaMailAccountIdUsageParams,
+ options?: SecondParameter<typeof mailConnectorInstance<ObjectApiResponse>>,) => {
+      return mailConnectorInstance<ObjectApiResponse>(
+      {url: `/api/v1/ai/quota/${mailAccountId}/usage`, method: 'GET',
+        params
+    },
+      options);
+    }
+  
+const putApiV1AiQuotaMailAccountId = (
+    mailAccountId: string,
+    upsertQuotaRequest: BodyType<UpsertQuotaRequest>,
+ options?: SecondParameter<typeof mailConnectorInstance<ObjectApiResponse>>,) => {
+      return mailConnectorInstance<ObjectApiResponse>(
+      {url: `/api/v1/ai/quota/${mailAccountId}`, method: 'PUT',
+      headers: {'Content-Type': 'application/json', },
+      data: upsertQuotaRequest
+    },
+      options);
+    }
+  
+const getApiV1AiQuotaMailAccountId = (
+    mailAccountId: string,
+ options?: SecondParameter<typeof mailConnectorInstance<ObjectApiResponse>>,) => {
+      return mailConnectorInstance<ObjectApiResponse>(
+      {url: `/api/v1/ai/quota/${mailAccountId}`, method: 'GET'
+    },
+      options);
+    }
+  
+const patchApiV1AiQuotaMailAccountIdBlock = (
+    mailAccountId: string,
+    setBlockedRequest: BodyType<SetBlockedRequest>,
+ options?: SecondParameter<typeof mailConnectorInstance<ObjectApiResponse>>,) => {
+      return mailConnectorInstance<ObjectApiResponse>(
+      {url: `/api/v1/ai/quota/${mailAccountId}/block`, method: 'PATCH',
+      headers: {'Content-Type': 'application/json', },
+      data: setBlockedRequest
+    },
+      options);
+    }
+  
 const getApiV1AiOpenaiUsage = (
     params?: GetApiV1AiOpenaiUsageParams,
  options?: SecondParameter<typeof mailConnectorInstance<ObjectApiResponse>>,) => {
@@ -96,184 +144,40 @@ const postApiV1DocumentProcessorProcessMultiple = (
       options);
     }
   
-const getApiV1EmailAnalysisResults = (
-    params?: GetApiV1EmailAnalysisResultsParams,
- options?: SecondParameter<typeof mailConnectorInstance<ObjectApiResponse>>,) => {
-      return mailConnectorInstance<ObjectApiResponse>(
-      {url: `/api/v1/email-analysis-results`, method: 'GET',
-        params
-    },
-      options);
-    }
-  
-const postApiV1EmailAnalysisResults = (
-    createAnalysisResultRequest: BodyType<CreateAnalysisResultRequest>,
+const postApiExportMessageMessageId = (
+    messageId: string,
  options?: SecondParameter<typeof mailConnectorInstance<void>>,) => {
       return mailConnectorInstance<void>(
-      {url: `/api/v1/email-analysis-results`, method: 'POST',
-      headers: {'Content-Type': 'application/json', },
-      data: createAnalysisResultRequest
+      {url: `/api/export/message/${messageId}`, method: 'POST'
     },
       options);
     }
   
-const getApiV1EmailAnalysisResultsId = (
-    id: string,
- options?: SecondParameter<typeof mailConnectorInstance<EmailAnalysisResultDtoApiResponse>>,) => {
-      return mailConnectorInstance<EmailAnalysisResultDtoApiResponse>(
-      {url: `/api/v1/email-analysis-results/${id}`, method: 'GET'
-    },
-      options);
-    }
-  
-const putApiV1EmailAnalysisResultsIdFields = (
-    id: string,
-    updateAnalysisResultRequest: BodyType<UpdateAnalysisResultRequest>,
- options?: SecondParameter<typeof mailConnectorInstance<EmailAnalysisResultDtoApiResponse>>,) => {
-      return mailConnectorInstance<EmailAnalysisResultDtoApiResponse>(
-      {url: `/api/v1/email-analysis-results/${id}/fields`, method: 'PUT',
-      headers: {'Content-Type': 'application/json', },
-      data: updateAnalysisResultRequest
-    },
-      options);
-    }
-  
-const postApiV1EmailAnalysisResultsIdApprove = (
-    id: string,
-    approveAnalysisResultRequest: BodyType<ApproveAnalysisResultRequest>,
+const postApiExportBatch = (
+    batchExportRequest: BodyType<BatchExportRequest>,
  options?: SecondParameter<typeof mailConnectorInstance<void>>,) => {
       return mailConnectorInstance<void>(
-      {url: `/api/v1/email-analysis-results/${id}/approve`, method: 'POST',
+      {url: `/api/export/batch`, method: 'POST',
       headers: {'Content-Type': 'application/json', },
-      data: approveAnalysisResultRequest
+      data: batchExportRequest
     },
       options);
     }
   
-const postApiV1EmailAnalysisResultsIdReject = (
-    id: string,
-    rejectAnalysisResultRequest: BodyType<RejectAnalysisResultRequest>,
- options?: SecondParameter<typeof mailConnectorInstance<void>>,) => {
-      return mailConnectorInstance<void>(
-      {url: `/api/v1/email-analysis-results/${id}/reject`, method: 'POST',
-      headers: {'Content-Type': 'application/json', },
-      data: rejectAnalysisResultRequest
-    },
-      options);
-    }
-  
-const getApiV1EmailAnalysisResultsIdDeliveryLogs = (
-    id: string,
- options?: SecondParameter<typeof mailConnectorInstance<ObjectApiResponse>>,) => {
-      return mailConnectorInstance<ObjectApiResponse>(
-      {url: `/api/v1/email-analysis-results/${id}/delivery-logs`, method: 'GET'
-    },
-      options);
-    }
-  
-const postApiV1EmailMessagesIdProcess = (
-    id: string,
- options?: SecondParameter<typeof mailConnectorInstance<void>>,) => {
-      return mailConnectorInstance<void>(
-      {url: `/api/v1/email-messages/${id}/process`, method: 'POST'
-    },
-      options);
-    }
-  
-const postApiV1EmailMessagesIdTriggerPipeline = (
-    id: string,
- options?: SecondParameter<typeof mailConnectorInstance<void>>,) => {
-      return mailConnectorInstance<void>(
-      {url: `/api/v1/email-messages/${id}/trigger-pipeline`, method: 'POST'
-    },
-      options);
-    }
-  
-const postApiV1EmailMessagesIdNormalize = (
-    id: string,
- options?: SecondParameter<typeof mailConnectorInstance<ObjectApiResponse>>,) => {
-      return mailConnectorInstance<ObjectApiResponse>(
-      {url: `/api/v1/email-messages/${id}/normalize`, method: 'POST'
-    },
-      options);
-    }
-  
-const postApiV1EmailMessagesIdClassify = (
-    id: string,
- options?: SecondParameter<typeof mailConnectorInstance<ObjectApiResponse>>,) => {
-      return mailConnectorInstance<ObjectApiResponse>(
-      {url: `/api/v1/email-messages/${id}/classify`, method: 'POST'
-    },
-      options);
-    }
-  
-const postApiV1EmailMessagesIdExtract = (
-    id: string,
-    extractEmailRequest: BodyType<ExtractEmailRequest>,
- options?: SecondParameter<typeof mailConnectorInstance<ObjectApiResponse>>,) => {
-      return mailConnectorInstance<ObjectApiResponse>(
-      {url: `/api/v1/email-messages/${id}/extract`, method: 'POST',
-      headers: {'Content-Type': 'application/json', },
-      data: extractEmailRequest
-    },
-      options);
-    }
-  
-const getApiV1EmailMessagesIdProcessingJobs = (
-    id: string,
- options?: SecondParameter<typeof mailConnectorInstance<ObjectApiResponse>>,) => {
-      return mailConnectorInstance<ObjectApiResponse>(
-      {url: `/api/v1/email-messages/${id}/processing-jobs`, method: 'GET'
-    },
-      options);
-    }
-  
-const getApiV1EmailTemplates = (
+const getApiExportTemplate = (
     
- options?: SecondParameter<typeof mailConnectorInstance<EmailTemplateDtoListApiResponse>>,) => {
-      return mailConnectorInstance<EmailTemplateDtoListApiResponse>(
-      {url: `/api/v1/email-templates`, method: 'GET'
-    },
-      options);
-    }
-  
-const postApiV1EmailTemplates = (
-    createTemplateRequest: BodyType<CreateTemplateRequest>,
- options?: SecondParameter<typeof mailConnectorInstance<EmailTemplateDtoApiResponse>>,) => {
-      return mailConnectorInstance<EmailTemplateDtoApiResponse>(
-      {url: `/api/v1/email-templates`, method: 'POST',
-      headers: {'Content-Type': 'application/json', },
-      data: createTemplateRequest
-    },
-      options);
-    }
-  
-const getApiV1EmailTemplatesId = (
-    id: string,
- options?: SecondParameter<typeof mailConnectorInstance<EmailTemplateDtoApiResponse>>,) => {
-      return mailConnectorInstance<EmailTemplateDtoApiResponse>(
-      {url: `/api/v1/email-templates/${id}`, method: 'GET'
-    },
-      options);
-    }
-  
-const putApiV1EmailTemplatesId = (
-    id: string,
-    updateTemplateRequest: BodyType<UpdateTemplateRequest>,
- options?: SecondParameter<typeof mailConnectorInstance<EmailTemplateDtoApiResponse>>,) => {
-      return mailConnectorInstance<EmailTemplateDtoApiResponse>(
-      {url: `/api/v1/email-templates/${id}`, method: 'PUT',
-      headers: {'Content-Type': 'application/json', },
-      data: updateTemplateRequest
-    },
-      options);
-    }
-  
-const deleteApiV1EmailTemplatesId = (
-    id: string,
  options?: SecondParameter<typeof mailConnectorInstance<void>>,) => {
       return mailConnectorInstance<void>(
-      {url: `/api/v1/email-templates/${id}`, method: 'DELETE'
+      {url: `/api/export/template`, method: 'GET'
+    },
+      options);
+    }
+  
+const getApiExportHistory = (
+    
+ options?: SecondParameter<typeof mailConnectorInstance<void>>,) => {
+      return mailConnectorInstance<void>(
+      {url: `/api/export/history`, method: 'GET'
     },
       options);
     }
@@ -348,6 +252,15 @@ const getApiV1MailAccountsIdSyncStatus = (
       options);
     }
   
+const getApiV1MailAccountsIdPing = (
+    id: string,
+ options?: SecondParameter<typeof mailConnectorInstance<void>>,) => {
+      return mailConnectorInstance<void>(
+      {url: `/api/v1/mail-accounts/${id}/ping`, method: 'GET'
+    },
+      options);
+    }
+  
 const postApiV1MailAccountsIdSync = (
     id: string,
     triggerSyncDto: BodyType<TriggerSyncDto>,
@@ -368,6 +281,81 @@ const postApiV1MailAccountsIdSyncDirect = (
       {url: `/api/v1/mail-accounts/${id}/sync-direct`, method: 'POST',
       headers: {'Content-Type': 'application/json', },
       data: triggerSyncDto
+    },
+      options);
+    }
+  
+const getApiV1MailAnalysisResults = (
+    params?: GetApiV1MailAnalysisResultsParams,
+ options?: SecondParameter<typeof mailConnectorInstance<ObjectApiResponse>>,) => {
+      return mailConnectorInstance<ObjectApiResponse>(
+      {url: `/api/v1/mail-analysis-results`, method: 'GET',
+        params
+    },
+      options);
+    }
+  
+const postApiV1MailAnalysisResults = (
+    createAnalysisResultRequest: BodyType<CreateAnalysisResultRequest>,
+ options?: SecondParameter<typeof mailConnectorInstance<void>>,) => {
+      return mailConnectorInstance<void>(
+      {url: `/api/v1/mail-analysis-results`, method: 'POST',
+      headers: {'Content-Type': 'application/json', },
+      data: createAnalysisResultRequest
+    },
+      options);
+    }
+  
+const getApiV1MailAnalysisResultsId = (
+    id: string,
+ options?: SecondParameter<typeof mailConnectorInstance<MailAnalysisResultDtoApiResponse>>,) => {
+      return mailConnectorInstance<MailAnalysisResultDtoApiResponse>(
+      {url: `/api/v1/mail-analysis-results/${id}`, method: 'GET'
+    },
+      options);
+    }
+  
+const putApiV1MailAnalysisResultsIdFields = (
+    id: string,
+    updateAnalysisResultRequest: BodyType<UpdateAnalysisResultRequest>,
+ options?: SecondParameter<typeof mailConnectorInstance<MailAnalysisResultDtoApiResponse>>,) => {
+      return mailConnectorInstance<MailAnalysisResultDtoApiResponse>(
+      {url: `/api/v1/mail-analysis-results/${id}/fields`, method: 'PUT',
+      headers: {'Content-Type': 'application/json', },
+      data: updateAnalysisResultRequest
+    },
+      options);
+    }
+  
+const postApiV1MailAnalysisResultsIdApprove = (
+    id: string,
+    approveAnalysisResultRequest: BodyType<ApproveAnalysisResultRequest>,
+ options?: SecondParameter<typeof mailConnectorInstance<void>>,) => {
+      return mailConnectorInstance<void>(
+      {url: `/api/v1/mail-analysis-results/${id}/approve`, method: 'POST',
+      headers: {'Content-Type': 'application/json', },
+      data: approveAnalysisResultRequest
+    },
+      options);
+    }
+  
+const postApiV1MailAnalysisResultsIdReject = (
+    id: string,
+    rejectAnalysisResultRequest: BodyType<RejectAnalysisResultRequest>,
+ options?: SecondParameter<typeof mailConnectorInstance<void>>,) => {
+      return mailConnectorInstance<void>(
+      {url: `/api/v1/mail-analysis-results/${id}/reject`, method: 'POST',
+      headers: {'Content-Type': 'application/json', },
+      data: rejectAnalysisResultRequest
+    },
+      options);
+    }
+  
+const getApiV1MailAnalysisResultsIdDeliveryLogs = (
+    id: string,
+ options?: SecondParameter<typeof mailConnectorInstance<ObjectApiResponse>>,) => {
+      return mailConnectorInstance<ObjectApiResponse>(
+      {url: `/api/v1/mail-analysis-results/${id}/delivery-logs`, method: 'GET'
     },
       options);
     }
@@ -472,6 +460,113 @@ const getApiV1MailMessagesMessageIdAttachmentsAttachmentIdExtractText = (
       options);
     }
   
+const postApiV1MailMessagesIdProcess = (
+    id: string,
+ options?: SecondParameter<typeof mailConnectorInstance<void>>,) => {
+      return mailConnectorInstance<void>(
+      {url: `/api/v1/mail-messages/${id}/process`, method: 'POST'
+    },
+      options);
+    }
+  
+const postApiV1MailMessagesIdTriggerPipeline = (
+    id: string,
+ options?: SecondParameter<typeof mailConnectorInstance<void>>,) => {
+      return mailConnectorInstance<void>(
+      {url: `/api/v1/mail-messages/${id}/trigger-pipeline`, method: 'POST'
+    },
+      options);
+    }
+  
+const postApiV1MailMessagesIdNormalize = (
+    id: string,
+ options?: SecondParameter<typeof mailConnectorInstance<ObjectApiResponse>>,) => {
+      return mailConnectorInstance<ObjectApiResponse>(
+      {url: `/api/v1/mail-messages/${id}/normalize`, method: 'POST'
+    },
+      options);
+    }
+  
+const postApiV1MailMessagesIdClassify = (
+    id: string,
+ options?: SecondParameter<typeof mailConnectorInstance<ObjectApiResponse>>,) => {
+      return mailConnectorInstance<ObjectApiResponse>(
+      {url: `/api/v1/mail-messages/${id}/classify`, method: 'POST'
+    },
+      options);
+    }
+  
+const postApiV1MailMessagesIdExtract = (
+    id: string,
+    mailExtractionRequest: BodyType<MailExtractionRequest>,
+ options?: SecondParameter<typeof mailConnectorInstance<ObjectApiResponse>>,) => {
+      return mailConnectorInstance<ObjectApiResponse>(
+      {url: `/api/v1/mail-messages/${id}/extract`, method: 'POST',
+      headers: {'Content-Type': 'application/json', },
+      data: mailExtractionRequest
+    },
+      options);
+    }
+  
+const getApiV1MailMessagesIdProcessingJobs = (
+    id: string,
+ options?: SecondParameter<typeof mailConnectorInstance<ObjectApiResponse>>,) => {
+      return mailConnectorInstance<ObjectApiResponse>(
+      {url: `/api/v1/mail-messages/${id}/processing-jobs`, method: 'GET'
+    },
+      options);
+    }
+  
+const getApiV1MailTemplates = (
+    
+ options?: SecondParameter<typeof mailConnectorInstance<MailTemplateDtoListApiResponse>>,) => {
+      return mailConnectorInstance<MailTemplateDtoListApiResponse>(
+      {url: `/api/v1/mail-templates`, method: 'GET'
+    },
+      options);
+    }
+  
+const postApiV1MailTemplates = (
+    createTemplateRequest: BodyType<CreateTemplateRequest>,
+ options?: SecondParameter<typeof mailConnectorInstance<MailTemplateDtoApiResponse>>,) => {
+      return mailConnectorInstance<MailTemplateDtoApiResponse>(
+      {url: `/api/v1/mail-templates`, method: 'POST',
+      headers: {'Content-Type': 'application/json', },
+      data: createTemplateRequest
+    },
+      options);
+    }
+  
+const getApiV1MailTemplatesId = (
+    id: string,
+ options?: SecondParameter<typeof mailConnectorInstance<MailTemplateDtoApiResponse>>,) => {
+      return mailConnectorInstance<MailTemplateDtoApiResponse>(
+      {url: `/api/v1/mail-templates/${id}`, method: 'GET'
+    },
+      options);
+    }
+  
+const putApiV1MailTemplatesId = (
+    id: string,
+    updateTemplateRequest: BodyType<UpdateTemplateRequest>,
+ options?: SecondParameter<typeof mailConnectorInstance<MailTemplateDtoApiResponse>>,) => {
+      return mailConnectorInstance<MailTemplateDtoApiResponse>(
+      {url: `/api/v1/mail-templates/${id}`, method: 'PUT',
+      headers: {'Content-Type': 'application/json', },
+      data: updateTemplateRequest
+    },
+      options);
+    }
+  
+const deleteApiV1MailTemplatesId = (
+    id: string,
+ options?: SecondParameter<typeof mailConnectorInstance<void>>,) => {
+      return mailConnectorInstance<void>(
+      {url: `/api/v1/mail-templates/${id}`, method: 'DELETE'
+    },
+      options);
+    }
+  
 const getOauthCallback = (
     params?: GetOauthCallbackParams,
  options?: SecondParameter<typeof mailConnectorInstance<void>>,) => {
@@ -545,29 +640,19 @@ const postApiV1WebhookSubscriptionsIdTest = (
       options);
     }
   
-return {getApiV1AiOpenaiUsage,getApiV1AiOpenaiUsageCurrentMonth,postApiV1DocumentProcessorProcess,postApiV1DocumentProcessorProcessMultiple,getApiV1EmailAnalysisResults,postApiV1EmailAnalysisResults,getApiV1EmailAnalysisResultsId,putApiV1EmailAnalysisResultsIdFields,postApiV1EmailAnalysisResultsIdApprove,postApiV1EmailAnalysisResultsIdReject,getApiV1EmailAnalysisResultsIdDeliveryLogs,postApiV1EmailMessagesIdProcess,postApiV1EmailMessagesIdTriggerPipeline,postApiV1EmailMessagesIdNormalize,postApiV1EmailMessagesIdClassify,postApiV1EmailMessagesIdExtract,getApiV1EmailMessagesIdProcessingJobs,getApiV1EmailTemplates,postApiV1EmailTemplates,getApiV1EmailTemplatesId,putApiV1EmailTemplatesId,deleteApiV1EmailTemplatesId,postApiV1MailAccountsConnect,postApiV1MailAccounts,getApiV1MailAccounts,getApiV1MailAccountsId,putApiV1MailAccountsId,deleteApiV1MailAccountsId,getApiV1MailAccountsIdSyncStatus,postApiV1MailAccountsIdSync,postApiV1MailAccountsIdSyncDirect,postApiV1MailAuthOauthUrl,postApiV1MailAuthExchangeToken,postApiV1MailAuthRefreshToken,getOpenapiJson,getApiV1MailMessages,getApiV1MailMessagesId,getApiV1MailMessagesIdAttachments,getApiV1MailMessagesMessageIdAttachmentsAttachmentIdDownload,getApiV1MailMessagesMessageIdAttachmentsAttachmentIdContent,getApiV1MailMessagesMessageIdAttachmentsAttachmentIdExtractText,getOauthCallback,getApiV1WebhookSubscriptions,postApiV1WebhookSubscriptions,getApiV1WebhookSubscriptionsId,putApiV1WebhookSubscriptionsId,deleteApiV1WebhookSubscriptionsId,postApiV1WebhookSubscriptionsIdTest}};
+return {getApiV1AiQuotaMailAccountIdUsage,putApiV1AiQuotaMailAccountId,getApiV1AiQuotaMailAccountId,patchApiV1AiQuotaMailAccountIdBlock,getApiV1AiOpenaiUsage,getApiV1AiOpenaiUsageCurrentMonth,postApiV1DocumentProcessorProcess,postApiV1DocumentProcessorProcessMultiple,postApiExportMessageMessageId,postApiExportBatch,getApiExportTemplate,getApiExportHistory,postApiV1MailAccountsConnect,postApiV1MailAccounts,getApiV1MailAccounts,getApiV1MailAccountsId,putApiV1MailAccountsId,deleteApiV1MailAccountsId,getApiV1MailAccountsIdSyncStatus,getApiV1MailAccountsIdPing,postApiV1MailAccountsIdSync,postApiV1MailAccountsIdSyncDirect,getApiV1MailAnalysisResults,postApiV1MailAnalysisResults,getApiV1MailAnalysisResultsId,putApiV1MailAnalysisResultsIdFields,postApiV1MailAnalysisResultsIdApprove,postApiV1MailAnalysisResultsIdReject,getApiV1MailAnalysisResultsIdDeliveryLogs,postApiV1MailAuthOauthUrl,postApiV1MailAuthExchangeToken,postApiV1MailAuthRefreshToken,getOpenapiJson,getApiV1MailMessages,getApiV1MailMessagesId,getApiV1MailMessagesIdAttachments,getApiV1MailMessagesMessageIdAttachmentsAttachmentIdDownload,getApiV1MailMessagesMessageIdAttachmentsAttachmentIdContent,getApiV1MailMessagesMessageIdAttachmentsAttachmentIdExtractText,postApiV1MailMessagesIdProcess,postApiV1MailMessagesIdTriggerPipeline,postApiV1MailMessagesIdNormalize,postApiV1MailMessagesIdClassify,postApiV1MailMessagesIdExtract,getApiV1MailMessagesIdProcessingJobs,getApiV1MailTemplates,postApiV1MailTemplates,getApiV1MailTemplatesId,putApiV1MailTemplatesId,deleteApiV1MailTemplatesId,getOauthCallback,getApiV1WebhookSubscriptions,postApiV1WebhookSubscriptions,getApiV1WebhookSubscriptionsId,putApiV1WebhookSubscriptionsId,deleteApiV1WebhookSubscriptionsId,postApiV1WebhookSubscriptionsIdTest}};
+export type GetApiV1AiQuotaMailAccountIdUsageResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getMailConnectorAPI>['getApiV1AiQuotaMailAccountIdUsage']>>>
+export type PutApiV1AiQuotaMailAccountIdResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getMailConnectorAPI>['putApiV1AiQuotaMailAccountId']>>>
+export type GetApiV1AiQuotaMailAccountIdResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getMailConnectorAPI>['getApiV1AiQuotaMailAccountId']>>>
+export type PatchApiV1AiQuotaMailAccountIdBlockResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getMailConnectorAPI>['patchApiV1AiQuotaMailAccountIdBlock']>>>
 export type GetApiV1AiOpenaiUsageResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getMailConnectorAPI>['getApiV1AiOpenaiUsage']>>>
 export type GetApiV1AiOpenaiUsageCurrentMonthResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getMailConnectorAPI>['getApiV1AiOpenaiUsageCurrentMonth']>>>
 export type PostApiV1DocumentProcessorProcessResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getMailConnectorAPI>['postApiV1DocumentProcessorProcess']>>>
 export type PostApiV1DocumentProcessorProcessMultipleResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getMailConnectorAPI>['postApiV1DocumentProcessorProcessMultiple']>>>
-export type GetApiV1EmailAnalysisResultsResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getMailConnectorAPI>['getApiV1EmailAnalysisResults']>>>
-export type PostApiV1EmailAnalysisResultsResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getMailConnectorAPI>['postApiV1EmailAnalysisResults']>>>
-export type GetApiV1EmailAnalysisResultsIdResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getMailConnectorAPI>['getApiV1EmailAnalysisResultsId']>>>
-export type PutApiV1EmailAnalysisResultsIdFieldsResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getMailConnectorAPI>['putApiV1EmailAnalysisResultsIdFields']>>>
-export type PostApiV1EmailAnalysisResultsIdApproveResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getMailConnectorAPI>['postApiV1EmailAnalysisResultsIdApprove']>>>
-export type PostApiV1EmailAnalysisResultsIdRejectResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getMailConnectorAPI>['postApiV1EmailAnalysisResultsIdReject']>>>
-export type GetApiV1EmailAnalysisResultsIdDeliveryLogsResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getMailConnectorAPI>['getApiV1EmailAnalysisResultsIdDeliveryLogs']>>>
-export type PostApiV1EmailMessagesIdProcessResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getMailConnectorAPI>['postApiV1EmailMessagesIdProcess']>>>
-export type PostApiV1EmailMessagesIdTriggerPipelineResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getMailConnectorAPI>['postApiV1EmailMessagesIdTriggerPipeline']>>>
-export type PostApiV1EmailMessagesIdNormalizeResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getMailConnectorAPI>['postApiV1EmailMessagesIdNormalize']>>>
-export type PostApiV1EmailMessagesIdClassifyResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getMailConnectorAPI>['postApiV1EmailMessagesIdClassify']>>>
-export type PostApiV1EmailMessagesIdExtractResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getMailConnectorAPI>['postApiV1EmailMessagesIdExtract']>>>
-export type GetApiV1EmailMessagesIdProcessingJobsResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getMailConnectorAPI>['getApiV1EmailMessagesIdProcessingJobs']>>>
-export type GetApiV1EmailTemplatesResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getMailConnectorAPI>['getApiV1EmailTemplates']>>>
-export type PostApiV1EmailTemplatesResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getMailConnectorAPI>['postApiV1EmailTemplates']>>>
-export type GetApiV1EmailTemplatesIdResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getMailConnectorAPI>['getApiV1EmailTemplatesId']>>>
-export type PutApiV1EmailTemplatesIdResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getMailConnectorAPI>['putApiV1EmailTemplatesId']>>>
-export type DeleteApiV1EmailTemplatesIdResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getMailConnectorAPI>['deleteApiV1EmailTemplatesId']>>>
+export type PostApiExportMessageMessageIdResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getMailConnectorAPI>['postApiExportMessageMessageId']>>>
+export type PostApiExportBatchResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getMailConnectorAPI>['postApiExportBatch']>>>
+export type GetApiExportTemplateResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getMailConnectorAPI>['getApiExportTemplate']>>>
+export type GetApiExportHistoryResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getMailConnectorAPI>['getApiExportHistory']>>>
 export type PostApiV1MailAccountsConnectResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getMailConnectorAPI>['postApiV1MailAccountsConnect']>>>
 export type PostApiV1MailAccountsResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getMailConnectorAPI>['postApiV1MailAccounts']>>>
 export type GetApiV1MailAccountsResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getMailConnectorAPI>['getApiV1MailAccounts']>>>
@@ -575,8 +660,16 @@ export type GetApiV1MailAccountsIdResult = NonNullable<Awaited<ReturnType<Return
 export type PutApiV1MailAccountsIdResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getMailConnectorAPI>['putApiV1MailAccountsId']>>>
 export type DeleteApiV1MailAccountsIdResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getMailConnectorAPI>['deleteApiV1MailAccountsId']>>>
 export type GetApiV1MailAccountsIdSyncStatusResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getMailConnectorAPI>['getApiV1MailAccountsIdSyncStatus']>>>
+export type GetApiV1MailAccountsIdPingResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getMailConnectorAPI>['getApiV1MailAccountsIdPing']>>>
 export type PostApiV1MailAccountsIdSyncResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getMailConnectorAPI>['postApiV1MailAccountsIdSync']>>>
 export type PostApiV1MailAccountsIdSyncDirectResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getMailConnectorAPI>['postApiV1MailAccountsIdSyncDirect']>>>
+export type GetApiV1MailAnalysisResultsResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getMailConnectorAPI>['getApiV1MailAnalysisResults']>>>
+export type PostApiV1MailAnalysisResultsResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getMailConnectorAPI>['postApiV1MailAnalysisResults']>>>
+export type GetApiV1MailAnalysisResultsIdResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getMailConnectorAPI>['getApiV1MailAnalysisResultsId']>>>
+export type PutApiV1MailAnalysisResultsIdFieldsResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getMailConnectorAPI>['putApiV1MailAnalysisResultsIdFields']>>>
+export type PostApiV1MailAnalysisResultsIdApproveResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getMailConnectorAPI>['postApiV1MailAnalysisResultsIdApprove']>>>
+export type PostApiV1MailAnalysisResultsIdRejectResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getMailConnectorAPI>['postApiV1MailAnalysisResultsIdReject']>>>
+export type GetApiV1MailAnalysisResultsIdDeliveryLogsResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getMailConnectorAPI>['getApiV1MailAnalysisResultsIdDeliveryLogs']>>>
 export type PostApiV1MailAuthOauthUrlResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getMailConnectorAPI>['postApiV1MailAuthOauthUrl']>>>
 export type PostApiV1MailAuthExchangeTokenResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getMailConnectorAPI>['postApiV1MailAuthExchangeToken']>>>
 export type PostApiV1MailAuthRefreshTokenResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getMailConnectorAPI>['postApiV1MailAuthRefreshToken']>>>
@@ -587,6 +680,17 @@ export type GetApiV1MailMessagesIdAttachmentsResult = NonNullable<Awaited<Return
 export type GetApiV1MailMessagesMessageIdAttachmentsAttachmentIdDownloadResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getMailConnectorAPI>['getApiV1MailMessagesMessageIdAttachmentsAttachmentIdDownload']>>>
 export type GetApiV1MailMessagesMessageIdAttachmentsAttachmentIdContentResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getMailConnectorAPI>['getApiV1MailMessagesMessageIdAttachmentsAttachmentIdContent']>>>
 export type GetApiV1MailMessagesMessageIdAttachmentsAttachmentIdExtractTextResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getMailConnectorAPI>['getApiV1MailMessagesMessageIdAttachmentsAttachmentIdExtractText']>>>
+export type PostApiV1MailMessagesIdProcessResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getMailConnectorAPI>['postApiV1MailMessagesIdProcess']>>>
+export type PostApiV1MailMessagesIdTriggerPipelineResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getMailConnectorAPI>['postApiV1MailMessagesIdTriggerPipeline']>>>
+export type PostApiV1MailMessagesIdNormalizeResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getMailConnectorAPI>['postApiV1MailMessagesIdNormalize']>>>
+export type PostApiV1MailMessagesIdClassifyResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getMailConnectorAPI>['postApiV1MailMessagesIdClassify']>>>
+export type PostApiV1MailMessagesIdExtractResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getMailConnectorAPI>['postApiV1MailMessagesIdExtract']>>>
+export type GetApiV1MailMessagesIdProcessingJobsResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getMailConnectorAPI>['getApiV1MailMessagesIdProcessingJobs']>>>
+export type GetApiV1MailTemplatesResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getMailConnectorAPI>['getApiV1MailTemplates']>>>
+export type PostApiV1MailTemplatesResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getMailConnectorAPI>['postApiV1MailTemplates']>>>
+export type GetApiV1MailTemplatesIdResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getMailConnectorAPI>['getApiV1MailTemplatesId']>>>
+export type PutApiV1MailTemplatesIdResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getMailConnectorAPI>['putApiV1MailTemplatesId']>>>
+export type DeleteApiV1MailTemplatesIdResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getMailConnectorAPI>['deleteApiV1MailTemplatesId']>>>
 export type GetOauthCallbackResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getMailConnectorAPI>['getOauthCallback']>>>
 export type GetApiV1WebhookSubscriptionsResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getMailConnectorAPI>['getApiV1WebhookSubscriptions']>>>
 export type PostApiV1WebhookSubscriptionsResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getMailConnectorAPI>['postApiV1WebhookSubscriptions']>>>

@@ -1,17 +1,18 @@
 "use client"
 
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
+import { MAIL_CONNECTOR_AXIOS } from "@/lib/orval/mail-connector-mutator"
 import { getMailConnectorAPI } from "@/lib/generated/mail-connector/endpoints"
-import type { EmailAnalysisResultDto } from "@/lib/generated/mail-connector/model/emailAnalysisResultDto"
+import type { MailAnalysisResultDto } from "@/lib/generated/mail-connector/model/mailAnalysisResultDto"
 import type { CreateTemplateRequest } from "@/lib/generated/mail-connector/model/createTemplateRequest"
 import type { GetApiV1MailMessagesParams } from "@/lib/generated/mail-connector/model/getApiV1MailMessagesParams"
 import type { UpdateTemplateRequest } from "@/lib/generated/mail-connector/model/updateTemplateRequest"
 
 const mailApi = getMailConnectorAPI()
 
-const getAnalysisItems = (data: unknown): EmailAnalysisResultDto[] => {
+const getAnalysisItems = (data: unknown): MailAnalysisResultDto[] => {
   if (!Array.isArray(data)) return []
-  return data as EmailAnalysisResultDto[]
+  return data as MailAnalysisResultDto[]
 }
 
 const getAttachmentTextContent = (data: unknown): string => {
@@ -55,6 +56,29 @@ export function useMailAccountsQuery() {
     queryFn: async () => {
       const response = await mailApi.getApiV1MailAccounts()
       return response.data ?? []
+    },
+  })
+}
+
+export function useConnectAccountMutation() {
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: ({ authorizationCode, redirectUri }: { authorizationCode: string; redirectUri: string }) =>
+      mailApi.postApiV1MailAccountsConnect({ authorizationCode, redirectUri }),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: mailQueryKeys.accounts })
+    },
+  })
+}
+
+export function useDeleteMailAccountMutation() {
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: (accountId: string) => mailApi.deleteApiV1MailAccountsId(accountId),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: mailQueryKeys.accounts })
     },
   })
 }
@@ -111,13 +135,22 @@ export function useMailMessagesQuery(params: {
   pageSize: number
   fromEmail?: string
   hasAttachment?: boolean
+  processStatus?: string
+  sortField?: string
+  sortOrder?: "asc" | "desc"
 }) {
+  const filters: string[] = []
+  if (params.accountId) filters.push(`mailAccountId==${params.accountId}`)
+  if (params.fromEmail) filters.push(`fromEmail@=${params.fromEmail}`)
+  if (params.hasAttachment) filters.push(`hasAttachments==true`)
+  if (params.processStatus) filters.push(`processStatus==${params.processStatus}`)
+
   const queryParams: GetApiV1MailMessagesParams = {
-    accountId: params.accountId,
-    page: params.page,
-    pageSize: params.pageSize,
-    fromEmail: params.fromEmail,
-    hasAttachment: params.hasAttachment,
+    Page: params.page,
+    PageSize: params.pageSize,
+    Filters: filters.join("&") || undefined,
+    SortField: params.sortField ?? "receivedAt",
+    SortOrder: params.sortOrder ?? "desc",
   }
 
   return useQuery({
@@ -152,11 +185,11 @@ export function useMailMessageAttachmentsQuery(id: string | null) {
 export function useProcessMailMutation() {
   return useMutation({
     mutationFn: async (id: string) => {
-      await mailApi.postApiV1EmailMessagesIdProcess(id)
-      await mailApi.postApiV1EmailAnalysisResults({ emailMessageId: id })
-      const resultResponse = await mailApi.getApiV1EmailAnalysisResults()
+      await mailApi.postApiV1MailMessagesIdProcess(id)
+      await mailApi.postApiV1MailAnalysisResults({ mailMessageId: id })
+      const resultResponse = await mailApi.getApiV1MailAnalysisResults()
       const matched = getAnalysisItems(resultResponse.data)
-        .filter((item) => item.emailMessageId === id)
+        .filter((item) => item.mailMessageId === id)
         .sort((first, second) => {
           const firstTime = new Date(first.updatedAt ?? first.createdAt ?? 0).getTime()
           const secondTime = new Date(second.updatedAt ?? second.createdAt ?? 0).getTime()
@@ -171,11 +204,11 @@ export function useDownloadAttachmentMutation(messageId: string | null) {
   return useMutation({
     mutationFn: async ({ attachmentId, fileName }: { attachmentId: string; fileName?: string | null }) => {
       if (!messageId) throw new Error("Thiếu messageId để tải tệp.")
-      const blob = (await mailApi.getApiV1MailMessagesMessageIdAttachmentsAttachmentIdDownload(
-        messageId,
-        attachmentId,
+      const response = await MAIL_CONNECTOR_AXIOS.get(
+        `/api/v1/mail-messages/${messageId}/attachments/${attachmentId}/download`,
         { responseType: "blob" }
-      )) as unknown as Blob
+      )
+      const blob = response.data as Blob
       const url = URL.createObjectURL(blob)
       const anchor = document.createElement("a")
       anchor.href = url
@@ -227,7 +260,7 @@ export function useAnalysisResultQuery(id: string | null) {
     queryKey: id ? mailQueryKeys.analysis(id) : ["mail-analysis", "none"],
     enabled: Boolean(id),
     queryFn: async () => {
-      const response = await mailApi.getApiV1EmailAnalysisResultsId(id as string)
+      const response = await mailApi.getApiV1MailAnalysisResultsId(id as string)
       return response.data
     },
     refetchInterval: (query) => {
@@ -244,9 +277,9 @@ export function useLatestAnalysisByMessageIdQuery(messageId: string | null) {
     queryKey: messageId ? mailQueryKeys.latestAnalysisByMessage(messageId) : ["mail-analysis-latest", "none"],
     enabled: Boolean(messageId),
     queryFn: async () => {
-      const response = await mailApi.getApiV1EmailAnalysisResults()
+      const response = await mailApi.getApiV1MailAnalysisResults()
       const matched = getAnalysisItems(response.data)
-        .filter((item) => item.emailMessageId === messageId)
+        .filter((item) => item.mailMessageId === messageId)
         .sort((first, second) => {
           const firstTime = new Date(first.updatedAt ?? first.createdAt ?? 0).getTime()
           const secondTime = new Date(second.updatedAt ?? second.createdAt ?? 0).getTime()
@@ -262,7 +295,7 @@ export function useUpdateAnalysisFieldsMutation(analysisId: string | null) {
 
   return useMutation({
     mutationFn: (fields: Record<string, string>) =>
-      mailApi.putApiV1EmailAnalysisResultsIdFields(analysisId as string, {
+      mailApi.putApiV1MailAnalysisResultsIdFields(analysisId as string, {
         extractedFields: fields,
       }),
     onSuccess: () => {
@@ -278,7 +311,7 @@ export function useApproveAnalysisMutation(analysisId: string | null) {
 
   return useMutation({
     mutationFn: (userId: string) =>
-      mailApi.postApiV1EmailAnalysisResultsIdApprove(analysisId as string, { userId }),
+      mailApi.postApiV1MailAnalysisResultsIdApprove(analysisId as string, { userId }),
     onSuccess: () => {
       if (analysisId) {
         void queryClient.invalidateQueries({ queryKey: mailQueryKeys.analysis(analysisId) })
@@ -292,7 +325,7 @@ export function useRejectAnalysisMutation(analysisId: string | null) {
 
   return useMutation({
     mutationFn: ({ userId, reason }: { userId: string; reason?: string }) =>
-      mailApi.postApiV1EmailAnalysisResultsIdReject(analysisId as string, { userId, reason }),
+      mailApi.postApiV1MailAnalysisResultsIdReject(analysisId as string, { userId, reason }),
     onSuccess: () => {
       if (analysisId) {
         void queryClient.invalidateQueries({ queryKey: mailQueryKeys.analysis(analysisId) })
@@ -305,7 +338,7 @@ export function useEmailTemplatesQuery() {
   return useQuery({
     queryKey: mailQueryKeys.templates,
     queryFn: async () => {
-      const response = await mailApi.getApiV1EmailTemplates()
+      const response = await mailApi.getApiV1MailTemplates()
       return response.data ?? []
     },
   })
@@ -315,7 +348,7 @@ export function useCreateEmailTemplateMutation() {
   const queryClient = useQueryClient()
 
   return useMutation({
-    mutationFn: (payload: CreateTemplateRequest) => mailApi.postApiV1EmailTemplates(payload),
+    mutationFn: (payload: CreateTemplateRequest) => mailApi.postApiV1MailTemplates(payload),
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: mailQueryKeys.templates })
     },
@@ -327,7 +360,7 @@ export function useUpdateEmailTemplateMutation(templateId: string | null) {
 
   return useMutation({
     mutationFn: (payload: UpdateTemplateRequest) =>
-      mailApi.putApiV1EmailTemplatesId(templateId as string, payload),
+      mailApi.putApiV1MailTemplatesId(templateId as string, payload),
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: mailQueryKeys.templates })
     },
@@ -338,7 +371,7 @@ export function useDeleteEmailTemplateMutation() {
   const queryClient = useQueryClient()
 
   return useMutation({
-    mutationFn: (templateId: string) => mailApi.deleteApiV1EmailTemplatesId(templateId),
+    mutationFn: (templateId: string) => mailApi.deleteApiV1MailTemplatesId(templateId),
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: mailQueryKeys.templates })
     },

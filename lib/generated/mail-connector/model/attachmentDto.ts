@@ -18,4 +18,6 @@ export interface AttachmentDto {
   downloadStatus?: string | null;
   /** @nullable */
   downloadUrl?: string | null;
+  createdAt?: string;
+  updatedAt?: string;
 }

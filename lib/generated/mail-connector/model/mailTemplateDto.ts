@@ -5,9 +5,9 @@
  * Mail Connector API — company API contract v2.1 (camelCase envelope, HTTP-status-driven, correlationId, traceId, non-nullable meta/errors collections).
  * OpenAPI spec version: v1
  */
-import type { EmailTemplateDtoExpectedFields } from './emailTemplateDtoExpectedFields';
+import type { MailTemplateDtoExpectedFields } from './mailTemplateDtoExpectedFields';
 
-export interface EmailTemplateDto {
+export interface MailTemplateDto {
   id?: string;
   /** @nullable */
   templateCode?: string | null;
@@ -20,7 +20,7 @@ export interface EmailTemplateDto {
   /** @nullable */
   bodyPattern?: string | null;
   /** @nullable */
-  expectedFields?: EmailTemplateDtoExpectedFields;
+  expectedFields?: MailTemplateDtoExpectedFields;
   /** @nullable */
   documentTypes?: string[] | null;
   isActive?: boolean;

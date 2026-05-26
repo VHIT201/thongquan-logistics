@@ -18,6 +18,10 @@ export interface MailMessageDto {
   fromName?: string | null;
   /** @nullable */
   receivedAt?: string | null;
+  /** @nullable */
+  sentAt?: string | null;
+  createdAt?: string;
+  updatedAt?: string;
   hasAttachments?: boolean;
   /** @nullable */
   syncStatus?: string | null;

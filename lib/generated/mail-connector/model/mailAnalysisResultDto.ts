@@ -5,21 +5,21 @@
  * Mail Connector API — company API contract v2.1 (camelCase envelope, HTTP-status-driven, correlationId, traceId, non-nullable meta/errors collections).
  * OpenAPI spec version: v1
  */
-import type { EmailCategory } from './emailCategory';
-import type { EmailIntent } from './emailIntent';
+import type { MailCategory } from './mailCategory';
+import type { MailIntent } from './mailIntent';
 import type { AnalysisStatus } from './analysisStatus';
-import type { EmailAnalysisResultDtoExtractedFields } from './emailAnalysisResultDtoExtractedFields';
+import type { MailAnalysisResultDtoExtractedFields } from './mailAnalysisResultDtoExtractedFields';
 
-export interface EmailAnalysisResultDto {
+export interface MailAnalysisResultDto {
   id?: string;
-  emailMessageId?: string;
-  category?: EmailCategory;
-  detectedIntent?: EmailIntent;
+  mailMessageId?: string;
+  category?: MailCategory;
+  detectedIntent?: MailIntent;
   status?: AnalysisStatus;
   /** @nullable */
   confidenceScore?: number | null;
   /** @nullable */
-  extractedFields?: EmailAnalysisResultDtoExtractedFields;
+  extractedFields?: MailAnalysisResultDtoExtractedFields;
   /** @nullable */
   missingFields?: string[] | null;
   /** @nullable */

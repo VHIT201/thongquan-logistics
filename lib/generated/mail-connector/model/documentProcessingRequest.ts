@@ -16,4 +16,6 @@ export interface DocumentProcessingRequest {
   isImage?: boolean;
   /** @nullable */
   mimeType?: string | null;
+  /** @nullable */
+  mailAccountId?: string | null;
 }

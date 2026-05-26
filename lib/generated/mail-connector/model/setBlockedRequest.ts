@@ -6,7 +6,6 @@
  * OpenAPI spec version: v1
  */
 
-/**
- * @nullable
- */
-export type ExtractEmailRequestExpectedFields = {[key: string]: string} | null;
+export interface SetBlockedRequest {
+  isBlocked?: boolean;
+}

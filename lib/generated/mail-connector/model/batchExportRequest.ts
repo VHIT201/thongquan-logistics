@@ -5,12 +5,8 @@
  * Mail Connector API — company API contract v2.1 (camelCase envelope, HTTP-status-driven, correlationId, traceId, non-nullable meta/errors collections).
  * OpenAPI spec version: v1
  */
-import type { ExtractEmailRequestExpectedFields } from './extractEmailRequestExpectedFields';
 
-export interface ExtractEmailRequest {
-  emailMessageId?: string;
+export interface BatchExportRequest {
   /** @nullable */
-  templateCode?: string | null;
-  /** @nullable */
-  expectedFields?: ExtractEmailRequestExpectedFields;
+  messageIds?: string[] | null;
 }

@@ -91,7 +91,7 @@ export default function EmailDetailPage() {
   if (messageQuery.error || !messageQuery.data) {
     return (
       <div className="space-y-3">
-        <Link href="/emails" className="flex items-center gap-1 text-sm text-neutral-200 hover:text-neutral-300">
+        <Link href="/emails" className="flex cursor-pointer items-center gap-1 text-sm text-neutral-200 hover:text-neutral-300">
           <ArrowLeft className="h-4 w-4" /> Quay lại
         </Link>
         <div className="rounded-lg bg-red-50 p-3 text-sm text-red-700">
@@ -106,7 +106,7 @@ export default function EmailDetailPage() {
   return (
     <div className="space-y-4">
       <div className="flex items-center gap-2">
-        <Link href="/emails" className="flex items-center gap-1 text-sm text-neutral-200 hover:text-neutral-300">
+        <Link href="/emails" className="flex cursor-pointer items-center gap-1 text-sm text-neutral-200 hover:text-neutral-300">
           <ArrowLeft className="h-4 w-4" /> Quay lại
         </Link>
       </div>
@@ -114,18 +114,18 @@ export default function EmailDetailPage() {
       <div className="space-y-4 rounded-xl border border-neutral-100 bg-white p-6">
         <div id="tour-email-header" className="flex items-start justify-between gap-4">
           <div className="min-w-0">
-            <h1 className="text-xl font-bold text-neutral-300">{emailData.subject || "(Không có tiêu đề)"}</h1>
+            <h1 className="text-xl font-bold text-neutral-300">{emailData?.subject || "(Không có tiêu đề)"}</h1>
             <p className="mt-1 text-sm text-neutral-200">
-              Từ: {emailData.fromName || "N/A"} ({emailData.fromEmail || "N/A"})
+              Từ: {emailData?.fromName || "N/A"} ({emailData?.fromEmail || "N/A"})
             </p>
             <p className="text-sm text-neutral-200">
-              Nhận lúc: {emailData.receivedAt ? dayjs(emailData.receivedAt).format("DD/MM/YYYY HH:mm") : "—"}
+              Nhận lúc: {emailData?.receivedAt ? dayjs(emailData.receivedAt).format("DD/MM/YYYY HH:mm") : "—"}
             </p>
           </div>
           <div className="flex gap-2">
             <Link
               href={`/emails/${messageId}/extract`}
-              className="flex items-center gap-2 rounded-lg border border-neutral-100 px-4 py-2 text-sm font-medium text-neutral-200 hover:bg-neutral-50"
+              className="flex cursor-pointer items-center gap-2 rounded-lg border border-neutral-100 px-4 py-2 text-sm font-medium text-neutral-200 hover:bg-neutral-50"
             >
               Trích xuất
             </Link>
@@ -133,7 +133,7 @@ export default function EmailDetailPage() {
               id="tour-email-ai-btn"
               onClick={handleSendToAI}
               disabled={processMutation.isPending}
-              className="flex items-center gap-2 rounded-lg bg-primary px-4 py-2 text-sm font-medium text-white hover:bg-primary-500 disabled:opacity-50"
+              className="flex cursor-pointer items-center gap-2 rounded-lg bg-primary px-4 py-2 text-sm font-medium text-white hover:bg-primary-500 disabled:opacity-50 disabled:cursor-not-allowed"
             >
               <Send className="h-4 w-4" />
               {processMutation.isPending ? "Đang xử lý..." : "Gửi AI bóc tách"}
@@ -148,7 +148,7 @@ export default function EmailDetailPage() {
               <div className="flex items-center gap-1 rounded-md border border-neutral-100 bg-white p-1 text-xs">
                 <button
                   onClick={() => setContentMode("auto")}
-                  className={`rounded px-2 py-1 ${
+                  className={`cursor-pointer rounded px-2 py-1 ${
                     contentMode === "auto" ? "bg-primary text-white" : "text-neutral-300 hover:bg-neutral-50"
                   }`}
                 >
@@ -156,7 +156,7 @@ export default function EmailDetailPage() {
                 </button>
                 <button
                   onClick={() => setContentMode("text")}
-                  className={`rounded px-2 py-1 ${
+                  className={`cursor-pointer rounded px-2 py-1 ${
                     contentMode === "text" ? "bg-primary text-white" : "text-neutral-300 hover:bg-neutral-50"
                   }`}
                 >
@@ -164,7 +164,7 @@ export default function EmailDetailPage() {
                 </button>
                 <button
                   onClick={() => setContentMode("html")}
-                  className={`rounded px-2 py-1 ${
+                  className={`cursor-pointer rounded px-2 py-1 ${
                     contentMode === "html" ? "bg-primary text-white" : "text-neutral-300 hover:bg-neutral-50"
                   }`}
                 >
@@ -197,7 +197,7 @@ export default function EmailDetailPage() {
               {attachments.map((attachment) => (
                 <div
                   key={attachment.id}
-                  className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-neutral-100 p-3 hover:bg-neutral-50"
+                  className="flex cursor-pointer flex-wrap items-center justify-between gap-2 rounded-lg border border-neutral-100 p-3 hover:bg-neutral-50"
                 >
                   <div className="flex items-center gap-3">
                     <Paperclip className="h-4 w-4 text-neutral-200" />
@@ -212,20 +212,20 @@ export default function EmailDetailPage() {
                   <div className="flex flex-wrap items-center gap-2">
                     <button
                       onClick={() => handleShowAttachmentExtractText(attachment.id)}
-                      className="inline-flex items-center gap-1 rounded-md border border-neutral-100 px-2 py-1 text-xs text-neutral-200 hover:bg-neutral-50"
+                      className="inline-flex cursor-pointer items-center gap-1 rounded-md border border-neutral-100 px-2 py-1 text-xs text-neutral-200 hover:bg-neutral-50"
                     >
                       <FileText className="h-3 w-3" /> Trích text
                     </button>
                     <button
                       onClick={() => handleShowAttachmentContent(attachment.id)}
-                      className="inline-flex items-center gap-1 rounded-md border border-neutral-100 px-2 py-1 text-xs text-neutral-200 hover:bg-neutral-50"
+                      className="inline-flex cursor-pointer items-center gap-1 rounded-md border border-neutral-100 px-2 py-1 text-xs text-neutral-200 hover:bg-neutral-50"
                     >
                       <FileText className="h-3 w-3" /> Nội dung
                     </button>
                     <button
                       onClick={() => handleDownloadAttachment(attachment.id, attachment.fileName)}
                       disabled={downloadAttachmentMutation.isPending}
-                      className="inline-flex items-center gap-1 rounded-md border border-neutral-100 px-2 py-1 text-xs text-neutral-200 hover:bg-neutral-50 disabled:opacity-50"
+                      className="inline-flex cursor-pointer items-center gap-1 rounded-md border border-neutral-100 px-2 py-1 text-xs text-neutral-200 hover:bg-neutral-50 disabled:opacity-50 disabled:cursor-not-allowed"
                     >
                       <Download className="h-3 w-3" /> Tải
                     </button>
@@ -245,7 +245,7 @@ export default function EmailDetailPage() {
                   </p>
                   <button
                     onClick={() => setSelectedAttachmentId(null)}
-                    className="text-xs text-neutral-200 hover:text-neutral-300"
+                    className="cursor-pointer text-xs text-neutral-200 hover:text-neutral-300"
                   >
                     Đóng
                   </button>

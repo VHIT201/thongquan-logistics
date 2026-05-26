@@ -6,10 +6,12 @@
  * OpenAPI spec version: v1
  */
 
-export type GetApiV1MailMessagesParams = {
-Filters?: string;
-SortField?: string;
-SortOrder?: string;
-Page?: number;
-PageSize?: number;
-};
+export interface AttachmentExtractionInfo {
+  attachmentId?: string;
+  /** @nullable */
+  fileName?: string | null;
+  /** @nullable */
+  extractedText?: string | null;
+  /** @nullable */
+  detectedDocumentType?: string | null;
+}

@@ -98,7 +98,7 @@ export default function ExtractPage() {
   if (!analysisId) {
     return (
       <div className="space-y-3">
-        <Link href={`/emails/${messageId}`} className="flex items-center gap-1 text-sm text-neutral-200 hover:text-neutral-300">
+        <Link href={`/emails/${messageId}`} className="flex cursor-pointer items-center gap-1 text-sm text-neutral-200 hover:text-neutral-300">
           <ArrowLeft className="h-4 w-4" /> Quay lại email
         </Link>
         <div className="rounded-lg bg-amber-50 p-3 text-sm text-amber-700">
@@ -111,14 +111,14 @@ export default function ExtractPage() {
   return (
     <div className="space-y-4">
       <div className="flex flex-wrap items-center justify-between gap-2">
-        <Link href={`/emails/${messageId}`} className="flex items-center gap-1 text-sm text-neutral-200 hover:text-neutral-300">
+        <Link href={`/emails/${messageId}`} className="flex cursor-pointer items-center gap-1 text-sm text-neutral-200 hover:text-neutral-300">
           <ArrowLeft className="h-4 w-4" /> Quay lại email
         </Link>
         <div className="flex flex-wrap gap-2">
           <button
             onClick={handleSave}
             disabled={updateFieldsMutation.isPending}
-            className="flex items-center gap-2 rounded-lg border border-neutral-100 px-4 py-2 text-sm font-medium text-neutral-200 hover:bg-neutral-50 disabled:opacity-50"
+            className="flex cursor-pointer items-center gap-2 rounded-lg border border-neutral-100 px-4 py-2 text-sm font-medium text-neutral-200 hover:bg-neutral-50 disabled:opacity-50 disabled:cursor-not-allowed"
           >
             <Save className="h-4 w-4" />
             {updateFieldsMutation.isPending ? "Đang lưu..." : "Lưu chỉnh sửa"}
@@ -126,7 +126,7 @@ export default function ExtractPage() {
           <button
             onClick={handleApprove}
             disabled={approveMutation.isPending}
-            className="flex items-center gap-2 rounded-lg bg-emerald-600 px-4 py-2 text-sm font-medium text-white hover:bg-emerald-700 disabled:opacity-50"
+            className="flex cursor-pointer items-center gap-2 rounded-lg bg-emerald-600 px-4 py-2 text-sm font-medium text-white hover:bg-emerald-700 disabled:opacity-50 disabled:cursor-not-allowed"
           >
             <ThumbsUp className="h-4 w-4" />
             {approveMutation.isPending ? "Đang duyệt..." : "Duyệt"}
@@ -134,7 +134,7 @@ export default function ExtractPage() {
           <button
             onClick={handleReject}
             disabled={rejectMutation.isPending}
-            className="flex items-center gap-2 rounded-lg bg-rose-600 px-4 py-2 text-sm font-medium text-white hover:bg-rose-700 disabled:opacity-50"
+            className="flex cursor-pointer items-center gap-2 rounded-lg bg-rose-600 px-4 py-2 text-sm font-medium text-white hover:bg-rose-700 disabled:opacity-50 disabled:cursor-not-allowed"
           >
             <ThumbsDown className="h-4 w-4" />
             {rejectMutation.isPending ? "Đang từ chối..." : "Từ chối"}
@@ -142,7 +142,7 @@ export default function ExtractPage() {
           <button
             id="tour-extract-export"
             onClick={handleExport}
-            className="flex items-center gap-2 rounded-lg bg-green-600 px-4 py-2 text-sm font-medium text-white hover:bg-green-700"
+            className="flex cursor-pointer items-center gap-2 rounded-lg bg-green-600 px-4 py-2 text-sm font-medium text-white hover:bg-green-700"
           >
             <FileSpreadsheet className="h-4 w-4" />
             Export CSV

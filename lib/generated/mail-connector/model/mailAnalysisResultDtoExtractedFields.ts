@@ -6,8 +6,7 @@
  * OpenAPI spec version: v1
  */
 
-export type GetApiV1EmailAnalysisResultsParams = {
-status?: string;
-page?: number;
-pageSize?: number;
-};
+/**
+ * @nullable
+ */
+export type MailAnalysisResultDtoExtractedFields = {[key: string]: string} | null;

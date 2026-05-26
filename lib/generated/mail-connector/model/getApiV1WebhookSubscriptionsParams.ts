@@ -7,6 +7,9 @@
  */
 
 export type GetApiV1WebhookSubscriptionsParams = {
-page?: number;
-pageSize?: number;
+Filters?: string;
+SortField?: string;
+SortOrder?: string;
+Page?: number;
+PageSize?: number;
 };

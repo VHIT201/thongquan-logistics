@@ -6,16 +6,15 @@
  * OpenAPI spec version: v1
  */
 
-export type EmailCategory = typeof EmailCategory[keyof typeof EmailCategory];
+export type MailIntent = typeof MailIntent[keyof typeof MailIntent];
 
 
 // eslint-disable-next-line @typescript-eslint/no-redeclare
-export const EmailCategory = {
-  businessDocument: 'businessDocument',
-  orderRequest: 'orderRequest',
-  supportRequest: 'supportRequest',
-  notification: 'notification',
-  systemEmail: 'systemEmail',
-  spam: 'spam',
+export const MailIntent = {
+  createOrderRequest: 'createOrderRequest',
+  updateOrderRequest: 'updateOrderRequest',
+  cancelOrderRequest: 'cancelOrderRequest',
+  supportInquiry: 'supportInquiry',
+  informationRequest: 'informationRequest',
   unknown: 'unknown',
 } as const;

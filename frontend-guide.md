@@ -1,7 +1,7 @@
 # MailConnector - Frontend Integration Guide
 
-**Version:** 1.0  
-**Last Updated:** 2026-05-22  
+**Version:** 1.1  
+**Last Updated:** 2026-05-24  
 **Target Audience:** Frontend Developers, UI/UX Designers
 
 ---
@@ -286,20 +286,86 @@ Content-Type: application/json
 
 **UI Action:** Hiển thị progress bar, poll `/sync-status` để cập nhật
 
+#### Tạo tài khoản trực tiếp
+
+```http
+POST /api/v1/mail-accounts
+Content-Type: application/json
+
+{
+  "provider": "gmail",
+  "authorizationCode": "4/0AX4XfWh...",
+  "redirectUri": "https://your-app.com/callback"
+}
+```
+
+**Response (201 Created):** Tương tự như endpoint `/connect`
+
+**UI Action:** Alternative endpoint để tạo tài khoản, trả về kết quả tương tự
+
+#### Ping tài khoản
+
+```http
+GET /api/v1/mail-accounts/{id}/ping
+```
+
+**Response (200 OK):**
+
+```json
+{
+  "id": "uuid",
+  "status": "ok"
+}
+```
+
+**UI Action:** Health check cho tài khoản, dùng để kiểm tra kết nối
+
+#### Đồng bộ trực tiếp (không qua queue)
+
+```http
+POST /api/v1/mail-accounts/{id}/sync-direct
+Content-Type: application/json
+
+{
+  "syncType": "full",
+  "folderIds": ["INBOX", "SENT"],
+  "fromDate": "2026-01-01T00:00:00.000Z",
+  "toDate": "2026-05-22T00:00:00.000Z"
+}
+```
+
+**Response (200 OK):**
+
+```json
+{
+  "synced": true
+}
+```
+
+**UI Action:** Đồng bộ trực tiếp mà không qua job queue - chủ yếu dùng cho testing
+
 ### Mail Messages
 
 #### Lấy danh sách tin nhắn
 
 ```http
-GET /api/v1/mail-messages?accountId={accountId}&page=1&pageSize=20&fromEmail={email}&hasAttachment=true
+GET /api/v1/mail-messages?page=1&pageSize=20&filters=mailAccountId==<guid>&sortField=receivedAt&sortOrder=desc
 ```
 
 **Query Parameters:**
-- `accountId` (optional, GUID) - Lọc theo tài khoản
 - `page` (default: 1) - Số trang
 - `pageSize` (default: 20) - Số item/trang
-- `fromEmail` (optional) - Lọc theo người gửi
-- `hasAttachment` (optional, boolean) - Lọc có đính kèm
+- `filters` (optional) - Bộ lọc theo DSL (xem ví dụ dưới)
+- `sortField` (optional) - Trường để sort (default: receivedAt)
+- `sortOrder` (optional) - Thứ tự sort (asc/desc, default: desc)
+
+**Filter DSL Examples:**
+- `mailAccountId==<guid>` - Lọc theo tài khoản
+- `fromEmail@=gmail` - Lọc theo người gửi (contains)
+- `hasAttachments==true` - Lọc có đính kèm
+- `syncStatus==Synced|syncStatus==Failed` - Lọc theo trạng thái đồng bộ (OR)
+- `receivedAt>=2025-01-01` - Lọc theo ngày nhận
+- `receivedAt>=2025-01-01&receivedAt<=2025-12-31` - Lọc theo khoảng ngày
 
 **Response (200 OK):**
 
@@ -316,6 +382,9 @@ GET /api/v1/mail-messages?accountId={accountId}&page=1&pageSize=20&fromEmail={em
       "fromEmail": "sender@example.com",
       "fromName": "Jane Smith",
       "receivedAt": "2026-05-22T09:00:00.000Z",
+      "sentAt": "2026-05-22T08:55:00.000Z",
+      "createdAt": "2026-05-22T09:00:00.000Z",
+      "updatedAt": "2026-05-22T09:00:00.000Z",
       "hasAttachments": true,
       "syncStatus": "synced",
       "processStatus": "processed"
@@ -356,6 +425,9 @@ GET /api/v1/mail-messages/{id}
     "toEmails": ["recipient@example.com"],
     "ccEmails": ["cc@example.com"],
     "receivedAt": "2026-05-22T09:00:00.000Z",
+    "sentAt": "2026-05-22T08:55:00.000Z",
+    "createdAt": "2026-05-22T09:00:00.000Z",
+    "updatedAt": "2026-05-22T09:00:00.000Z",
     "bodyText": "Plain text content...",
     "bodyHtml": "<p>HTML content...</p>",
     "attachments": [
@@ -365,7 +437,9 @@ GET /api/v1/mail-messages/{id}
         "contentType": "application/pdf",
         "fileSize": 1024000,
         "downloadStatus": "available",
-        "downloadUrl": null
+        "downloadUrl": null,
+        "createdAt": "2026-05-22T09:00:00.000Z",
+        "updatedAt": "2026-05-22T09:00:00.000Z"
       }
     ]
   },
@@ -500,7 +574,7 @@ Content-Type: application/json
 #### Lấy danh sách kết quả phân tích
 
 ```http
-GET /api/v1/email-analysis-results?status=pending
+GET /api/v1/mail-analysis-results?status=pending
 ```
 
 **Query Parameters:**
@@ -516,7 +590,7 @@ GET /api/v1/email-analysis-results?status=pending
   "data": [
     {
       "id": "uuid",
-      "emailMessageId": "uuid",
+      "mailMessageId": "uuid",
       "category": "BusinessDocument",
       "detectedIntent": "CreateOrderRequest",
       "status": "PendingReview",
@@ -546,11 +620,11 @@ GET /api/v1/email-analysis-results?status=pending
 #### Tạo kết quả phân tích mới
 
 ```http
-POST /api/v1/email-analysis-results
+POST /api/v1/mail-analysis-results
 Content-Type: application/json
 
 {
-  "emailMessageId": "uuid"
+  "mailMessageId": "uuid"
 }
 ```
 
@@ -559,7 +633,7 @@ Content-Type: application/json
 #### Phê duyệt kết quả
 
 ```http
-POST /api/v1/email-analysis-results/{id}/approve
+POST /api/v1/mail-analysis-results/{id}/approve
 Content-Type: application/json
 
 {
@@ -572,7 +646,7 @@ Content-Type: application/json
 #### Từ chối kết quả
 
 ```http
-POST /api/v1/email-analysis-results/{id}/reject
+POST /api/v1/mail-analysis-results/{id}/reject
 Content-Type: application/json
 
 {
@@ -586,7 +660,7 @@ Content-Type: application/json
 #### Cập nhật fields
 
 ```http
-PUT /api/v1/email-analysis-results/{id}/fields
+PUT /api/v1/mail-analysis-results/{id}/fields
 Content-Type: application/json
 
 {
@@ -604,7 +678,7 @@ Content-Type: application/json
 #### Lấy delivery logs
 
 ```http
-GET /api/v1/email-analysis-results/{id}/delivery-logs
+GET /api/v1/mail-analysis-results/{id}/delivery-logs
 ```
 
 **Response (200 OK):**
@@ -639,7 +713,7 @@ GET /api/v1/email-analysis-results/{id}/delivery-logs
 #### Xử lý email
 
 ```http
-POST /api/v1/email-messages/{id}/process
+POST /api/v1/mail-messages/{id}/process
 ```
 
 **Response (200 OK):** Tạo analysis result mới
@@ -647,7 +721,7 @@ POST /api/v1/email-messages/{id}/process
 #### Chuẩn hóa email
 
 ```http
-POST /api/v1/email-messages/{id}/normalize
+POST /api/v1/mail-messages/{id}/normalize
 ```
 
 **Response (200 OK):** Email được chuẩn hóa
@@ -655,7 +729,7 @@ POST /api/v1/email-messages/{id}/normalize
 #### Phân loại email
 
 ```http
-POST /api/v1/email-messages/{id}/classify
+POST /api/v1/mail-messages/{id}/classify
 ```
 
 **Response (200 OK):** Email được phân loại
@@ -663,7 +737,7 @@ POST /api/v1/email-messages/{id}/classify
 #### Kích hoạt pipeline xử lý
 
 ```http
-POST /api/v1/email-messages/{id}/trigger-pipeline
+POST /api/v1/mail-messages/{id}/trigger-pipeline
 ```
 
 **Response (200 OK):**
@@ -686,7 +760,7 @@ POST /api/v1/email-messages/{id}/trigger-pipeline
 #### Lấy danh sách processing jobs
 
 ```http
-GET /api/v1/email-messages/{id}/processing-jobs
+GET /api/v1/mail-messages/{id}/processing-jobs
 ```
 
 **Response (200 OK):**
@@ -716,7 +790,7 @@ GET /api/v1/email-messages/{id}/processing-jobs
 #### Trích xuất trường từ email
 
 ```http
-POST /api/v1/email-messages/{id}/extract
+POST /api/v1/mail-messages/{id}/extract
 Content-Type: application/json
 
 {
@@ -735,7 +809,7 @@ Content-Type: application/json
 #### Lấy danh sách templates
 
 ```http
-GET /api/v1/email-templates
+GET /api/v1/mail-templates
 ```
 
 **Response (200 OK):**
@@ -771,7 +845,7 @@ GET /api/v1/email-templates
 #### Tạo template mới
 
 ```http
-POST /api/v1/email-templates
+POST /api/v1/mail-templates
 Content-Type: application/json
 
 {
@@ -814,12 +888,12 @@ Content-Type: application/json
 }
 ```
 
-**Location Header:** `/api/v1/email-templates/{id}`
+**Location Header:** `/api/v1/mail-templates/{id}`
 
 #### Cập nhật template
 
 ```http
-PUT /api/v1/email-templates/{id}
+PUT /api/v1/mail-templates/{id}
 Content-Type: application/json
 
 {
@@ -858,7 +932,7 @@ Content-Type: application/json
 #### Xóa template
 
 ```http
-DELETE /api/v1/email-templates/{id}
+DELETE /api/v1/mail-templates/{id}
 ```
 
 **Response (204 No Content)**
@@ -982,6 +1056,9 @@ Content-Type: application/json
 | `fromEmail` | string? | Email người gửi |
 | `fromName` | string? | Tên người gửi |
 | `receivedAt` | DateTime? | Thời gian nhận |
+| `sentAt` | DateTime? | Thời gian gửi |
+| `createdAt` | DateTime | Thời gian tạo bản ghi |
+| `updatedAt` | DateTime | Thời gian cập nhật bản ghi |
 | `hasAttachments` | boolean | Có đính kèm không |
 | `syncStatus` | string | Trạng thái đồng bộ |
 | `processStatus` | string | Trạng thái xử lý |
@@ -996,6 +1073,8 @@ Content-Type: application/json
 | `fileSize` | long? | Kích thước (bytes) |
 | `downloadStatus` | string | Trạng thái tải xuống |
 | `downloadUrl` | string? | URL tải xuống |
+| `createdAt` | DateTime | Thời gian tạo bản ghi |
+| `updatedAt` | DateTime | Thời gian cập nhật bản ghi |
 
 ### SyncStatus
 
@@ -1014,7 +1093,7 @@ Content-Type: application/json
 | Field | Type | Description |
 |-------|------|-------------|
 | `id` | GUID | ID kết quả phân tích |
-| `emailMessageId` | GUID | ID email message |
+| `mailMessageId` | GUID | ID email message |
 | `category` | string? | Category (BusinessDocument, OrderRequest, SupportRequest, Notification, SystemEmail, Spam, Unknown) |
 | `detectedIntent` | string? | Intent detected (CreateOrderRequest, UpdateOrderRequest, CancelOrderRequest, SupportInquiry, InformationRequest, Unknown) |
 | `status` | string | Trạng thái (NotStarted, Processing, Completed, PendingReview, Approved, Rejected, Failed) |
@@ -1558,7 +1637,7 @@ type SyncStatusEnum = 'Pending' | 'Syncing' | 'Success' | 'PartialSuccess' | 'Fa
 // Email Analysis Result
 interface EmailAnalysisResult {
   id: string;
-  emailMessageId: string;
+  mailMessageId: string;
   category?: EmailCategory;
   detectedIntent?: EmailIntent;
   status: AnalysisStatus;
@@ -1577,7 +1656,7 @@ interface EmailAnalysisResult {
 }
 
 interface CreateAnalysisResultRequest {
-  emailMessageId: string;
+  mailMessageId: string;
 }
 
 interface UpdateAnalysisResultRequest {
@@ -1714,7 +1793,7 @@ interface OpenAiUsageResponse {
 
 // Email Processing
 interface ExtractEmailRequest {
-  emailMessageId: string;
+  mailMessageId: string;
   templateCode?: string;
   expectedFields?: Record<string, string>;
 }
@@ -1924,7 +2003,7 @@ interface UseAnalysisResultsResult {
   results: EmailAnalysisResult[];
   loading: boolean;
   error: string | null;
-  createResult: (emailMessageId: string) => Promise<void>;
+  createResult: (mailMessageId: string) => Promise<void>;
   approveResult: (id: string, userId: string) => Promise<void>;
   rejectResult: (id: string, userId: string, reason?: string) => Promise<void>;
   updateFields: (id: string, fields: Record<string, string>) => Promise<void>;
@@ -1940,7 +2019,7 @@ export function useAnalysisResults(status?: string): UseAnalysisResultsResult {
       setLoading(true);
       const params = status ? { status } : {};
       const response = await axios.get<ApiResponse<EmailAnalysisResult[]>>(
-        `${API_BASE}/email-analysis-results`,
+        `${API_BASE}/mail-analysis-results`,
         { params }
       );
       setResults(response.data.data || []);
@@ -1952,23 +2031,23 @@ export function useAnalysisResults(status?: string): UseAnalysisResultsResult {
     }
   };
 
-  const createResult = async (emailMessageId: string) => {
-    await axios.post(`${API_BASE}/email-analysis-results`, { emailMessageId });
+  const createResult = async (mailMessageId: string) => {
+    await axios.post(`${API_BASE}/mail-analysis-results`, { mailMessageId });
     await fetchResults();
   };
 
   const approveResult = async (id: string, userId: string) => {
-    await axios.post(`${API_BASE}/email-analysis-results/${id}/approve`, { userId });
+    await axios.post(`${API_BASE}/mail-analysis-results/${id}/approve`, { userId });
     await fetchResults();
   };
 
   const rejectResult = async (id: string, userId: string, reason?: string) => {
-    await axios.post(`${API_BASE}/email-analysis-results/${id}/reject`, { userId, reason });
+    await axios.post(`${API_BASE}/mail-analysis-results/${id}/reject`, { userId, reason });
     await fetchResults();
   };
 
   const updateFields = async (id: string, fields: Record<string, string>) => {
-    await axios.put(`${API_BASE}/email-analysis-results/${id}/fields`, { extractedFields: fields });
+    await axios.put(`${API_BASE}/mail-analysis-results/${id}/fields`, { extractedFields: fields });
     await fetchResults();
   };
 
@@ -2012,7 +2091,7 @@ export function useTemplates(): UseTemplatesResult {
     try {
       setLoading(true);
       const response = await axios.get<ApiResponse<EmailTemplate[]>>(
-        `${API_BASE}/email-templates`
+        `${API_BASE}/mail-templates`
       );
       setTemplates(response.data.data || []);
       setError(null);
@@ -2024,17 +2103,17 @@ export function useTemplates(): UseTemplatesResult {
   };
 
   const createTemplate = async (template: CreateTemplateRequest) => {
-    await axios.post(`${API_BASE}/email-templates`, template);
+    await axios.post(`${API_BASE}/mail-templates`, template);
     await fetchTemplates();
   };
 
   const updateTemplate = async (id: string, template: UpdateTemplateRequest) => {
-    await axios.put(`${API_BASE}/email-templates/${id}`, template);
+    await axios.put(`${API_BASE}/mail-templates/${id}`, template);
     await fetchTemplates();
   };
 
   const deleteTemplate = async (id: string) => {
-    await axios.delete(`${API_BASE}/email-templates/${id}`);
+    await axios.delete(`${API_BASE}/mail-templates/${id}`);
     await fetchTemplates();
   };
 
@@ -2300,7 +2379,7 @@ Quy trình phân tích email với AI:
 
 ```
 1. Email được đồng bộ → status: synced
-2. User kích hoạt phân tích → POST /email-messages/{id}/process
+2. User kích hoạt phân tích → POST /mail-messages/{id}/process
 3. AI phân tích email → status: pending
 4. Kết quả trả về → status: completed
 5. User review kết quả

@@ -1,6 +1,6 @@
 "use client"
 
-import { useMemo, useState } from "react"
+import { Suspense, useMemo, useState } from "react"
 import { useSearchParams } from "next/navigation"
 import { AlertTriangle, CheckCircle, Cpu, Mail, RefreshCw } from "lucide-react"
 import { getErrorMessage } from "@/lib/get-error-message"
@@ -11,7 +11,7 @@ import {
   useTriggerSyncMutation,
 } from "@/hooks/use-mail-queries"
 
-export default function SettingsPage() {
+function SettingsContent() {
   const [aiPrompt, setAiPrompt] = useState(
     "Extract invoice details: invoice number, amount, currency, due date, sender"
   )
@@ -179,6 +179,14 @@ export default function SettingsPage() {
         </button>
       </div>
     </div>
+  )
+}
+
+export default function SettingsPage() {
+  return (
+    <Suspense fallback={<div className="text-sm text-blue-700">Đang tải...</div>}>
+      <SettingsContent />
+    </Suspense>
   )
 }
 

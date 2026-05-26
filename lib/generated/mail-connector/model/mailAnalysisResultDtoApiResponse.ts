@@ -5,17 +5,17 @@
  * Mail Connector API — company API contract v2.1 (camelCase envelope, HTTP-status-driven, correlationId, traceId, non-nullable meta/errors collections).
  * OpenAPI spec version: v1
  */
-import type { EmailTemplateDto } from './emailTemplateDto';
+import type { MailAnalysisResultDto } from './mailAnalysisResultDto';
 import type { ApiMeta } from './apiMeta';
 import type { ApiError } from './apiError';
 
-export interface EmailTemplateDtoApiResponse {
+export interface MailAnalysisResultDtoApiResponse {
   /** @nullable */
   correlationId?: string | null;
   /** @nullable */
   traceId?: string | null;
   timestamp?: string;
-  data?: EmailTemplateDto;
+  data?: MailAnalysisResultDto;
   meta?: ApiMeta;
   /** @nullable */
   errors?: ApiError[] | null;

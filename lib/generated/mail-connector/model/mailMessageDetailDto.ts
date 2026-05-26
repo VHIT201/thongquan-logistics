@@ -22,9 +22,21 @@ export interface MailMessageDetailDto {
   /** @nullable */
   receivedAt?: string | null;
   /** @nullable */
+  sentAt?: string | null;
+  createdAt?: string;
+  updatedAt?: string;
+  /** @nullable */
   bodyText?: string | null;
   /** @nullable */
   bodyHtml?: string | null;
+  /** @nullable */
+  normalizedText?: string | null;
+  /** @nullable */
+  normalizedHtml?: string | null;
+  /** @nullable */
+  processedBy?: string | null;
+  /** @nullable */
+  processedAt?: string | null;
   /** @nullable */
   attachments?: AttachmentDto[] | null;
 }

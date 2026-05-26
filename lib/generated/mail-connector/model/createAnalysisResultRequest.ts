@@ -7,5 +7,5 @@
  */
 
 export interface CreateAnalysisResultRequest {
-  emailMessageId?: string;
+  mailMessageId?: string;
 }

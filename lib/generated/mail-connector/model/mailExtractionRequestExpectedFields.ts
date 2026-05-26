@@ -6,10 +6,7 @@
  * OpenAPI spec version: v1
  */
 
-export type GetApiV1MailMessagesParams = {
-Filters?: string;
-SortField?: string;
-SortOrder?: string;
-Page?: number;
-PageSize?: number;
-};
+/**
+ * @nullable
+ */
+export type MailExtractionRequestExpectedFields = {[key: string]: string} | null;

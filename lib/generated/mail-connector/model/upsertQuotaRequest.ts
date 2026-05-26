@@ -6,7 +6,7 @@
  * OpenAPI spec version: v1
  */
 
-/**
- * @nullable
- */
-export type EmailAnalysisResultDtoExtractedFields = {[key: string]: string} | null;
+export interface UpsertQuotaRequest {
+  monthlyTokenLimit?: number;
+  monthlyCostLimitUsd?: number;
+}

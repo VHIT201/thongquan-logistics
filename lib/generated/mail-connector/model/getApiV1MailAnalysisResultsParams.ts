@@ -6,7 +6,7 @@
  * OpenAPI spec version: v1
  */
 
-export type GetApiV1MailMessagesParams = {
+export type GetApiV1MailAnalysisResultsParams = {
 Filters?: string;
 SortField?: string;
 SortOrder?: string;

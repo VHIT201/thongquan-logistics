@@ -4,6 +4,9 @@ import { useEffect, useMemo, useState } from "react"
 import Link from "next/link"
 import {
   AlertCircle,
+  ArrowDown,
+  ArrowUp,
+  ArrowUpDown,
   ChevronLeft,
   ChevronRight,
   Clock,
@@ -25,15 +28,29 @@ export default function EmailsPage() {
   const [statusFilter, setStatusFilter] = useState("all")
   const [senderFilter, setSenderFilter] = useState("all")
   const [page, setPage] = useState(1)
+  const [sortField, setSortField] = useState("receivedAt")
+  const [sortOrder, setSortOrder] = useState<"asc" | "desc">("desc")
 
   const { data: accounts = [], isPending: accountsPending } = useMailAccountsQuery()
-  const activeAccountId = accounts[0]?.id
+  const [activeAccountId, setActiveAccountId] = useState<string | undefined>(undefined)
+
+  useEffect(() => {
+    if (accounts.length > 0 && !activeAccountId) {
+      setActiveAccountId(accounts[0].id)
+    }
+  }, [accounts, activeAccountId])
+
+  const processStatusFilter =
+    statusFilter !== "all" && statusFilter !== "hasAttachment" ? statusFilter : undefined
 
   const mailQuery = useMailMessagesQuery({
     accountId: activeAccountId,
     page,
     pageSize: ITEMS_PER_PAGE,
     hasAttachment: statusFilter === "hasAttachment" ? true : undefined,
+    processStatus: processStatusFilter,
+    sortField,
+    sortOrder,
   })
 
   const pagedEmails = mailQuery.data?.data ?? []
@@ -65,15 +82,12 @@ export default function EmailsPage() {
         senderName.toLowerCase().includes(keyword)
 
       if (!matchSearch) return false
-      if (statusFilter !== "all" && statusFilter !== "hasAttachment" && email.processStatus !== statusFilter) {
-        return false
-      }
       if (senderFilter !== "all" && senderName !== senderFilter) {
         return false
       }
       return true
     })
-  }, [pagedEmails, search, senderFilter, statusFilter])
+  }, [pagedEmails, search, senderFilter])
 
   const visiblePageNumbers = useMemo(() => {
     if (totalPages <= 7) return Array.from({ length: totalPages }, (_, index) => index + 1)
@@ -102,18 +116,37 @@ export default function EmailsPage() {
       )}
 
       <div className="flex flex-wrap items-center gap-3">
-        <div id="tour-emails-search" className="relative min-w-[240px] flex-1">
+        <div id="tour-emails-search" className="relative min-w-[200px] flex-1">
           <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-primary-100" />
           <input
             type="text"
             placeholder="Tìm kiếm email, người gửi..."
             value={search}
             onChange={(event) => setSearch(event.target.value)}
-            className="w-full rounded-lg border border-neutral-100 bg-white py-2 pl-9 pr-4 text-sm outline-none transition-colors focus:border-primary focus:ring-1 focus:ring-primary/20"
+            className="w-full rounded-lg border border-neutral-100 bg-white py-2 pl-9 pr-4 text-sm text-neutral-800 outline-none transition-colors focus:border-primary focus:ring-1 focus:ring-primary/20"
           />
         </div>
 
         <div id="tour-emails-filter" className="flex w-full flex-wrap items-center gap-2 lg:w-auto lg:flex-nowrap">
+          <Select
+            value={activeAccountId || ""}
+            onValueChange={(value: string) => {
+              setActiveAccountId(value)
+              setPage(1)
+            }}
+          >
+            <SelectTrigger className="h-9 w-full sm:w-[220px] text-neutral-800">
+              <SelectValue placeholder="Chọn tài khoản" />
+            </SelectTrigger>
+            <SelectContent>
+              {accounts.map((account) => (
+                <SelectItem key={account.id} value={account.id || ""}>
+                  {account.emailAddress || account.id}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+
           <Filter className="h-4 w-4 text-neutral-200" />
           <Select
             value={statusFilter}
@@ -122,7 +155,7 @@ export default function EmailsPage() {
               setPage(1)
             }}
           >
-            <SelectTrigger className="h-9 w-full sm:w-[170px]">
+            <SelectTrigger className="h-9 w-full sm:w-[170px] text-neutral-800">
               <SelectValue placeholder="Trạng thái" />
             </SelectTrigger>
             <SelectContent>
@@ -141,7 +174,7 @@ export default function EmailsPage() {
               setPage(1)
             }}
           >
-            <SelectTrigger className="h-9 w-full sm:w-[180px]">
+            <SelectTrigger className="h-9 w-full sm:w-[180px] text-neutral-800">
               <SelectValue placeholder="Người gửi" />
             </SelectTrigger>
             <SelectContent>
@@ -153,6 +186,18 @@ export default function EmailsPage() {
               ))}
             </SelectContent>
           </Select>
+
+          <button
+            onClick={() => {
+              setSortOrder((prev) => (prev === "desc" ? "asc" : "desc"))
+              setPage(1)
+            }}
+            title={`Sắp xếp: ${sortOrder === "desc" ? "mới nhất trước" : "cũ nhất trước"}`}
+            className="inline-flex h-9 cursor-pointer items-center gap-1 rounded-lg border border-neutral-100 bg-white px-3 text-sm text-neutral-300 transition-colors hover:bg-neutral-50"
+          >
+            {sortOrder === "desc" ? <ArrowDown className="h-4 w-4" /> : <ArrowUp className="h-4 w-4" />}
+            <span className="hidden sm:inline">{sortOrder === "desc" ? "Mới nhất" : "Cũ nhất"}</span>
+          </button>
         </div>
       </div>
 
@@ -192,7 +237,7 @@ export default function EmailsPage() {
                 return (
                   <tr
                     key={email.id}
-                    className={`transition-colors hover:bg-neutral-50 ${
+                    className={`cursor-pointer transition-colors hover:bg-neutral-50 ${
                       needsAttention ? "border-l-2 border-l-primary bg-primary-50/30" : ""
                     }`}
                   >
@@ -231,7 +276,7 @@ export default function EmailsPage() {
                     <td className="px-4 py-3 text-right">
                       <Link
                         href={`/emails/${email.id}`}
-                        className="inline-flex items-center rounded-md bg-primary-50 px-2.5 py-1 text-xs font-medium text-primary transition-colors hover:bg-primary hover:text-white"
+                        className="inline-flex cursor-pointer items-center rounded-md bg-primary-50 px-2.5 py-1 text-xs font-medium text-primary transition-colors hover:bg-primary hover:text-white"
                       >
                         Xử lý
                       </Link>
@@ -258,7 +303,7 @@ export default function EmailsPage() {
             return (
               <div key={email.id} className={`space-y-2 p-4 ${needsAttention ? "bg-primary-50/30" : ""}`}>
                 <div className="flex items-start justify-between gap-3">
-                  <p className="break-words text-sm font-medium text-neutral-300">
+                  <p className="wrap-break-word text-sm font-medium text-neutral-300">
                     {email.subject || "(Không có tiêu đề)"}
                   </p>
                   {email.hasAttachments ? <Paperclip className="h-4 w-4 shrink-0 text-primary" /> : null}
@@ -285,7 +330,7 @@ export default function EmailsPage() {
                   </div>
                   <Link
                     href={`/emails/${email.id}`}
-                    className="inline-flex items-center rounded-md bg-primary-50 px-2.5 py-1 text-xs font-medium text-primary transition-colors hover:bg-primary hover:text-white"
+                    className="inline-flex cursor-pointer items-center rounded-md bg-primary-50 px-2.5 py-1 text-xs font-medium text-primary transition-colors hover:bg-primary hover:text-white"
                   >
                     Xử lý
                   </Link>
@@ -305,7 +350,7 @@ export default function EmailsPage() {
             <button
               onClick={() => setPage((previousPage) => Math.max(1, previousPage - 1))}
               disabled={!activeAccountId || page === 1}
-              className="inline-flex h-8 w-8 items-center justify-center rounded-md border border-neutral-100 bg-white text-neutral-300 transition-colors hover:bg-neutral-50 disabled:cursor-not-allowed disabled:opacity-40"
+              className="inline-flex h-8 w-8 cursor-pointer items-center justify-center rounded-md border border-neutral-100 bg-white text-neutral-300 transition-colors hover:bg-neutral-50 disabled:cursor-not-allowed disabled:opacity-40"
             >
               <ChevronLeft className="h-4 w-4" />
             </button>
@@ -317,7 +362,7 @@ export default function EmailsPage() {
                   {shouldShowGap ? <span className="px-1 text-neutral-200">…</span> : null}
                   <button
                     onClick={() => setPage(pageNumber)}
-                    className={`inline-flex h-8 min-w-8 items-center justify-center rounded-md px-2 text-sm font-medium transition-colors ${
+                    className={`inline-flex h-8 min-w-8 cursor-pointer items-center justify-center rounded-md px-2 text-sm font-medium transition-colors ${
                       pageNumber === page
                         ? "bg-primary text-white"
                         : "border border-neutral-100 bg-white text-neutral-300 hover:bg-neutral-50"
@@ -331,7 +376,7 @@ export default function EmailsPage() {
             <button
               onClick={() => setPage((previousPage) => Math.min(totalPages, previousPage + 1))}
               disabled={!activeAccountId || page === totalPages}
-              className="inline-flex h-8 w-8 items-center justify-center rounded-md border border-neutral-100 bg-white text-neutral-300 transition-colors hover:bg-neutral-50 disabled:cursor-not-allowed disabled:opacity-40"
+              className="inline-flex h-8 w-8 cursor-pointer items-center justify-center rounded-md border border-neutral-100 bg-white text-neutral-300 transition-colors hover:bg-neutral-50 disabled:cursor-not-allowed disabled:opacity-40"
             >
               <ChevronRight className="h-4 w-4" />
             </button>

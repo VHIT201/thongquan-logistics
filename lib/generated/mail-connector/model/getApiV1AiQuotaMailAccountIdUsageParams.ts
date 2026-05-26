@@ -6,7 +6,7 @@
  * OpenAPI spec version: v1
  */
 
-/**
- * @nullable
- */
-export type EmailTemplateDtoExpectedFields = {[key: string]: string} | null;
+export type GetApiV1AiQuotaMailAccountIdUsageParams = {
+from?: string;
+to?: string;
+};

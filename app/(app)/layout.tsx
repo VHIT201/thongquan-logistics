@@ -22,6 +22,7 @@ import {
   User,
   Users,
   ClipboardList,
+  Inbox,
 } from "lucide-react"
 import { cn } from "@/lib/utils"
 import TourButton from "@/components/tour-button"
@@ -55,9 +56,9 @@ type NavItem = {
 
 const navItems: NavItem[] = [
   { href: "/", label: "Dashboard", icon: LayoutDashboard },
+  { href: "/mail-accounts", label: "Tài khoản Email", icon: Inbox },
   { href: "/emails", label: "Email", icon: Mail },
   { href: "/reports", label: "Báo cáo", icon: BarChart3 },
-  { href: "/employees", label: "Nhân viên", icon: ClipboardList },
 ]
 
 const adminItems: NavItem[] = [
@@ -70,6 +71,10 @@ const adminItems: NavItem[] = [
 
 const getBreadcrumbItems = (pathname: string) => {
   if (pathname === "/") return [{ label: "Dashboard", href: "/" }]
+
+  if (pathname.startsWith("/mail-accounts")) {
+    return [{ label: "Tài khoản Email", href: "/mail-accounts" }]
+  }
 
   if (pathname.startsWith("/emails")) {
     if (pathname === "/emails") return [{ label: "Email", href: "/emails" }]
