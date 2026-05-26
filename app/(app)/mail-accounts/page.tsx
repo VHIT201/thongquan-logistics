@@ -19,6 +19,7 @@ import dayjs from "dayjs"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { getErrorMessage } from "@/lib/get-error-message"
+import { toast } from "sonner"
 import {
   useMailAccountsQuery,
   useConnectAccountMutation,
@@ -92,14 +93,11 @@ function MailAccountsContent() {
   const triggerSync = useTriggerSyncMutation(syncingAccountId)
   const syncStatus = useSyncStatusQuery(syncingAccountId)
 
-  const [message, setMessage] = useState<string | null>(null)
-  const [error, setError] = useState<string | null>(null)
-
   // Handle OAuth callback inline
   useEffect(() => {
     const oauthError = searchParams.get("error")
     if (oauthError) {
-      setError(`OAuth bị từ chối: ${oauthError}`)
+      toast.error(`OAuth bị từ chối: ${oauthError}`)
       router.replace("/mail-accounts")
       return
     }
@@ -111,12 +109,11 @@ function MailAccountsContent() {
       { authorizationCode: code, redirectUri },
       {
         onSuccess: () => {
-          setMessage("Kết nối tài khoản thành công.")
+          toast.success("Kết nối tài khoản thành công.")
           router.replace("/mail-accounts")
-          setTimeout(() => setMessage(null), 3000)
         },
         onError: (err) => {
-          setError(getErrorMessage(err, "Kết nối tài khoản thất bại."))
+          toast.error(getErrorMessage(err, "Kết nối tài khoản thất bại."))
           router.replace("/mail-accounts")
         },
       }
@@ -125,7 +122,6 @@ function MailAccountsContent() {
   }, [code])
 
   const handleConnect = async () => {
-    setError(null)
     try {
       const redirectUri = `${window.location.origin}/mail-accounts`
       const randomState = Math.random().toString(36).substring(2)
@@ -134,24 +130,24 @@ function MailAccountsContent() {
       if (authUrl) {
         window.location.href = authUrl
       } else {
-        setError("Không nhận được URL xác thực từ server.")
+        toast.error("Không nhận được URL xác thực từ server.")
       }
     } catch (err) {
-      setError(getErrorMessage(err, "Không thể bắt đầu xác thực OAuth."))
+      toast.error(getErrorMessage(err, "Không thể bắt đầu xác thực OAuth."))
     }
   }
 
   const handleSync = (accountId: string) => {
     setSyncingAccountId(accountId)
     triggerSync.mutate(undefined, {
-      onError: (err) => setError(getErrorMessage(err, "Kích hoạt đồng bộ thất bại.")),
+      onError: (err) => toast.error(getErrorMessage(err, "Kích hoạt đồng bộ thất bại.")),
     })
   }
 
   const handleDelete = (accountId: string) => {
     if (!window.confirm("Xóa tài khoản email này? Hành động không thể hoàn tác.")) return
     deleteMutation.mutate(accountId, {
-      onError: (err) => setError(getErrorMessage(err, "Xóa tài khoản thất bại.")),
+      onError: (err) => toast.error(getErrorMessage(err, "Xóa tài khoản thất bại.")),
     })
   }
 
@@ -178,13 +174,6 @@ function MailAccountsContent() {
           {oauthMutation.isPending ? "Đang xử lý..." : "Kết nối Gmail"}
         </button>
       </div>
-
-      {message && (
-        <div className="rounded-lg bg-emerald-50 p-3 text-sm text-emerald-700">{message}</div>
-      )}
-      {error && (
-        <div className="rounded-lg bg-red-50 p-3 text-sm text-red-700">{error}</div>
-      )}
 
       {isSyncing && syncStatus.data && (
         <Card>

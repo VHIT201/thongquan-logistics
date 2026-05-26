@@ -2,16 +2,17 @@
 
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 import { MAIL_CONNECTOR_AXIOS } from "@/lib/orval/mail-connector-mutator"
-import { getMailConnectorAPI } from "@/lib/generated/mail-connector/endpoints"
+import { getLogisticsPlatformAPI } from "@/lib/generated/mail-connector/endpoints"
 import type { MailAnalysisResultDto } from "@/lib/generated/mail-connector/model/mailAnalysisResultDto"
 import type { CreateTemplateRequest } from "@/lib/generated/mail-connector/model/createTemplateRequest"
 import type { CreateWebhookSubscriptionRequest } from "@/lib/generated/mail-connector/model/createWebhookSubscriptionRequest"
 import type { GetApiV1MailAnalysisResultsParams } from "@/lib/generated/mail-connector/model/getApiV1MailAnalysisResultsParams"
 import type { GetApiV1MailMessagesParams } from "@/lib/generated/mail-connector/model/getApiV1MailMessagesParams"
+import type { GetApiV1MailMessagesMessageIdAttachmentsAttachmentIdPresignedUrlParams } from "@/lib/generated/mail-connector/model/getApiV1MailMessagesMessageIdAttachmentsAttachmentIdPresignedUrlParams"
 import type { UpdateTemplateRequest } from "@/lib/generated/mail-connector/model/updateTemplateRequest"
 import type { UpdateWebhookSubscriptionRequest } from "@/lib/generated/mail-connector/model/updateWebhookSubscriptionRequest"
 
-const mailApi = getMailConnectorAPI()
+const mailApi = getLogisticsPlatformAPI()
 
 const getAnalysisItems = (data: unknown): MailAnalysisResultDto[] => {
   if (!Array.isArray(data)) return []
@@ -202,6 +203,19 @@ export function useProcessMailMutation() {
           return secondTime - firstTime
         })
       return matched[0] ?? null
+    },
+  })
+}
+
+export function useProcessDocumentsMutation() {
+  return useMutation({
+    mutationFn: async (files: Array<{ fileName: string; content: string; type: string; mimeType: string }>) => {
+      const response = await mailApi.postApiV1DocumentProcessorProcessMultiple({
+        files,
+        prompt: "Extract key information from these documents",
+        model: "gpt-4",
+      })
+      return response.data
     },
   })
 }
@@ -410,6 +424,27 @@ export function useDeleteEmailTemplateMutation() {
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: mailQueryKeys.templates })
     },
+  })
+}
+
+export function useAttachmentPresignedUrlQuery(
+  messageId: string | null,
+  attachmentId: string | null,
+  params?: GetApiV1MailMessagesMessageIdAttachmentsAttachmentIdPresignedUrlParams
+) {
+  return useQuery({
+    queryKey: ["attachment-presigned-url", messageId, attachmentId, params],
+    queryFn: async () => {
+      if (!messageId || !attachmentId) return null
+      const response = await mailApi.getApiV1MailMessagesMessageIdAttachmentsAttachmentIdPresignedUrl(
+        messageId,
+        attachmentId,
+        params
+      )
+      return response.data?.data as { url: string; expiresAt: string } | null
+    },
+    enabled: Boolean(messageId && attachmentId),
+    staleTime: 1000 * 60 * 5, // 5 minutes
   })
 }
 

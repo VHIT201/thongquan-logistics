@@ -5,6 +5,7 @@ import Link from "next/link"
 import { ArrowLeft, Plus, Save, Trash2 } from "lucide-react"
 import dayjs from "dayjs"
 import { getErrorMessage } from "@/lib/get-error-message"
+import { toast } from "sonner"
 import {
   useCreateEmailTemplateMutation,
   useDeleteEmailTemplateMutation,
@@ -76,7 +77,6 @@ export default function AdminTemplatesPage() {
 
   const handleSubmit = async () => {
     try {
-      setMessage(null)
       const expectedFields = parseExpectedFields()
       const documentTypes = formState.documentTypesCsv
         .split(",")
@@ -93,7 +93,7 @@ export default function AdminTemplatesPage() {
           documentTypes,
           isActive: formState.isActive,
         })
-        setMessage("Đã cập nhật template.")
+        toast.success("Đã cập nhật template.")
       } else {
         await createTemplateMutation.mutateAsync({
           templateCode: formState.templateCode,
@@ -104,11 +104,11 @@ export default function AdminTemplatesPage() {
           expectedFields,
           documentTypes,
         })
-        setMessage("Đã tạo template mới.")
+        toast.success("Đã tạo template mới.")
       }
       resetForm()
     } catch (error) {
-      setMessage(getErrorMessage(error, "Không lưu được template."))
+      toast.error(getErrorMessage(error, "Không lưu được template."))
     }
   }
 
@@ -136,9 +136,9 @@ export default function AdminTemplatesPage() {
       if (editingTemplateId === templateId) {
         resetForm()
       }
-      setMessage("Đã xóa template.")
+      toast.success("Đã xóa template.")
     } catch (error) {
-      setMessage(getErrorMessage(error, "Xóa template thất bại."))
+      toast.error(getErrorMessage(error, "Xóa template thất bại."))
     }
   }
 
@@ -240,7 +240,6 @@ export default function AdminTemplatesPage() {
 
         <div className="space-y-3 rounded-xl border border-neutral-100 bg-white p-4">
           <h2 className="text-lg font-semibold text-neutral-300">Danh sách template</h2>
-          {message && <div className="rounded-lg bg-blue-50 p-3 text-sm text-blue-700">{message}</div>}
           {templatesQuery.error && (
             <div className="rounded-lg bg-red-50 p-3 text-sm text-red-700">
               {getErrorMessage(templatesQuery.error, "Không tải được template.")}

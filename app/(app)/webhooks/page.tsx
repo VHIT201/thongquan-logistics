@@ -2,6 +2,7 @@
 
 import { useState } from "react"
 import { getErrorMessage } from "@/lib/get-error-message"
+import { toast } from "sonner"
 import {
   useWebhookSubscriptionsQuery,
   useCreateWebhookMutation,
@@ -34,7 +35,6 @@ export default function WebhooksPage() {
 
   const [editingId, setEditingId] = useState<string | null>(null)
   const [formState, setFormState] = useState<WebhookFormState>(emptyForm)
-  const [message, setMessage] = useState<string | null>(null)
 
   const updateMutation = useUpdateWebhookMutation(editingId)
   const testMutation = useTestWebhookMutation(editingId)
@@ -49,7 +49,6 @@ export default function WebhooksPage() {
 
   const handleSubmit = async () => {
     try {
-      setMessage(null)
       const eventTypes = formState.eventTypes
         .split(",")
         .map((item) => item.trim())
@@ -61,7 +60,7 @@ export default function WebhooksPage() {
           eventTypes: eventTypes.length ? eventTypes : null,
           isActive: formState.isActive,
         })
-        setMessage("Đã cập nhật webhook.")
+        toast.success("Đã cập nhật webhook.")
       } else {
         await createMutation.mutateAsync({
           subscriberCode: formState.subscriberCode || null,
@@ -69,11 +68,11 @@ export default function WebhooksPage() {
           eventTypes: eventTypes.length ? eventTypes : null,
           secretKey: formState.secretKey || null,
         })
-        setMessage("Đã tạo webhook mới.")
+        toast.success("Đã tạo webhook mới.")
       }
       resetForm()
     } catch (error) {
-      setMessage(getErrorMessage(error, "Không lưu được webhook."))
+      toast.error(getErrorMessage(error, "Không lưu được webhook."))
     }
   }
 
@@ -96,22 +95,21 @@ export default function WebhooksPage() {
       if (editingId === webhookId) {
         resetForm()
       }
-      setMessage("Đã xóa webhook.")
+      toast.success("Đã xóa webhook.")
     } catch (error) {
-      setMessage(getErrorMessage(error, "Xóa webhook thất bại."))
+      toast.error(getErrorMessage(error, "Xóa webhook thất bại."))
     }
   }
 
   const handleTest = async (webhookId: string) => {
     try {
-      setMessage(null)
       await testMutation.mutateAsync({
         eventType: "mail.received",
         payload: { test: true, message: "Hello from test" },
       })
-      setMessage("Đã gửi test webhook.")
+      toast.success("Đã gửi test webhook.")
     } catch (error) {
-      setMessage(getErrorMessage(error, "Test webhook thất bại."))
+      toast.error(getErrorMessage(error, "Test webhook thất bại."))
     }
   }
 
@@ -121,9 +119,6 @@ export default function WebhooksPage() {
         <h1 className="text-2xl font-bold text-neutral-300">Webhook Subscriptions</h1>
       </div>
 
-      {message && (
-        <div className="rounded-lg bg-blue-50 p-3 text-sm text-blue-700">{message}</div>
-      )}
       {webhooksQuery.error && (
         <div className="rounded-lg bg-red-50 p-3 text-sm text-red-700">
           {getErrorMessage(webhooksQuery.error, "Không tải được webhooks.")}

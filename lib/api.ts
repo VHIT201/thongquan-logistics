@@ -1,7 +1,7 @@
-import axios from "axios"
+import axios, { AxiosRequestConfig } from "axios"
 import type { ApiResponse, MailAccount, MailMessage, MailMessageDetail, EmailAnalysisResult, EmailTemplate, SyncStatus, User, LogEntry, ReportData } from "@/types"
 
-const API_BASE = process.env.NEXT_PUBLIC_API_URL || "/api/v1"
+const API_BASE = process.env.NEXT_PUBLIC_API_URL || "https://vietprodev.duckdns.org/gateway/logistics/api/v1"
 
 const api = axios.create({
   baseURL: API_BASE,
@@ -9,6 +9,31 @@ const api = axios.create({
     "Content-Type": "application/json",
   },
 })
+
+let isRefreshing = false
+let refreshSubscribers: Array<(token: string) => void> = []
+
+function subscribeTokenRefresh(cb: (token: string) => void) {
+  refreshSubscribers.push(cb)
+}
+
+function onTokenRefreshed(newToken: string) {
+  refreshSubscribers.forEach((cb) => cb(newToken))
+  refreshSubscribers = []
+}
+
+async function doRefreshToken() {
+  const refreshToken = localStorage.getItem("refreshToken")
+  if (!refreshToken) throw new Error("No refresh token")
+
+  const res = await axios.post(`${API_BASE}/auth/refresh`, { refreshToken })
+  const data = res.data as { accessToken?: string; refreshToken?: string } | undefined
+  if (!data?.accessToken) throw new Error("Refresh failed")
+
+  localStorage.setItem("token", data.accessToken)
+  if (data.refreshToken) localStorage.setItem("refreshToken", data.refreshToken)
+  return data.accessToken
+}
 
 api.interceptors.request.use((config) => {
   const token = typeof window !== "undefined" ? localStorage.getItem("token") : null
@@ -20,14 +45,48 @@ api.interceptors.request.use((config) => {
 
 api.interceptors.response.use(
   (response) => response,
-  (error) => {
-    if (error.response?.status === 401) {
-      if (typeof window !== "undefined") {
-        localStorage.removeItem("token")
-        window.location.href = "/login"
-      }
+  async (error) => {
+    const originalRequest = error.config as AxiosRequestConfig & { _retry?: boolean }
+
+    if (error.response?.status !== 401 || !originalRequest || originalRequest._retry) {
+      return Promise.reject(error)
     }
-    return Promise.reject(error)
+
+    if (typeof window === "undefined") {
+      return Promise.reject(error)
+    }
+
+    originalRequest._retry = true
+
+    if (isRefreshing) {
+      return new Promise((resolve) => {
+        subscribeTokenRefresh((newToken) => {
+          if (originalRequest.headers) {
+            originalRequest.headers.Authorization = `Bearer ${newToken}`
+          }
+          resolve(api(originalRequest))
+        })
+      })
+    }
+
+    isRefreshing = true
+
+    try {
+      const newToken = await doRefreshToken()
+      onTokenRefreshed(newToken)
+      if (originalRequest.headers) {
+        originalRequest.headers.Authorization = `Bearer ${newToken}`
+      }
+      return api(originalRequest)
+    } catch {
+      localStorage.removeItem("token")
+      localStorage.removeItem("refreshToken")
+      localStorage.removeItem("userId")
+      window.location.href = "/login"
+      return Promise.reject(error)
+    } finally {
+      isRefreshing = false
+    }
   }
 )
 
@@ -35,7 +94,19 @@ export default api
 
 // Auth
 export async function login(email: string, password: string) {
-  const res = await api.post<ApiResponse<{ token: string; user: User }>>("/auth/login", { email, password })
+  const res = await api.post<ApiResponse<{
+    accessToken: string
+    refreshToken: string
+    expiresIn: number
+    tokenType: string
+    user: {
+      userId: string
+      email: string
+      fullName: string
+      roles: string[]
+      permissions: string[]
+    }
+  }>>("/auth/login", { email, password })
   return res.data
 }
 

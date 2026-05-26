@@ -3,7 +3,7 @@ import { defineConfig } from "orval"
 export default defineConfig({
   mailConnector: {
     input: {
-      target: "https://vietprodev.duckdns.org/gateway/mail-connector/swagger/v1/swagger.json",
+      target: "https://vietprodev.duckdns.org/gateway/logistics/swagger/v1/swagger.json",
     },
     output: {
       mode: "split",

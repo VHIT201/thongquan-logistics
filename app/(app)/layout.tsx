@@ -26,6 +26,7 @@ import {
   Webhook,
 } from "lucide-react"
 import { cn } from "@/lib/utils"
+import { useAuth } from "@/hooks/use-auth"
 import TourButton from "@/components/tour-button"
 import {
   Breadcrumb,
@@ -48,6 +49,7 @@ import { Badge } from "@/components/ui/badge"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { Separator } from "@/components/ui/separator"
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip"
+import { Toaster } from "sonner"
 
 type NavItem = {
   href: string
@@ -169,9 +171,10 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
   const pathname = usePathname()
   const [collapsed, setCollapsed] = useState(false)
   const breadcrumbItems = getBreadcrumbItems(pathname)
+  const { logout } = useAuth()
 
   const handleLogout = () => {
-    window.location.href = "/login"
+    logout()
   }
 
   const renderNavItem = (item: NavItem) => {
@@ -421,6 +424,13 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
           </div>
 
           <TourButton />
+          <Toaster
+            position="top-right"
+            toastOptions={{
+              className: "text-sm",
+            }}
+            richColors
+          />
         </div>
       </div>
     </TooltipProvider>
