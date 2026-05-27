@@ -27,7 +27,17 @@ import {
   useOAuthUrlMutation,
   useSyncStatusQuery,
   useTriggerSyncMutation,
+  useTriggerSyncDirectMutation,
 } from "@/hooks/use-mail-queries"
+
+type MailAccountItem = {
+  id?: string | null
+  provider?: string | null
+  emailAddress?: string | null
+  displayName?: string | null
+  status?: string | null
+  lastSyncedAt?: string | null
+}
 
 function StatusBadge({ status }: { status?: string }) {
   const normalized = (status || "").toLowerCase()
@@ -84,13 +94,15 @@ function MailAccountsContent() {
   const code = searchParams.get("code")
   const state = searchParams.get("state")
 
-  const { data: accounts = [], isPending: accountsPending } = useMailAccountsQuery()
+  const { data: accountsData = [], isPending: accountsPending } = useMailAccountsQuery()
+  const accounts: MailAccountItem[] = accountsData as MailAccountItem[]
   const oauthMutation = useOAuthUrlMutation()
   const connectMutation = useConnectAccountMutation()
   const deleteMutation = useDeleteMailAccountMutation()
 
   const [syncingAccountId, setSyncingAccountId] = useState<string | null>(null)
   const triggerSync = useTriggerSyncMutation(syncingAccountId)
+  const triggerSyncDirect = useTriggerSyncDirectMutation(syncingAccountId)
   const syncStatus = useSyncStatusQuery(syncingAccountId)
 
   // Handle OAuth callback inline
@@ -141,6 +153,14 @@ function MailAccountsContent() {
     setSyncingAccountId(accountId)
     triggerSync.mutate(undefined, {
       onError: (err) => toast.error(getErrorMessage(err, "Kích hoạt đồng bộ thất bại.")),
+    })
+  }
+
+  const handleDirectSync = (accountId: string) => {
+    setSyncingAccountId(accountId)
+    triggerSyncDirect.mutate(undefined, {
+      onSuccess: () => toast.success("Đồng bộ trực tiếp thành công."),
+      onError: (err) => toast.error(getErrorMessage(err, "Đồng bộ trực tiếp thất bại.")),
     })
   }
 
@@ -263,11 +283,19 @@ function MailAccountsContent() {
                     <div className="flex items-center justify-end gap-2">
                       <button
                         onClick={() => account.id && handleSync(account.id)}
-                        disabled={triggerSync.isPending || deleteMutation.isPending}
+                        disabled={triggerSync.isPending || triggerSyncDirect.isPending || deleteMutation.isPending}
                         title="Đồng bộ"
                         className="inline-flex h-8 w-8 cursor-pointer items-center justify-center rounded-md border border-neutral-100 bg-white text-neutral-300 transition-colors hover:bg-neutral-50 hover:text-primary disabled:opacity-40 disabled:cursor-not-allowed"
                       >
                         <Play className="h-4 w-4" />
+                      </button>
+                      <button
+                        onClick={() => account.id && handleDirectSync(account.id)}
+                        disabled={triggerSync.isPending || triggerSyncDirect.isPending || deleteMutation.isPending}
+                        title="Đồng bộ trực tiếp"
+                        className="inline-flex h-8 w-8 cursor-pointer items-center justify-center rounded-md border border-neutral-100 bg-white text-neutral-300 transition-colors hover:bg-blue-50 hover:text-blue-600 disabled:opacity-40 disabled:cursor-not-allowed"
+                      >
+                        <RefreshCw className={triggerSyncDirect.isPending ? "h-4 w-4 animate-spin" : "h-4 w-4"} />
                       </button>
                       <button
                         onClick={() => account.id && handleDelete(account.id)}

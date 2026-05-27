@@ -1,24 +1,27 @@
 "use client"
 
-import { useState, useEffect } from "react"
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog"
-import { Label } from "@/components/ui/label"
-import { Input } from "@/components/ui/input"
+import { useEffect, useMemo, useState } from "react"
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
+
+type ViewerMode = "auto" | "google" | "office" | "proxy" | "direct"
+
+export type ExtractionPreviewSources = {
+  url?: string | null
+  expiresAt?: string | null
+  googleViewerUrl?: string | null
+  officeViewerUrl?: string | null
+  proxyUrl?: string | null
+}
 
 interface ExtractionResultModalProps {
   open: boolean
   onOpenChange: (open: boolean) => void
   result: string | null
-  previewUrl?: string | null
+  preview?: ExtractionPreviewSources | null
   fileName?: string | null
 }
 
-interface LogisticsData {
+type LogisticsData = {
   stt: number
   maKhachHang: string
   nhanVien: string
@@ -47,156 +50,301 @@ interface LogisticsData {
   trangThaiLoHang: string
 }
 
-export function ExtractionResultModal({ open, onOpenChange, result, previewUrl, fileName }: ExtractionResultModalProps) {
-  const [data, setData] = useState<LogisticsData[]>([])
-  const [message, setMessage] = useState<string | null>(null)
+type LogisticsStringKey = Exclude<keyof LogisticsData, "stt">
 
-  // Parse result string into structured data
-  const parseResult = (resultStr: string): LogisticsData[] => {
-    try {
-      // Try to parse as JSON first
-      const parsed = JSON.parse(resultStr)
-      if (Array.isArray(parsed)) {
-        return parsed.map((item, index) => ({
-          stt: index + 1,
-          maKhachHang: item.maKhachHang || item.customerCode || "",
-          nhanVien: item.nhanVien || item.staff || "",
-          khachHang: item.khachHang || item.customer || "",
-          congViec: item.congViec || item.job || "",
-          soToKhai: item.soToKhai || item.declarationNo || "",
-          loaiHinh: item.loaiHinh || item.type || "",
-          ngayToKhai: item.ngayToKhai || item.declarationDate || "",
-          loaiHang: item.loaiHang || item.goodsType || "",
-          luongTk: item.luongTk || item.customsStream || "",
-          haiQuan: item.haiQuan || item.customs || "",
-          co: item.co || item.certificate || "",
-          soInvVat: item.soInvVat || item.invoiceNo || "",
-          soBill: item.soBill || item.billNo || "",
-          soBooking: item.soBooking || item.bookingNo || "",
-          soLuongKien: item.soLuongKien || item.quantityPackages || "",
-          soLuongKg: item.soLuongKg || item.quantityKg || "",
-          soContainer20: item.soContainer20 || item.container20 || "",
-          soContainer40: item.soContainer40 || item.container40 || "",
-          soContainerLcl: item.soContainerLcl || item.containerLcl || "",
-          soContainerTc: item.soContainerTc || item.containerTc || "",
-          thongBaoPhiCsht: item.thongBaoPhiCsht || item.cshtNotice || "",
-          soTienCsht: item.soTienCsht || item.cshtAmount || "",
-          cangXuatNhap: item.cangXuatNhap || item.port || "",
-          ghiChu: item.ghiChu || item.note || "",
-          trangThaiLoHang: item.trangThaiLoHang || item.shipmentStatus || "",
-        }))
-      }
-      return []
-    } catch {
-      // If not JSON, return empty array and set message
-      return []
+type FieldConfig = {
+  key: LogisticsStringKey
+  label: string
+  aliases: string[]
+}
+
+const FIELD_CONFIGS: FieldConfig[] = [
+  { key: "maKhachHang", label: "MÃ KHÁCH HÀNG", aliases: ["maKhachHang", "customerCode"] },
+  { key: "nhanVien", label: "NHÂN VIÊN", aliases: ["nhanVien", "staff"] },
+  { key: "khachHang", label: "KHÁCH HÀNG", aliases: ["khachHang", "customer"] },
+  { key: "congViec", label: "CÔNG VIỆC", aliases: ["congViec", "job"] },
+  { key: "soToKhai", label: "SỐ TỜ KHAI", aliases: ["soToKhai", "declarationNo"] },
+  { key: "loaiHinh", label: "LOẠI HÌNH", aliases: ["loaiHinh", "type"] },
+  { key: "ngayToKhai", label: "NGÀY TỜ KHAI", aliases: ["ngayToKhai", "declarationDate"] },
+  { key: "loaiHang", label: "LOẠI HÀNG", aliases: ["loaiHang", "goodsType"] },
+  { key: "luongTk", label: "LUỒNG TK", aliases: ["luongTk", "customsStream"] },
+  { key: "haiQuan", label: "HẢI QUAN", aliases: ["haiQuan", "customs"] },
+  { key: "co", label: "C/O", aliases: ["co", "certificate"] },
+  { key: "soInvVat", label: "SỐ INV/VAT", aliases: ["soInvVat", "invoiceNo"] },
+  { key: "soBill", label: "SỐ BILL", aliases: ["soBill", "billNo"] },
+  { key: "soBooking", label: "SỐ BOOKING", aliases: ["soBooking", "bookingNo"] },
+  { key: "soLuongKien", label: "SỐ LƯỢNG (KIỆN)", aliases: ["soLuongKien", "quantityPackages"] },
+  { key: "soLuongKg", label: "SỐ LƯỢNG (KG)", aliases: ["soLuongKg", "quantityKg"] },
+  { key: "soContainer20", label: "CONT 20'", aliases: ["soContainer20", "container20"] },
+  { key: "soContainer40", label: "CONT 40'", aliases: ["soContainer40", "container40"] },
+  { key: "soContainerLcl", label: "CONT LCL", aliases: ["soContainerLcl", "containerLcl"] },
+  { key: "soContainerTc", label: "CONT TC", aliases: ["soContainerTc", "containerTc"] },
+  { key: "thongBaoPhiCsht", label: "THÔNG BÁO PHÍ CSHT", aliases: ["thongBaoPhiCsht", "cshtNotice"] },
+  { key: "soTienCsht", label: "SỐ TIỀN CSHT", aliases: ["soTienCsht", "cshtAmount"] },
+  { key: "cangXuatNhap", label: "CẢNG XUẤT - CẢNG NHẬP", aliases: ["cangXuatNhap", "port"] },
+  { key: "ghiChu", label: "GHI CHÚ", aliases: ["ghiChu", "note"] },
+  { key: "trangThaiLoHang", label: "TRẠNG THÁI LÔ HÀNG", aliases: ["trangThaiLoHang", "shipmentStatus"] },
+]
+
+const EMPTY_ROW: LogisticsData = {
+  stt: 1,
+  maKhachHang: "",
+  nhanVien: "",
+  khachHang: "",
+  congViec: "",
+  soToKhai: "",
+  loaiHinh: "",
+  ngayToKhai: "",
+  loaiHang: "",
+  luongTk: "",
+  haiQuan: "",
+  co: "",
+  soInvVat: "",
+  soBill: "",
+  soBooking: "",
+  soLuongKien: "",
+  soLuongKg: "",
+  soContainer20: "",
+  soContainer40: "",
+  soContainerLcl: "",
+  soContainerTc: "",
+  thongBaoPhiCsht: "",
+  soTienCsht: "",
+  cangXuatNhap: "",
+  ghiChu: "",
+  trangThaiLoHang: "",
+}
+
+function pickFirstString(item: Record<string, unknown>, aliases: string[]) {
+  for (const alias of aliases) {
+    const value = item[alias]
+    if (value === null || value === undefined) continue
+    const text = String(value).trim()
+    if (text) return text
+  }
+  return ""
+}
+
+function normalizeLogisticsRow(item: Record<string, unknown>, index: number): LogisticsData {
+  const normalized: LogisticsData = { ...EMPTY_ROW, stt: index + 1 }
+  for (const field of FIELD_CONFIGS) {
+    normalized[field.key] = pickFirstString(item, field.aliases)
+  }
+  const explicitIndex = item.stt ?? item.index ?? item.no
+  if (explicitIndex !== undefined && explicitIndex !== null && String(explicitIndex).trim()) {
+    const parsedIndex = Number(explicitIndex)
+    normalized.stt = Number.isFinite(parsedIndex) ? parsedIndex : index + 1
+  }
+  return normalized
+}
+
+function extractRecords(parsed: unknown): Record<string, unknown>[] {
+  if (Array.isArray(parsed)) {
+    return parsed.filter((entry) => entry && typeof entry === "object") as Record<string, unknown>[]
+  }
+  if (!parsed || typeof parsed !== "object") return []
+
+  const asRecord = parsed as Record<string, unknown>
+  const collectionCandidates = ["data", "items", "records", "results", "rows", "shipments"]
+  for (const key of collectionCandidates) {
+    const value = asRecord[key]
+    if (Array.isArray(value)) {
+      return value.filter((entry) => entry && typeof entry === "object") as Record<string, unknown>[]
     }
   }
+  return [asRecord]
+}
 
-  // Update data when result changes using useEffect
-  useEffect(() => {
-    if (result) {
-      const parsedData = parseResult(result)
-      if (parsedData.length > 0) {
-        setData(parsedData)
-        setMessage(null)
-      } else {
-        setData([])
-        setMessage(result)
-      }
-    } else {
-      setData([])
-      setMessage(null)
+function parseResult(resultStr: string): { rows: LogisticsData[]; rawMessage: string | null } {
+  try {
+    const parsed = JSON.parse(resultStr) as unknown
+    const records = extractRecords(parsed)
+    if (records.length === 0) {
+      return { rows: [], rawMessage: resultStr }
     }
+    return {
+      rows: records.map((record, index) => normalizeLogisticsRow(record, index)),
+      rawMessage: null,
+    }
+  } catch {
+    return { rows: [], rawMessage: resultStr }
+  }
+}
+
+export function ExtractionResultModal({
+  open,
+  onOpenChange,
+  result,
+  preview,
+  fileName,
+}: ExtractionResultModalProps) {
+  const [rows, setRows] = useState<LogisticsData[]>([])
+  const [message, setMessage] = useState<string | null>(null)
+  const [viewerMode, setViewerMode] = useState<ViewerMode>("auto")
+
+  useEffect(() => {
+    if (!result) {
+      setRows([])
+      setMessage(null)
+      return
+    }
+    const parsed = parseResult(result)
+    setRows(parsed.rows)
+    setMessage(parsed.rawMessage)
   }, [result])
+
+  const sources = useMemo(
+    () => ({
+      google: preview?.googleViewerUrl?.trim() || "",
+      office: preview?.officeViewerUrl?.trim() || "",
+      proxy: preview?.proxyUrl?.trim() || "",
+      direct: preview?.url?.trim() || "",
+    }),
+    [preview]
+  )
+
+  const viewerSrc = useMemo(() => {
+    if (viewerMode === "google" && sources.google) return sources.google
+    if (viewerMode === "office" && sources.office) return sources.office
+    if (viewerMode === "proxy" && sources.proxy) return sources.proxy
+    if (viewerMode === "direct" && sources.direct) return sources.direct
+    return sources.google || sources.office || sources.proxy || sources.direct || ""
+  }, [sources, viewerMode])
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-[95vw] h-[95vh] p-0">
-        <DialogHeader className="p-4 border-b">
+      <DialogContent className="h-[94vh] max-w-[96vw] p-0">
+        <DialogHeader className="border-b p-4">
           <DialogTitle className="text-black">Kết quả bóc tách thông tin logistics</DialogTitle>
+          {fileName ? (
+            <p className="text-sm text-neutral-600">
+              Tệp: <span className="font-medium">{fileName}</span>
+            </p>
+          ) : null}
         </DialogHeader>
-        <div className="flex h-[calc(95vh-80px)]">
-          {/* Left column: Extraction results */}
-          <div className="w-1/2 p-4 overflow-y-auto border-r">
-            {data.length > 0 ? (
-              data.map((row) => (
-                <div key={row.stt} className="space-y-3 p-4 border rounded-lg bg-white mb-4">
-                  <h3 className="text-lg font-semibold text-primary">Lô hàng #{row.stt}</h3>
-                  <div className="grid grid-cols-2 gap-4">
-                    {[
-                      { label: "MÃ KHÁCH HÀNG", value: row.maKhachHang },
-                      { label: "NHÂN VIÊN", value: row.nhanVien },
-                      { label: "KHÁCH HÀNG", value: row.khachHang },
-                      { label: "CÔNG VIỆC", value: row.congViec },
-                      { label: "SỐ TỜ KHAI", value: row.soToKhai },
-                      { label: "LOẠI HÌNH", value: row.loaiHinh },
-                      { label: "NGÀY TỜ KHAI", value: row.ngayToKhai },
-                      { label: "LOẠI HÀNG", value: row.loaiHang },
-                      { label: "LUỒNG TK", value: row.luongTk },
-                      { label: "HẢI QUAN", value: row.haiQuan },
-                      { label: "C/O", value: row.co },
-                      { label: "SỐ INV/VAT", value: row.soInvVat },
-                      { label: "SỐ BILL", value: row.soBill },
-                      { label: "SỐ BOOKING", value: row.soBooking },
-                      { label: "SỐ LƯỢNG (KIỆN)", value: row.soLuongKien },
-                      { label: "SỐ LƯỢNG (KG)", value: row.soLuongKg },
-                      { label: "CONT 20'", value: row.soContainer20 },
-                      { label: "CONT 40'", value: row.soContainer40 },
-                      { label: "CONT LCL", value: row.soContainerLcl },
-                      { label: "CONT TC", value: row.soContainerTc },
-                      { label: "THÔNG BÁO PHÍ CSHT", value: row.thongBaoPhiCsht },
-                      { label: "SỐ TIỀN CSHT", value: row.soTienCsht },
-                      { label: "CẢNG XUẤT - CẢNG NHẬP", value: row.cangXuatNhap },
-                      { label: "GHI CHÚ", value: row.ghiChu },
-                      { label: "TRẠNG THÁI LÔ HÀNG", value: row.trangThaiLoHang },
-                    ].map((field, idx) => (
-                      <div key={idx} className="space-y-1">
-                        <Label>{field.label}</Label>
-                        <Input value={field.value} readOnly />
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              ))
+
+        <div className="grid h-[calc(94vh-88px)] grid-cols-1 md:grid-cols-[minmax(460px,45%)_1fr]">
+          <div className="overflow-y-auto border-r p-4">
+            {rows.length > 0 ? (
+              <div className="space-y-4">
+                {rows.map((row) => (
+                  <section key={`${row.stt}-${row.soToKhai}-${row.soBill}`} className="rounded-lg border bg-white">
+                    <div className="border-b bg-neutral-50 px-4 py-2">
+                      <p className="text-sm font-semibold text-primary">Lô hàng #{row.stt}</p>
+                    </div>
+                    <div className="overflow-hidden">
+                      <table className="w-full table-fixed text-sm">
+                        <tbody>
+                          {FIELD_CONFIGS.map((field) => (
+                            <tr key={field.key} className="border-b last:border-b-0">
+                              <th className="w-[46%] bg-neutral-50 px-3 py-2 text-left text-xs font-semibold uppercase tracking-wide text-neutral-500">
+                                {field.label}
+                              </th>
+                              <td className="px-3 py-2 text-neutral-800">
+                                {row[field.key] ? row[field.key] : <span className="text-neutral-400">—</span>}
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  </section>
+                ))}
+              </div>
             ) : message ? (
-              <div className="p-4 border rounded-lg bg-white">
-                <p className="text-black whitespace-pre-wrap">{message}</p>
+              <div className="rounded-lg border bg-white p-4">
+                <p className="mb-2 text-sm font-medium text-neutral-700">Kết quả thô từ AI</p>
+                <pre className="max-h-[68vh] overflow-auto whitespace-pre-wrap text-sm text-neutral-800">{message}</pre>
               </div>
             ) : (
-              <div className="space-y-3 p-4 border rounded-lg bg-white">
-                <h3 className="text-lg font-semibold text-primary">Lô hàng #1</h3>
-                <div className="grid grid-cols-2 gap-4">
-                  {[
-                    "MÃ KHÁCH HÀNG", "NHÂN VIÊN", "KHÁCH HÀNG", "CÔNG VIỆC",
-                    "SỐ TỜ KHAI", "LOẠI HÌNH", "NGÀY TỜ KHAI", "LOẠI HÀNG",
-                    "LUỒNG TK", "HẢI QUAN", "C/O", "SỐ INV/VAT",
-                    "SỐ BILL", "SỐ BOOKING", "SỐ LƯỢNG (KIỆN)", "SỐ LƯỢNG (KG)",
-                    "CONT 20'", "CONT 40'", "CONT LCL", "CONT TC",
-                    "THÔNG BÁO PHÍ CSHT", "SỐ TIỀN CSHT", "CẢNG XUẤT - CẢNG NHẬP",
-                    "GHI CHÚ", "TRẠNG THÁI LÔ HÀNG"
-                  ].map((label, idx) => (
-                    <div key={idx} className="space-y-1">
-                      <Label>{label}</Label>
-                      <Input value="" readOnly placeholder="Chưa có dữ liệu" />
-                    </div>
-                  ))}
+              <section className="rounded-lg border bg-white">
+                <div className="border-b bg-neutral-50 px-4 py-2">
+                  <p className="text-sm font-semibold text-primary">Lô hàng #1</p>
                 </div>
-              </div>
+                <div className="overflow-hidden">
+                  <table className="w-full table-fixed text-sm">
+                    <tbody>
+                      {FIELD_CONFIGS.map((field) => (
+                        <tr key={field.key} className="border-b last:border-b-0">
+                          <th className="w-[46%] bg-neutral-50 px-3 py-2 text-left text-xs font-semibold uppercase tracking-wide text-neutral-500">
+                            {field.label}
+                          </th>
+                          <td className="px-3 py-2 text-neutral-400">Chưa có dữ liệu</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </section>
             )}
           </div>
 
-          {/* Right column: File viewer */}
-          <div className="w-1/2 p-4 overflow-hidden">
-            {previewUrl ? (
-              <iframe
-                src={`https://view.officeapps.live.com/op/embed.aspx?src=${encodeURIComponent(previewUrl)}`}
-                className="w-full h-full border rounded-lg"
-                title={fileName || "File preview"}
-              />
+          <div className="flex min-h-0 flex-col p-4">
+            <div className="mb-3 flex flex-wrap items-center gap-2">
+              <button
+                onClick={() => setViewerMode("auto")}
+                className={`rounded-md border px-2.5 py-1 text-xs font-medium ${viewerMode === "auto" ? "border-primary bg-primary text-white" : "border-neutral-200 text-neutral-700"}`}
+              >
+                Auto
+              </button>
+              {sources.google ? (
+                <button
+                  onClick={() => setViewerMode("google")}
+                  className={`rounded-md border px-2.5 py-1 text-xs font-medium ${viewerMode === "google" ? "border-primary bg-primary text-white" : "border-neutral-200 text-neutral-700"}`}
+                >
+                  Google Viewer
+                </button>
+              ) : null}
+              {sources.office ? (
+                <button
+                  onClick={() => setViewerMode("office")}
+                  className={`rounded-md border px-2.5 py-1 text-xs font-medium ${viewerMode === "office" ? "border-primary bg-primary text-white" : "border-neutral-200 text-neutral-700"}`}
+                >
+                  Office Viewer
+                </button>
+              ) : null}
+              {sources.proxy ? (
+                <button
+                  onClick={() => setViewerMode("proxy")}
+                  className={`rounded-md border px-2.5 py-1 text-xs font-medium ${viewerMode === "proxy" ? "border-primary bg-primary text-white" : "border-neutral-200 text-neutral-700"}`}
+                >
+                  Proxy
+                </button>
+              ) : null}
+              {sources.direct ? (
+                <button
+                  onClick={() => setViewerMode("direct")}
+                  className={`rounded-md border px-2.5 py-1 text-xs font-medium ${viewerMode === "direct" ? "border-primary bg-primary text-white" : "border-neutral-200 text-neutral-700"}`}
+                >
+                  URL gốc
+                </button>
+              ) : null}
+            </div>
+
+            {viewerSrc ? (
+              <>
+                <iframe
+                  src={viewerSrc}
+                  className="min-h-0 w-full flex-1 rounded-lg border"
+                  title={fileName || "File preview"}
+                />
+                <div className="mt-2 flex flex-wrap gap-2 text-xs">
+                  <a
+                    href={viewerSrc}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="rounded-md border border-neutral-200 px-2 py-1 text-neutral-700 hover:bg-neutral-50"
+                  >
+                    Mở tab mới
+                  </a>
+                  {preview?.expiresAt ? (
+                    <span className="self-center text-neutral-500">Hết hạn: {preview.expiresAt}</span>
+                  ) : null}
+                </div>
+              </>
             ) : (
-              <div className="text-center py-8 text-black">
-                Không có file để hiển thị
+              <div className="flex h-full items-center justify-center rounded-lg border bg-neutral-50 text-sm text-neutral-500">
+                Chưa có URL preview từ presign.
               </div>
             )}
           </div>

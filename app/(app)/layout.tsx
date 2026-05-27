@@ -63,7 +63,7 @@ const navItems: NavItem[] = [
   { href: "/mail-accounts", label: "Tài khoản Email", icon: Inbox },
   { href: "/emails", label: "Email", icon: Mail },
   { href: "/analysis-results", label: "Kết quả AI", icon: ClipboardList },
-  { href: "/webhooks", label: "Webhooks", icon: Webhook },
+  // { href: "/webhooks", label: "Webhooks", icon: Webhook },
   { href: "/reports", label: "Báo cáo", icon: BarChart3 },
 ]
 
@@ -82,9 +82,9 @@ const getBreadcrumbItems = (pathname: string) => {
     return [{ label: "Kết quả AI", href: "/analysis-results" }]
   }
 
-  if (pathname.startsWith("/webhooks")) {
-    return [{ label: "Webhooks", href: "/webhooks" }]
-  }
+  // if (pathname.startsWith("/webhooks")) {
+  //   return [{ label: "Webhooks", href: "/webhooks" }]
+  // }
 
   if (pathname.startsWith("/mail-accounts")) {
     return [{ label: "Tài khoản Email", href: "/mail-accounts" }]
@@ -176,17 +176,29 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
   const pathname = usePathname()
   const router = useRouter()
   const [collapsed, setCollapsed] = useState(false)
+  const [hasHydrated, setHasHydrated] = useState(false)
+  const [mounted, setMounted] = useState(false)
   const breadcrumbItems = getBreadcrumbItems(pathname)
   const { logout } = useAuth()
   const authUser = useAuthStore((s) => s.user)
   const isAdmin = useAuthStore((s) => s.isAdmin)()
 
+  useEffect(() => {
+    setMounted(true)
+    setHasHydrated(useAuthStore.persist.hasHydrated())
+    const unsubscribe = useAuthStore.persist.onFinishHydration(() => {
+      setHasHydrated(true)
+    })
+    return unsubscribe
+  }, [])
+
   // Redirect non-admin users away from admin routes
   useEffect(() => {
+    if (!hasHydrated) return
     if (!isAdmin && pathname.startsWith("/admin")) {
       router.replace("/user")
     }
-  }, [isAdmin, pathname, router])
+  }, [hasHydrated, isAdmin, pathname, router])
 
   const handleLogout = () => {
     logout()
@@ -268,7 +280,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
               <nav className="space-y-1.5 p-3">
                 {navItems.map(renderNavItem)}
 
-                {isAdmin && (
+                {mounted && hasHydrated && isAdmin && (
                   <>
                     {!collapsed && (
                       <div className="px-3 pt-5 pb-2 text-[11px] font-semibold uppercase tracking-[0.24em] text-neutral-100">

@@ -3,7 +3,6 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 import { MAIL_CONNECTOR_AXIOS } from "@/lib/orval/mail-connector-mutator"
 import { getLogisticsPlatformAPI } from "@/lib/generated/mail-connector/endpoints"
-import type { MailAnalysisResultDto } from "@/lib/generated/mail-connector/model/mailAnalysisResultDto"
 import type { CreateTemplateRequest } from "@/lib/generated/mail-connector/model/createTemplateRequest"
 import type { CreateWebhookSubscriptionRequest } from "@/lib/generated/mail-connector/model/createWebhookSubscriptionRequest"
 import type { GetApiV1MailAnalysisResultsParams } from "@/lib/generated/mail-connector/model/getApiV1MailAnalysisResultsParams"
@@ -12,7 +11,25 @@ import type { GetApiV1MailMessagesMessageIdAttachmentsAttachmentIdPresignedUrlPa
 import type { UpdateTemplateRequest } from "@/lib/generated/mail-connector/model/updateTemplateRequest"
 import type { UpdateWebhookSubscriptionRequest } from "@/lib/generated/mail-connector/model/updateWebhookSubscriptionRequest"
 
-const mailApi = getLogisticsPlatformAPI()
+const mailApi: any = getLogisticsPlatformAPI()
+
+type MailAnalysisResultDto = {
+  id?: string | null
+  mailMessageId?: string | null
+  category?: string | null
+  detectedIntent?: string | null
+  status?: string | null
+  confidenceScore?: number | null
+  extractedFields?: Record<string, string> | null
+  missingFields?: string[] | null
+  warnings?: string[] | null
+  modelName?: string | null
+  inputTokenCount?: number | null
+  outputTokenCount?: number | null
+  costEstimate?: number | null
+  createdAt?: string | null
+  updatedAt?: string | null
+}
 
 const getAnalysisItems = (data: unknown): MailAnalysisResultDto[] => {
   if (!Array.isArray(data)) return []
@@ -136,6 +153,23 @@ export function useTriggerSyncMutation(accountId: string | null) {
   })
 }
 
+export function useTriggerSyncDirectMutation(accountId: string | null) {
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: () =>
+      mailApi.postApiV1MailAccountsIdSyncDirect(accountId as string, {
+        syncType: "MANUAL_RESYNC",
+        folderIds: ["INBOX"],
+      }),
+    onSuccess: () => {
+      if (accountId) {
+        void queryClient.invalidateQueries({ queryKey: mailQueryKeys.syncStatus(accountId) })
+      }
+    },
+  })
+}
+
 export function useMailMessagesQuery(params: {
   accountId?: string
   page: number
@@ -153,11 +187,11 @@ export function useMailMessagesQuery(params: {
   if (params.processStatus) filters.push(`processStatus==${params.processStatus}`)
 
   const queryParams: GetApiV1MailMessagesParams = {
-    Page: params.page,
-    PageSize: params.pageSize,
-    Filters: filters.join("&") || undefined,
-    SortField: params.sortField ?? "sentAt",
-    SortOrder: params.sortOrder ?? "desc",
+    page: params.page,
+    pageSize: params.pageSize,
+    filters: filters.join("&") || undefined,
+    sortField: params.sortField ?? "sentAt",
+    sortOrder: params.sortOrder ?? "desc",
   }
 
   return useQuery({
@@ -367,11 +401,11 @@ export function useAnalysisResultsQuery(params: {
   if (params.category) filters.push(`category==${params.category}`)
 
   const queryParams: GetApiV1MailAnalysisResultsParams = {
-    Filters: filters.join("&") || undefined,
-    SortField: params.sortField ?? "createdAt",
-    SortOrder: params.sortOrder ?? "desc",
-    Page: params.page,
-    PageSize: params.pageSize,
+    filters: filters.join("&") || undefined,
+    sortField: params.sortField ?? "createdAt",
+    sortOrder: params.sortOrder ?? "desc",
+    page: params.page,
+    pageSize: params.pageSize,
   }
 
   return useQuery({

@@ -34,8 +34,14 @@ export default function ExtractPage() {
     setFields(extractedFields)
   }, [analysisQuery.data?.extractedFields])
 
-  const missingFields = useMemo(() => analysisQuery.data?.missingFields ?? [], [analysisQuery.data?.missingFields])
-  const warnings = useMemo(() => analysisQuery.data?.warnings ?? [], [analysisQuery.data?.warnings])
+  const missingFields = useMemo<string[]>(
+    () => (analysisQuery.data?.missingFields ?? []) as string[],
+    [analysisQuery.data?.missingFields]
+  )
+  const warnings = useMemo<string[]>(
+    () => (analysisQuery.data?.warnings ?? []) as string[],
+    [analysisQuery.data?.warnings]
+  )
 
   const handleFieldChange = (key: string, value: string) => {
     setFields((previousState) => ({ ...previousState, [key]: value }))

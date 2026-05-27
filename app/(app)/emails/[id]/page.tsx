@@ -13,7 +13,7 @@ const API_BASE = process.env.NEXT_PUBLIC_API_URL || "https://vietprodev.duckdns.
 import { FileAttachmentItem } from "@/components/file-attachment-item"
 import { AttachmentViewerModal } from "@/components/attachment-viewer-modal"
 import { FileViewerModal } from "@/components/ui/file-viewer-modal"
-import { ExtractionResultModal } from "@/components/extraction-result-modal"
+import { ExtractionResultModal, type ExtractionPreviewSources } from "@/components/extraction-result-modal"
 import {
   useAttachmentContentQuery,
   useAttachmentExtractTextQuery,
@@ -24,6 +24,36 @@ import {
 import { getLogisticsPlatformAPI } from "@/lib/generated/mail-connector/endpoints"
 
 const mailApi = getLogisticsPlatformAPI()
+
+function readString(value: unknown): string | undefined {
+  if (typeof value !== "string") return undefined
+  const trimmed = value.trim()
+  return trimmed ? trimmed : undefined
+}
+
+function resolvePresignedPreview(response: unknown): ExtractionPreviewSources | null {
+  const asRecord = (value: unknown): Record<string, unknown> | null =>
+    value && typeof value === "object" ? (value as Record<string, unknown>) : null
+
+  const root = asRecord(response)
+  const level1 = asRecord(root?.data)
+  const level2 = asRecord(level1?.data)
+  const candidates = [root, level1, level2].filter(Boolean) as Record<string, unknown>[]
+
+  for (const candidate of candidates) {
+    const url = readString(candidate.url)
+    const googleViewerUrl = readString(candidate.googleViewerUrl)
+    const officeViewerUrl = readString(candidate.officeViewerUrl)
+    const proxyUrl = readString(candidate.proxyUrl)
+    const expiresAt = readString(candidate.expiresAt)
+
+    if (url || googleViewerUrl || officeViewerUrl || proxyUrl) {
+      return { url, googleViewerUrl, officeViewerUrl, proxyUrl, expiresAt }
+    }
+  }
+
+  return null
+}
 
 export default function EmailDetailPage() {
   const router = useRouter()
@@ -46,7 +76,7 @@ export default function EmailDetailPage() {
 
   const [extractionResultOpen, setExtractionResultOpen] = useState(false)
   const [extractionResult, setExtractionResult] = useState<string | null>(null)
-  const [extractionPreviewUrl, setExtractionPreviewUrl] = useState<string | null>(null)
+  const [extractionPreview, setExtractionPreview] = useState<ExtractionPreviewSources | null>(null)
   const [extractionFileName, setExtractionFileName] = useState<string | null>(null)
 
   const emailData = messageQuery.data
@@ -87,6 +117,7 @@ export default function EmailDetailPage() {
     }
 
     try {
+      setExtractionPreview(null)
       // Fetch content for all selected attachments using authenticated axios
       const files = await Promise.all(
         Array.from(selectedForAI).map(async (attachmentId) => {
@@ -151,9 +182,7 @@ export default function EmailDetailPage() {
           firstAttachmentId,
           { expiryMinutes: 30 }
         )
-        const presignedData = (presignedResponse as unknown as { data?: { data?: { url?: string } } }).data
-        const presignedUrl = presignedData?.data?.url || ""
-        setExtractionPreviewUrl(presignedUrl)
+        setExtractionPreview(resolvePresignedPreview(presignedResponse))
         setExtractionFileName(firstAttachment.fileName)
       }
 
@@ -349,7 +378,7 @@ export default function EmailDetailPage() {
                 open={extractionResultOpen}
                 onOpenChange={setExtractionResultOpen}
                 result={extractionResult}
-                previewUrl={extractionPreviewUrl}
+                preview={extractionPreview}
                 fileName={extractionFileName}
               />
             </div>

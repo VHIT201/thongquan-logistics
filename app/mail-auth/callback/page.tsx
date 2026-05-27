@@ -3,10 +3,10 @@
 import { Suspense, useEffect, useMemo, useState } from "react"
 import { useRouter, useSearchParams } from "next/navigation"
 import { Loader2, Mail, XCircle } from "lucide-react"
-import { getMailConnectorAPI } from "@/lib/generated/mail-connector/endpoints"
+import { getLogisticsPlatformAPI } from "@/lib/generated/mail-connector/endpoints"
 import { getErrorMessage } from "@/lib/get-error-message"
 
-const mailApi = getMailConnectorAPI()
+const mailApi = getLogisticsPlatformAPI()
 
 function MailAuthCallbackContent() {
   const router = useRouter()

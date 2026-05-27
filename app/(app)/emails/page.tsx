@@ -23,6 +23,31 @@ import { useMailAccountsQuery, useMailMessagesQuery } from "@/hooks/use-mail-que
 
 const ITEMS_PER_PAGE = 10
 
+type MailListItem = {
+  id?: string | null
+  subject?: string | null
+  fromName?: string | null
+  fromEmail?: string | null
+  receivedAt?: string | null
+  processStatus?: string | null
+  hasAttachments?: boolean | null
+}
+
+type MailListEnvelope = {
+  data?: MailListItem[]
+  meta?: {
+    pagination?: {
+      totalPages?: number
+      totalItems?: number
+    }
+  }
+}
+
+type MailAccountItem = {
+  id?: string | null
+  emailAddress?: string | null
+}
+
 export default function EmailsPage() {
   const [search, setSearch] = useState("")
   const [statusFilter, setStatusFilter] = useState("all")
@@ -31,12 +56,13 @@ export default function EmailsPage() {
   const [sortField, setSortField] = useState("sentAt")
   const [sortOrder, setSortOrder] = useState<"asc" | "desc">("desc")
 
-  const { data: accounts = [], isPending: accountsPending } = useMailAccountsQuery()
+  const { data: accountsData = [], isPending: accountsPending } = useMailAccountsQuery()
+  const accounts: MailAccountItem[] = accountsData as MailAccountItem[]
   const [activeAccountId, setActiveAccountId] = useState<string | undefined>(undefined)
 
   useEffect(() => {
     if (accounts.length > 0 && !activeAccountId) {
-      setActiveAccountId(accounts[0].id)
+      setActiveAccountId(accounts[0].id ?? undefined)
     }
   }, [accounts, activeAccountId])
 
@@ -53,8 +79,9 @@ export default function EmailsPage() {
     sortOrder,
   })
 
-  const pagedEmails = mailQuery.data?.data ?? []
-  const pagination = mailQuery.data?.meta?.pagination
+  const mailEnvelope = mailQuery.data as MailListEnvelope | undefined
+  const pagedEmails = mailEnvelope?.data ?? []
+  const pagination = mailEnvelope?.meta?.pagination
   const totalPages = Math.max(1, pagination?.totalPages ?? 1)
   const totalItems = pagination?.totalItems ?? pagedEmails.length
 

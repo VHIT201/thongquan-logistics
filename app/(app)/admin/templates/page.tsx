@@ -24,6 +24,20 @@ type TemplateFormState = {
   isActive: boolean
 }
 
+type TemplateItem = {
+  id?: string | null
+  templateCode?: string | null
+  templateName?: string | null
+  description?: string | null
+  subjectPattern?: string | null
+  bodyPattern?: string | null
+  expectedFields?: Record<string, string> | null
+  documentTypes?: string[] | null
+  isActive?: boolean | null
+  createdAt?: string | null
+  updatedAt?: string | null
+}
+
 const emptyForm: TemplateFormState = {
   templateCode: "",
   templateName: "",
@@ -45,7 +59,7 @@ export default function AdminTemplatesPage() {
   const [message, setMessage] = useState<string | null>(null)
   const updateTemplateMutation = useUpdateEmailTemplateMutation(editingTemplateId)
 
-  const templates = templatesQuery.data ?? []
+  const templates: TemplateItem[] = (templatesQuery.data ?? []) as TemplateItem[]
   const isSaving = createTemplateMutation.isPending || updateTemplateMutation.isPending
 
   const sortedTemplates = useMemo(

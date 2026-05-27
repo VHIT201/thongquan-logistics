@@ -9,6 +9,7 @@ import {
   useOAuthUrlMutation,
   useSyncStatusQuery,
   useTriggerSyncMutation,
+  useTriggerSyncDirectMutation,
 } from "@/hooks/use-mail-queries"
 
 function SettingsContent() {
@@ -25,10 +26,11 @@ function SettingsContent() {
   const activeAccount = useMemo(() => accounts[0] ?? null, [accounts])
   const syncStatusQuery = useSyncStatusQuery(activeAccount?.id ?? null)
   const triggerSyncMutation = useTriggerSyncMutation(activeAccount?.id ?? null)
+  const triggerSyncDirectMutation = useTriggerSyncDirectMutation(activeAccount?.id ?? null)
 
   const syncStatus = syncStatusQuery.data?.status
   const currentlySyncing =
-    String(syncStatus || "").toLowerCase() === "syncing" || triggerSyncMutation.isPending
+    String(syncStatus || "").toLowerCase() === "syncing" || triggerSyncMutation.isPending || triggerSyncDirectMutation.isPending
 
   const handleConnectGmail = async () => {
     try {
@@ -62,6 +64,17 @@ function SettingsContent() {
       setActionMessage("Đã gửi yêu cầu đồng bộ. Hệ thống đang cập nhật trạng thái.")
     } catch (error) {
       setActionError(getErrorMessage(error, "Không thể bắt đầu đồng bộ email."))
+    }
+  }
+
+  const handleSyncDirect = async () => {
+    try {
+      setActionError(null)
+      setActionMessage(null)
+      await triggerSyncDirectMutation.mutateAsync()
+      setActionMessage("Đã chạy đồng bộ trực tiếp thành công.")
+    } catch (error) {
+      setActionError(getErrorMessage(error, "Không thể chạy đồng bộ trực tiếp."))
     }
   }
 
@@ -119,14 +132,24 @@ function SettingsContent() {
                 {syncStatusQuery.data?.totalMessages ?? 0}
               </p>
             </div>
-            <button
-              onClick={handleSync}
-              disabled={currentlySyncing}
-              className="flex items-center gap-2 rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-50"
-            >
-              <RefreshCw className={cn("h-4 w-4", currentlySyncing && "animate-spin")} />
-              {currentlySyncing ? "Đang đồng bộ..." : "Đồng bộ ngay"}
-            </button>
+            <div className="flex flex-wrap items-center gap-2">
+              <button
+                onClick={handleSync}
+                disabled={currentlySyncing}
+                className="flex items-center gap-2 rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-50"
+              >
+                <RefreshCw className={cn("h-4 w-4", currentlySyncing && "animate-spin")} />
+                {currentlySyncing ? "Đang đồng bộ..." : "Đồng bộ ngay"}
+              </button>
+              <button
+                onClick={handleSyncDirect}
+                disabled={currentlySyncing}
+                className="flex items-center gap-2 rounded-lg border border-blue-200 px-4 py-2 text-sm font-medium text-blue-700 hover:bg-blue-50 disabled:opacity-50"
+              >
+                <RefreshCw className={cn("h-4 w-4", triggerSyncDirectMutation.isPending && "animate-spin")} />
+                {triggerSyncDirectMutation.isPending ? "Đang sync direct..." : "Sync direct"}
+              </button>
+            </div>
           </div>
         ) : (
           <button
