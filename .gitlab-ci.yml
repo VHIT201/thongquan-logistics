@@ -5,7 +5,7 @@ stages:
 variables:
   DEPLOY_DIR: "/opt/tms-admin-be"
 
-# Cấu hình Build
+# Cấu hình Build: Chỉ lưu lại những gì cần thiết để deploy
 build:
   stage: build
   tags:
@@ -19,7 +19,6 @@ build:
     paths:
       - .next/
       - public/
-      - node_modules/
       - package.json
       - pnpm-lock.yaml
       - ecosystem.config.js
@@ -33,18 +32,26 @@ deploy:
   tags:
     - runner-vpd-que
   script:
-    # Xóa tiến trình cũ
+    # 1. Dọn dẹp tiến trình cũ
     - pm2 delete tms-admin-be || true
-    # Đồng bộ file
+    
+    # 2. Tạo thư mục và copy artifact
     - mkdir -p $DEPLOY_DIR
     - cp -r ./.next $DEPLOY_DIR/
     - cp -r ./public $DEPLOY_DIR/
-    - cp -r ./node_modules $DEPLOY_DIR/
     - cp package.json $DEPLOY_DIR/
     - cp pnpm-lock.yaml $DEPLOY_DIR/
     - cp ecosystem.config.js $DEPLOY_DIR/
-    # Khởi động app
+    
+    # 3. Cài đặt lại dependency production trên server
     - cd $DEPLOY_DIR
+    - corepack enable
+    - corepack prepare pnpm@latest --activate
+    - pnpm install --prod --frozen-lockfile
+    
+    # 4. Khởi động ứng dụng
     - pm2 start ecosystem.config.js --env production
+    - pm2 save
+    - pm2 status
   only:
     - release/staging
