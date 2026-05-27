@@ -1,7 +1,7 @@
 "use client"
 
-import { Suspense, useEffect, useState } from "react"
-import { useRouter, useSearchParams } from "next/navigation"
+import { Suspense, useState } from "react"
+import { useRouter } from "next/navigation"
 import {
   AlertCircle,
   CheckCircle,
@@ -22,7 +22,6 @@ import { getErrorMessage } from "@/lib/get-error-message"
 import { toast } from "sonner"
 import {
   useMailAccountsQuery,
-  useConnectAccountMutation,
   useDeleteMailAccountMutation,
   useOAuthUrlMutation,
   useSyncStatusQuery,
@@ -90,14 +89,10 @@ function StatusBadge({ status }: { status?: string }) {
 
 function MailAccountsContent() {
   const router = useRouter()
-  const searchParams = useSearchParams()
-  const code = searchParams.get("code")
-  const state = searchParams.get("state")
 
   const { data: accountsData = [], isPending: accountsPending } = useMailAccountsQuery()
   const accounts: MailAccountItem[] = accountsData as MailAccountItem[]
   const oauthMutation = useOAuthUrlMutation()
-  const connectMutation = useConnectAccountMutation()
   const deleteMutation = useDeleteMailAccountMutation()
 
   const [syncingAccountId, setSyncingAccountId] = useState<string | null>(null)
@@ -105,37 +100,10 @@ function MailAccountsContent() {
   const triggerSyncDirect = useTriggerSyncDirectMutation(syncingAccountId)
   const syncStatus = useSyncStatusQuery(syncingAccountId)
 
-  // Handle OAuth callback inline
-  useEffect(() => {
-    const oauthError = searchParams.get("error")
-    if (oauthError) {
-      toast.error(`OAuth bị từ chối: ${oauthError}`)
-      router.replace("/mail-accounts")
-      return
-    }
-
-    if (!code) return
-
-    const redirectUri = `${window.location.origin}/mail-accounts`
-    connectMutation.mutate(
-      { authorizationCode: code, redirectUri },
-      {
-        onSuccess: () => {
-          toast.success("Kết nối tài khoản thành công.")
-          router.replace("/mail-accounts")
-        },
-        onError: (err) => {
-          toast.error(getErrorMessage(err, "Kết nối tài khoản thất bại."))
-          router.replace("/mail-accounts")
-        },
-      }
-    )
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [code])
-
   const handleConnect = async () => {
     try {
-      const redirectUri = `${window.location.origin}/mail-accounts`
+      // BE callback - BE sẽ xử lý toàn bộ OAuth
+      const redirectUri = "https://vietprodev.duckdns.org/gateway/mail-connector/oauth/callback"
       const randomState = Math.random().toString(36).substring(2)
       const response = await oauthMutation.mutateAsync({ redirectUri, state: randomState })
       const authUrl = (response as { authUrl?: string })?.authUrl
