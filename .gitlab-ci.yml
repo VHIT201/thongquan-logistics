@@ -24,11 +24,6 @@ before_script:
   - corepack enable
   - corepack prepare pnpm@latest --activate
 
-cache:
-  paths:
-    - .pnpm-store
-    - node_modules
-
 build:
   stage: build
   script:
