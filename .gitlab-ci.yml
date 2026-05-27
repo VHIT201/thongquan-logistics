@@ -1,0 +1,67 @@
+image: node:20-alpine
+
+stages:
+  - build
+  - deploy
+
+default:
+  tags:
+    - runner-vpd-que
+
+variables:
+  PNPM_HOME: "$CI_PROJECT_DIR/.pnpm"
+  PATH: "$PNPM_HOME:$PATH"
+  NODE_ENV: production
+
+cache:
+  key: ${CI_COMMIT_REF_SLUG}
+  paths:
+    - .pnpm-store/
+    - node_modules/
+
+before_script:
+  - apk add --no-cache openssh-client rsync git bash python3
+  - corepack enable
+  - corepack prepare pnpm@latest --activate
+
+cache:
+  paths:
+    - .pnpm-store
+    - node_modules
+
+build:
+  stage: build
+  script:
+    - pnpm install --frozen-lockfile
+    - pnpm run build
+  artifacts:
+    paths:
+      - .next
+      - node_modules
+      - package.json
+      - pnpm-lock.yaml
+    expire_in: 1 hour
+
+.deploy_template: &deploy_template
+  stage: deploy
+  before_script:
+    - 'which ssh-agent || ( apk add --no-cache openssh )'
+    - eval $(ssh-agent -s)
+    - echo "$SSH_PRIVATE_KEY" | tr -d '\r' | ssh-add -
+    - mkdir -p ~/.ssh
+    - chmod 700 ~/.ssh
+    - ssh-keyscan -H "$DEPLOY_HOST" >> ~/.ssh/known_hosts
+  script:
+    - rsync -avz --delete --exclude="node_modules" --exclude=".git" ./ $DEPLOY_USER@$DEPLOY_HOST:$DEPLOY_PATH
+    - ssh $DEPLOY_USER@$DEPLOY_HOST "cd $DEPLOY_PATH && pnpm install --prod --frozen-lockfile && pnpm run build || true && pnpm exec pm2 restart logistics || pnpm exec pm2 start npm --name logistics -- start"
+  only:
+    - main
+    - master
+    - /^release\/.*/
+
+deploy_production:
+  <<: *deploy_template
+  variables:
+    DEPLOY_PATH: ${DEPLOY_PATH}
+    DEPLOY_HOST: ${DEPLOY_HOST}
+    DEPLOY_USER: ${DEPLOY_USER}
