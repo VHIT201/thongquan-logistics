@@ -1,8 +1,8 @@
 "use client"
 
-import React, { useState } from "react"
+import React, { useEffect, useState } from "react"
 import Link from "next/link"
-import { usePathname } from "next/navigation"
+import { usePathname, useRouter } from "next/navigation"
 import {
   type LucideIcon,
   AlertTriangle,
@@ -27,6 +27,7 @@ import {
 } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { useAuth } from "@/hooks/use-auth"
+import { useAuthStore } from "@/lib/stores/auth-store"
 import TourButton from "@/components/tour-button"
 import {
   Breadcrumb,
@@ -117,6 +118,10 @@ const getBreadcrumbItems = (pathname: string) => {
     return [{ label: "Báo cáo", href: "/reports" }]
   }
 
+  if (pathname.startsWith("/user")) {
+    return [{ label: "Tài khoản", href: "/user" }]
+  }
+
   if (pathname.startsWith("/admin")) {
     if (pathname === "/admin") {
       return [
@@ -169,9 +174,19 @@ const getBreadcrumbItems = (pathname: string) => {
 
 export default function AppLayout({ children }: { children: React.ReactNode }) {
   const pathname = usePathname()
+  const router = useRouter()
   const [collapsed, setCollapsed] = useState(false)
   const breadcrumbItems = getBreadcrumbItems(pathname)
   const { logout } = useAuth()
+  const authUser = useAuthStore((s) => s.user)
+  const isAdmin = useAuthStore((s) => s.isAdmin)()
+
+  // Redirect non-admin users away from admin routes
+  useEffect(() => {
+    if (!isAdmin && pathname.startsWith("/admin")) {
+      router.replace("/user")
+    }
+  }, [isAdmin, pathname, router])
 
   const handleLogout = () => {
     logout()
@@ -253,14 +268,17 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
               <nav className="space-y-1.5 p-3">
                 {navItems.map(renderNavItem)}
 
-                {!collapsed && (
-                  <div className="px-3 pt-5 pb-2 text-[11px] font-semibold uppercase tracking-[0.24em] text-neutral-100">
-                    Quản trị
-                  </div>
+                {isAdmin && (
+                  <>
+                    {!collapsed && (
+                      <div className="px-3 pt-5 pb-2 text-[11px] font-semibold uppercase tracking-[0.24em] text-neutral-100">
+                        Quản trị
+                      </div>
+                    )}
+                    {collapsed && <Separator className="my-3 bg-neutral-200/20" />}
+                    {adminItems.map(renderNavItem)}
+                  </>
                 )}
-                {collapsed && <Separator className="my-3 bg-neutral-200/20" />}
-
-                {adminItems.map(renderNavItem)}
               </nav>
             </ScrollArea>
 
@@ -386,25 +404,36 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
                     <button className="flex items-center gap-2.5 rounded-full border border-neutral-100 bg-white px-2 py-1.5 transition-colors hover:bg-neutral-50">
                       <Avatar className="h-8 w-8">
                         <AvatarFallback className="bg-primary-50 text-primary text-xs font-semibold">
-                          AD
+                          {authUser?.fullName
+                            ? authUser.fullName
+                                .split(" ")
+                                .map((n) => n[0])
+                                .join("")
+                                .toUpperCase()
+                                .slice(0, 2)
+                            : "U"}
                         </AvatarFallback>
                       </Avatar>
                       <div className="hidden text-left sm:block pr-1">
-                        <p className="text-sm font-medium text-neutral-300">Admin</p>
-                        <p className="text-[11px] text-neutral-200">admin@company.com</p>
+                        <p className="text-sm font-medium text-neutral-300">{authUser?.fullName || "User"}</p>
+                        <p className="text-[11px] text-neutral-200">{authUser?.email || ""}</p>
                       </div>
                     </button>
                   </DropdownMenuTrigger>
                   <DropdownMenuContent align="end" className="w-56">
                     <DropdownMenuLabel>Tài khoản</DropdownMenuLabel>
                     <DropdownMenuSeparator />
-                    <DropdownMenuItem>
-                      <User className="mr-2 h-4 w-4 text-primary" />
-                      <span>Hồ sơ</span>
+                    <DropdownMenuItem asChild>
+                      <Link href="/user" className="flex cursor-pointer items-center">
+                        <User className="mr-2 h-4 w-4 text-primary" />
+                        <span>Hồ sơ</span>
+                      </Link>
                     </DropdownMenuItem>
-                    <DropdownMenuItem>
-                      <SettingsIcon className="mr-2 h-4 w-4 text-primary" />
-                      <span>Cài đặt</span>
+                    <DropdownMenuItem asChild>
+                      <Link href="/admin/settings" className="flex cursor-pointer items-center">
+                        <SettingsIcon className="mr-2 h-4 w-4 text-primary" />
+                        <span>Cài đặt</span>
+                      </Link>
                     </DropdownMenuItem>
                     <DropdownMenuSeparator />
                     <DropdownMenuItem onClick={handleLogout} className="text-accent">

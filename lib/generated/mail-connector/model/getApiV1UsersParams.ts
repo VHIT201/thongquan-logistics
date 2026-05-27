@@ -5,7 +5,7 @@
  * OpenAPI spec version: v1
  */
 
-export type GetApiV1FilesParams = {
+export type GetApiV1UsersParams = {
 filters?: string;
 sortField?: string;
 sortOrder?: string;

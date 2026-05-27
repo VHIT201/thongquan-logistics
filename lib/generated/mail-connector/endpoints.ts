@@ -9,12 +9,14 @@ import type {
   BatchCompleteUploadRequest,
   BatchDownloadUrlRequest,
   BatchInitiateUploadRequest,
+  ChangePasswordRequest,
   CompleteRequest,
   ConfirmPasswordResetCommand,
   ConnectAccountRequest,
   CreateAnalysisResultRequest,
   CreateMailAccountRequest,
   CreateTemplateRequest,
+  CreateUserRequest,
   CreateWebhookSubscriptionRequest,
   DocumentProcessingRequest,
   ExchangeTokenRequest,
@@ -29,6 +31,7 @@ import type {
   GetApiV1MailMessagesParams,
   GetApiV1OrderDraftsExportParams,
   GetApiV1OrderDraftsParams,
+  GetApiV1UsersParams,
   GetApiV1WebhookSubscriptionsParams,
   GetOauthCallbackParams,
   InitiateUploadRequest,
@@ -44,6 +47,7 @@ import type {
   RefreshMailTokenRequest,
   RefreshTokenCommand,
   RejectRequest,
+  ResetPasswordRequest,
   ReviewRequest,
   RevokeSessionRequest,
   SendPasswordResetOtpCommand,
@@ -55,6 +59,9 @@ import type {
   UpdateMailAccountDto,
   UpdateStatusRequest,
   UpdateTemplateRequest,
+  UpdateUserRequest,
+  UpdateUserRolesRequest,
+  UpdateUserStatusRequest,
   UpdateWebhookSubscriptionRequest,
   ValidateMappingRequest,
   WebhookPayload
@@ -1024,6 +1031,124 @@ const getApiV1UsersMe = (
       options);
     }
   
+const putApiV1UsersMe = (
+    updateUserRequest: BodyType<UpdateUserRequest>,
+ options?: SecondParameter<typeof mailConnectorInstance<void>>,) => {
+      return mailConnectorInstance<void>(
+      {url: `/api/v1/users/me`, method: 'PUT',
+      headers: {'Content-Type': 'application/json', },
+      data: updateUserRequest
+    },
+      options);
+    }
+  
+const getApiV1Users = (
+    params?: GetApiV1UsersParams,
+ options?: SecondParameter<typeof mailConnectorInstance<void>>,) => {
+      return mailConnectorInstance<void>(
+      {url: `/api/v1/users`, method: 'GET',
+        params
+    },
+      options);
+    }
+  
+const postApiV1Users = (
+    createUserRequest: BodyType<CreateUserRequest>,
+ options?: SecondParameter<typeof mailConnectorInstance<void>>,) => {
+      return mailConnectorInstance<void>(
+      {url: `/api/v1/users`, method: 'POST',
+      headers: {'Content-Type': 'application/json', },
+      data: createUserRequest
+    },
+      options);
+    }
+  
+const getApiV1UsersId = (
+    id: string,
+ options?: SecondParameter<typeof mailConnectorInstance<void>>,) => {
+      return mailConnectorInstance<void>(
+      {url: `/api/v1/users/${id}`, method: 'GET'
+    },
+      options);
+    }
+  
+const putApiV1UsersId = (
+    id: string,
+    updateUserRequest: BodyType<UpdateUserRequest>,
+ options?: SecondParameter<typeof mailConnectorInstance<void>>,) => {
+      return mailConnectorInstance<void>(
+      {url: `/api/v1/users/${id}`, method: 'PUT',
+      headers: {'Content-Type': 'application/json', },
+      data: updateUserRequest
+    },
+      options);
+    }
+  
+const deleteApiV1UsersId = (
+    id: string,
+ options?: SecondParameter<typeof mailConnectorInstance<void>>,) => {
+      return mailConnectorInstance<void>(
+      {url: `/api/v1/users/${id}`, method: 'DELETE'
+    },
+      options);
+    }
+  
+const postApiV1UsersIdRestore = (
+    id: string,
+ options?: SecondParameter<typeof mailConnectorInstance<void>>,) => {
+      return mailConnectorInstance<void>(
+      {url: `/api/v1/users/${id}/restore`, method: 'POST'
+    },
+      options);
+    }
+  
+const patchApiV1UsersIdStatus = (
+    id: string,
+    updateUserStatusRequest: BodyType<UpdateUserStatusRequest>,
+ options?: SecondParameter<typeof mailConnectorInstance<void>>,) => {
+      return mailConnectorInstance<void>(
+      {url: `/api/v1/users/${id}/status`, method: 'PATCH',
+      headers: {'Content-Type': 'application/json', },
+      data: updateUserStatusRequest
+    },
+      options);
+    }
+  
+const postApiV1UsersMeChangePassword = (
+    changePasswordRequest: BodyType<ChangePasswordRequest>,
+ options?: SecondParameter<typeof mailConnectorInstance<void>>,) => {
+      return mailConnectorInstance<void>(
+      {url: `/api/v1/users/me/change-password`, method: 'POST',
+      headers: {'Content-Type': 'application/json', },
+      data: changePasswordRequest
+    },
+      options);
+    }
+  
+const postApiV1UsersIdResetPassword = (
+    id: string,
+    resetPasswordRequest: BodyType<ResetPasswordRequest>,
+ options?: SecondParameter<typeof mailConnectorInstance<void>>,) => {
+      return mailConnectorInstance<void>(
+      {url: `/api/v1/users/${id}/reset-password`, method: 'POST',
+      headers: {'Content-Type': 'application/json', },
+      data: resetPasswordRequest
+    },
+      options);
+    }
+  
+const putApiV1UsersIdRoles = (
+    id: string,
+    updateUserRolesRequest: BodyType<UpdateUserRolesRequest>,
+ options?: SecondParameter<typeof mailConnectorInstance<void>>,) => {
+      return mailConnectorInstance<void>(
+      {url: `/api/v1/users/${id}/roles`, method: 'PUT',
+      headers: {'Content-Type': 'application/json', },
+      data: updateUserRolesRequest
+    },
+      options);
+    }
+  
 const postApiV1WebhooksMailconnector = (
     webhookPayload: BodyType<WebhookPayload>,
  options?: SecondParameter<typeof mailConnectorInstance<void>>,) => {
@@ -1098,7 +1223,7 @@ const postApiV1WebhookSubscriptionsIdTest = (
       options);
     }
   
-return {getApiV1AiOpenaiUsage,getApiV1AiOpenaiUsageCurrentMonth,putApiAttachmentReviewsMailConnectorAttachmentIdApprove,putApiAttachmentReviewsMailConnectorAttachmentIdReject,getApiAttachmentReviewsByMessageMailConnectorMessageId,getApiAttachmentReviewsByStatusStatus,getApiAttachmentReviewsMy,postApiAttachmentReviewsMailConnectorAttachmentIdReset,getApiAttachmentReviewsMailConnectorAttachmentId,postApiV1AuthLogin,postApiV1AuthRefresh,postApiV1AuthLogout,getApiV1AuthSessions,postApiV1AuthSessionsIdRevoke,postApiV1AuthLogoutAll,postApiV1AuthForgotPasswordSendOtp,postApiV1AuthForgotPasswordConfirmReset,postApiV1DocumentProcessorProcess,postApiV1DocumentProcessorProcessMultiple,getApiV1MailAnalysisResults,postApiV1MailAnalysisResults,getApiV1MailAnalysisResultsId,putApiV1MailAnalysisResultsIdFields,postApiImportUpload,postApiImportValidateMapping,postApiImportPreview,postApiImportExecute,getApiImportHistory,getApiImportSchema,postApiV1FilesInitiateUpload,postApiV1FilesIdCompleteUpload,postApiV1FilesIdAbortUpload,getApiV1Files,getApiV1FilesId,deleteApiV1FilesId,getApiV1FilesIdDownloadUrl,getApiV1FilesQuota,postApiV1FilesBatchInitiateUpload,postApiV1FilesBatchCompleteUpload,patchApiV1FilesIdMetadata,postApiV1FilesIdRestore,postApiV1FilesBatchDownloadUrl,getApiV1MailAccounts,postApiV1MailAccounts,getApiV1MailAccountsId,putApiV1MailAccountsId,deleteApiV1MailAccountsId,postApiV1MailAccountsConnect,getApiV1MailAccountsIdSyncStatus,postApiV1MailAccountsIdSync,postApiV1MailAccountsIdSyncDirect,postApiMailAssignmentsMailConnectorMessageIdAssign,deleteApiMailAssignmentsMailConnectorMessageIdUnassign,getApiMailAssignmentsMy,getApiMailAssignmentsMailConnectorMessageIdStatus,putApiMailAssignmentsMailConnectorMessageIdStatus,postApiMailAssignmentsMailConnectorMessageIdReassign,postApiMailAssignmentsMailConnectorMessageIdComplete,postApiMailAssignmentsMailConnectorMessageIdRefreshLock,getApiMailAssignmentsByStatusStatus,postApiV1MailAuthOauthUrl,postApiV1MailAuthExchangeToken,postApiV1MailAuthRefreshToken,getApiV1MailMessages,getApiV1MailMessagesId,getApiV1MailMessagesIdAttachments,getApiV1MailMessagesMessageIdAttachmentsAttachmentIdDownload,getApiV1MailMessagesMessageIdAttachmentsAttachmentIdContent,getApiV1MailMessagesMessageIdAttachmentsAttachmentIdExtractText,getApiV1MailMessagesMessageIdAttachmentsAttachmentIdPreview,getApiV1MailMessagesMessageIdAttachmentsAttachmentIdPresignedUrl,postApiV1MailMessagesIdProcess,postApiV1MailMessagesIdTriggerPipeline,postApiV1MailMessagesIdNormalize,postApiV1MailMessagesIdClassify,postApiV1MailMessagesIdExtract,getApiV1MailMessagesIdProcessingJobs,getApiV1MailTemplates,postApiV1MailTemplates,getApiV1MailTemplatesId,putApiV1MailTemplatesId,deleteApiV1MailTemplatesId,getOauthCallback,getApiV1OrderDrafts,getApiV1OrderDraftsId,postApiV1OrderDraftsIdApproveL1,postApiV1OrderDraftsIdRejectL1,postApiV1OrderDraftsIdConfirm,postApiV1OrderDraftsIdReject,getApiV1OrderDraftsExport,getApiV1UsersMe,postApiV1WebhooksMailconnector,getApiV1WebhookSubscriptions,postApiV1WebhookSubscriptions,getApiV1WebhookSubscriptionsId,putApiV1WebhookSubscriptionsId,deleteApiV1WebhookSubscriptionsId,postApiV1WebhookSubscriptionsIdTest}};
+return {getApiV1AiOpenaiUsage,getApiV1AiOpenaiUsageCurrentMonth,putApiAttachmentReviewsMailConnectorAttachmentIdApprove,putApiAttachmentReviewsMailConnectorAttachmentIdReject,getApiAttachmentReviewsByMessageMailConnectorMessageId,getApiAttachmentReviewsByStatusStatus,getApiAttachmentReviewsMy,postApiAttachmentReviewsMailConnectorAttachmentIdReset,getApiAttachmentReviewsMailConnectorAttachmentId,postApiV1AuthLogin,postApiV1AuthRefresh,postApiV1AuthLogout,getApiV1AuthSessions,postApiV1AuthSessionsIdRevoke,postApiV1AuthLogoutAll,postApiV1AuthForgotPasswordSendOtp,postApiV1AuthForgotPasswordConfirmReset,postApiV1DocumentProcessorProcess,postApiV1DocumentProcessorProcessMultiple,getApiV1MailAnalysisResults,postApiV1MailAnalysisResults,getApiV1MailAnalysisResultsId,putApiV1MailAnalysisResultsIdFields,postApiImportUpload,postApiImportValidateMapping,postApiImportPreview,postApiImportExecute,getApiImportHistory,getApiImportSchema,postApiV1FilesInitiateUpload,postApiV1FilesIdCompleteUpload,postApiV1FilesIdAbortUpload,getApiV1Files,getApiV1FilesId,deleteApiV1FilesId,getApiV1FilesIdDownloadUrl,getApiV1FilesQuota,postApiV1FilesBatchInitiateUpload,postApiV1FilesBatchCompleteUpload,patchApiV1FilesIdMetadata,postApiV1FilesIdRestore,postApiV1FilesBatchDownloadUrl,getApiV1MailAccounts,postApiV1MailAccounts,getApiV1MailAccountsId,putApiV1MailAccountsId,deleteApiV1MailAccountsId,postApiV1MailAccountsConnect,getApiV1MailAccountsIdSyncStatus,postApiV1MailAccountsIdSync,postApiV1MailAccountsIdSyncDirect,postApiMailAssignmentsMailConnectorMessageIdAssign,deleteApiMailAssignmentsMailConnectorMessageIdUnassign,getApiMailAssignmentsMy,getApiMailAssignmentsMailConnectorMessageIdStatus,putApiMailAssignmentsMailConnectorMessageIdStatus,postApiMailAssignmentsMailConnectorMessageIdReassign,postApiMailAssignmentsMailConnectorMessageIdComplete,postApiMailAssignmentsMailConnectorMessageIdRefreshLock,getApiMailAssignmentsByStatusStatus,postApiV1MailAuthOauthUrl,postApiV1MailAuthExchangeToken,postApiV1MailAuthRefreshToken,getApiV1MailMessages,getApiV1MailMessagesId,getApiV1MailMessagesIdAttachments,getApiV1MailMessagesMessageIdAttachmentsAttachmentIdDownload,getApiV1MailMessagesMessageIdAttachmentsAttachmentIdContent,getApiV1MailMessagesMessageIdAttachmentsAttachmentIdExtractText,getApiV1MailMessagesMessageIdAttachmentsAttachmentIdPreview,getApiV1MailMessagesMessageIdAttachmentsAttachmentIdPresignedUrl,postApiV1MailMessagesIdProcess,postApiV1MailMessagesIdTriggerPipeline,postApiV1MailMessagesIdNormalize,postApiV1MailMessagesIdClassify,postApiV1MailMessagesIdExtract,getApiV1MailMessagesIdProcessingJobs,getApiV1MailTemplates,postApiV1MailTemplates,getApiV1MailTemplatesId,putApiV1MailTemplatesId,deleteApiV1MailTemplatesId,getOauthCallback,getApiV1OrderDrafts,getApiV1OrderDraftsId,postApiV1OrderDraftsIdApproveL1,postApiV1OrderDraftsIdRejectL1,postApiV1OrderDraftsIdConfirm,postApiV1OrderDraftsIdReject,getApiV1OrderDraftsExport,getApiV1UsersMe,putApiV1UsersMe,getApiV1Users,postApiV1Users,getApiV1UsersId,putApiV1UsersId,deleteApiV1UsersId,postApiV1UsersIdRestore,patchApiV1UsersIdStatus,postApiV1UsersMeChangePassword,postApiV1UsersIdResetPassword,putApiV1UsersIdRoles,postApiV1WebhooksMailconnector,getApiV1WebhookSubscriptions,postApiV1WebhookSubscriptions,getApiV1WebhookSubscriptionsId,putApiV1WebhookSubscriptionsId,deleteApiV1WebhookSubscriptionsId,postApiV1WebhookSubscriptionsIdTest}};
 export type GetApiV1AiOpenaiUsageResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getLogisticsPlatformAPI>['getApiV1AiOpenaiUsage']>>>
 export type GetApiV1AiOpenaiUsageCurrentMonthResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getLogisticsPlatformAPI>['getApiV1AiOpenaiUsageCurrentMonth']>>>
 export type PutApiAttachmentReviewsMailConnectorAttachmentIdApproveResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getLogisticsPlatformAPI>['putApiAttachmentReviewsMailConnectorAttachmentIdApprove']>>>
@@ -1190,6 +1315,17 @@ export type PostApiV1OrderDraftsIdConfirmResult = NonNullable<Awaited<ReturnType
 export type PostApiV1OrderDraftsIdRejectResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getLogisticsPlatformAPI>['postApiV1OrderDraftsIdReject']>>>
 export type GetApiV1OrderDraftsExportResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getLogisticsPlatformAPI>['getApiV1OrderDraftsExport']>>>
 export type GetApiV1UsersMeResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getLogisticsPlatformAPI>['getApiV1UsersMe']>>>
+export type PutApiV1UsersMeResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getLogisticsPlatformAPI>['putApiV1UsersMe']>>>
+export type GetApiV1UsersResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getLogisticsPlatformAPI>['getApiV1Users']>>>
+export type PostApiV1UsersResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getLogisticsPlatformAPI>['postApiV1Users']>>>
+export type GetApiV1UsersIdResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getLogisticsPlatformAPI>['getApiV1UsersId']>>>
+export type PutApiV1UsersIdResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getLogisticsPlatformAPI>['putApiV1UsersId']>>>
+export type DeleteApiV1UsersIdResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getLogisticsPlatformAPI>['deleteApiV1UsersId']>>>
+export type PostApiV1UsersIdRestoreResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getLogisticsPlatformAPI>['postApiV1UsersIdRestore']>>>
+export type PatchApiV1UsersIdStatusResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getLogisticsPlatformAPI>['patchApiV1UsersIdStatus']>>>
+export type PostApiV1UsersMeChangePasswordResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getLogisticsPlatformAPI>['postApiV1UsersMeChangePassword']>>>
+export type PostApiV1UsersIdResetPasswordResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getLogisticsPlatformAPI>['postApiV1UsersIdResetPassword']>>>
+export type PutApiV1UsersIdRolesResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getLogisticsPlatformAPI>['putApiV1UsersIdRoles']>>>
 export type PostApiV1WebhooksMailconnectorResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getLogisticsPlatformAPI>['postApiV1WebhooksMailconnector']>>>
 export type GetApiV1WebhookSubscriptionsResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getLogisticsPlatformAPI>['getApiV1WebhookSubscriptions']>>>
 export type PostApiV1WebhookSubscriptionsResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getLogisticsPlatformAPI>['postApiV1WebhookSubscriptions']>>>

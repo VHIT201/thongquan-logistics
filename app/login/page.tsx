@@ -6,9 +6,11 @@ import { Mail, Shield, Clock, BarChart3, User, Lock } from "lucide-react"
 import Image from "next/image"
 import { login } from "@/lib/api"
 import { getErrorMessage } from "@/lib/get-error-message"
+import { useAuthStore } from "@/lib/stores/auth-store"
 
 export default function LoginPage() {
   const router = useRouter()
+  const setAuth = useAuthStore((s) => s.setAuth)
   const [email, setEmail] = useState("")
   const [password, setPassword] = useState("")
   const [remember, setRemember] = useState(false)
@@ -21,15 +23,29 @@ export default function LoginPage() {
     setLoading(true)
     try {
       const res = await login(email, password)
-      const token = res.data?.accessToken
+      const accessToken = res.data?.accessToken
       const refreshToken = res.data?.refreshToken
       const user = res.data?.user
-      if (token && typeof window !== "undefined") {
-        localStorage.setItem("token", token)
+      if (accessToken && user && typeof window !== "undefined") {
+        localStorage.setItem("token", accessToken)
         if (refreshToken) localStorage.setItem("refreshToken", refreshToken)
         if (user?.userId) localStorage.setItem("userId", user.userId)
+
+        setAuth({
+          user,
+          accessToken,
+          refreshToken: refreshToken ?? "",
+        })
+
+        // Redirect based on role
+        if (user.roles?.includes("admin")) {
+          router.push("/")
+        } else {
+          router.push("/user")
+        }
+      } else {
+        throw new Error("Đăng nhập thất bại, thiếu thông tin.")
       }
-      router.push("/")
     } catch (err) {
       setError(getErrorMessage(err, "Đăng nhập thất bại."))
     } finally {

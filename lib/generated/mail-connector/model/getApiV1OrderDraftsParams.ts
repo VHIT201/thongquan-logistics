@@ -6,6 +6,9 @@
  */
 
 export type GetApiV1OrderDraftsParams = {
+filters?: string;
+sortField?: string;
+sortOrder?: string;
 page?: number;
 pageSize?: number;
 };

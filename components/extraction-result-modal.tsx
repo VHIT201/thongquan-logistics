@@ -190,7 +190,7 @@ export function ExtractionResultModal({ open, onOpenChange, result, previewUrl, 
           <div className="w-1/2 p-4 overflow-hidden">
             {previewUrl ? (
               <iframe
-                src={`https://docs.google.com/gview?url=${encodeURIComponent(previewUrl)}&embedded=true`}
+                src={`https://view.officeapps.live.com/op/embed.aspx?src=${encodeURIComponent(previewUrl)}`}
                 className="w-full h-full border rounded-lg"
                 title={fileName || "File preview"}
               />

@@ -1,5 +1,6 @@
 import Axios, { AxiosError, AxiosRequestConfig } from "axios"
 import { RefreshTokenCommand } from "@/lib/generated/mail-connector/model"
+import { useAuthStore } from "@/lib/stores/auth-store"
 
 const MAIL_CONNECTOR_BASE_URL =
   process.env.NEXT_PUBLIC_MAIL_CONNECTOR_API_URL ??
@@ -99,6 +100,7 @@ MAIL_CONNECTOR_AXIOS.interceptors.response.use(
       localStorage.removeItem("token")
       localStorage.removeItem("refreshToken")
       localStorage.removeItem("userId")
+      useAuthStore.getState().clearAuth()
       window.location.href = "/login"
       return Promise.reject(error)
     } finally {
