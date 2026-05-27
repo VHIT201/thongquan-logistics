@@ -192,6 +192,7 @@ export default function EmailDetailPage() {
     fileName: string
     contentType?: string
     fileSize?: number
+    previewUrl?: string
   }[] = emailData?.attachments ?? []
   const bodyText = emailData?.bodyText || ""
   const bodyHtml = emailData?.bodyHtml || ""
@@ -436,13 +437,41 @@ export default function EmailDetailPage() {
     setSelectedAttachmentId(attachmentId)
   }
 
-  const handleShowAttachmentContent = (attachmentId: string | undefined, fileName?: string, contentType?: string) => {
+  const handleShowAttachmentContent = async (attachmentId: string | undefined, fileName?: string, contentType?: string, previewUrl?: string) => {
     if (!attachmentId) return
-    const url = `${API_BASE}/mail-messages/${messageId}/attachments/${attachmentId}/download`
-    setFileViewerUrl(url)
-    setFileViewerName(fileName || "")
-    setFileViewerType(contentType || "")
-    setFileViewerOpen(true)
+    
+    // Check if this is an Office file (blob URL won't work with external viewers)
+    const isOfficeFile = contentType?.toLowerCase().includes('word') || 
+                         contentType?.toLowerCase().includes('excel') || 
+                         contentType?.toLowerCase().includes('powerpoint') ||
+                         contentType?.toLowerCase().includes('document') ||
+                         contentType?.toLowerCase().includes('sheet') ||
+                         contentType?.toLowerCase().includes('presentation')
+    
+    // For Office files, show download message (external viewers need public URLs)
+    if (isOfficeFile) {
+      setFileViewerUrl("")
+      setFileViewerName(fileName || "")
+      setFileViewerType(contentType || "")
+      setFileViewerOpen(true)
+      return
+    }
+
+    // For images/PDFs, download as blob and create object URL
+    try {
+      const downloadResponse = await MAIL_CONNECTOR_AXIOS.get(
+        `/api/v1/mail-messages/${messageId}/attachments/${attachmentId}/download`,
+        { responseType: 'blob' }
+      )
+      const blob = new Blob([downloadResponse.data], { type: contentType || 'application/octet-stream' })
+      const objectUrl = URL.createObjectURL(blob)
+      setFileViewerUrl(objectUrl)
+      setFileViewerName(fileName || "")
+      setFileViewerType(contentType || "")
+      setFileViewerOpen(true)
+    } catch (error) {
+      alert(getErrorMessage(error, "Không thể xem trước tệp."))
+    }
   }
 
   const handleDownloadAttachment = async (attachmentId: string | undefined, fileName?: string | null) => {
@@ -513,7 +542,7 @@ export default function EmailDetailPage() {
                       setSelectedForAI(next)
                     }}
                     onViewExtract={() => handleShowAttachmentExtractText(attachment.id)}
-                    onViewContent={() => handleShowAttachmentContent(attachment.id, attachment.fileName, attachment.contentType)}
+                    onViewContent={() => handleShowAttachmentContent(attachment.id, attachment.fileName, attachment.contentType, attachment.previewUrl)}
                     onDownload={() => handleDownloadAttachment(attachment.id, attachment.fileName)}
                     status="completed"
                   />
