@@ -163,6 +163,7 @@ export default function EmailDetailPage() {
   const [fileViewerUrl, setFileViewerUrl] = useState("")
   const [fileViewerName, setFileViewerName] = useState("")
   const [fileViewerType, setFileViewerType] = useState("")
+  const [fileViewerAttachmentId, setFileViewerAttachmentId] = useState<string | undefined>(undefined)
 
   const [extractionResultOpen, setExtractionResultOpen] = useState(false)
   const [extractionResult, setExtractionResult] = useState<string | null>(null)
@@ -440,7 +441,7 @@ export default function EmailDetailPage() {
   const handleShowAttachmentContent = async (attachmentId: string | undefined, fileName?: string, contentType?: string, previewUrl?: string) => {
     if (!attachmentId) return
     
-    // Check if this is an Office file (blob URL won't work with external viewers)
+    // Check if this is an Office file (use presigned URL with Google Docs Viewer)
     const isOfficeFile = contentType?.toLowerCase().includes('word') || 
                          contentType?.toLowerCase().includes('excel') || 
                          contentType?.toLowerCase().includes('powerpoint') ||
@@ -448,11 +449,32 @@ export default function EmailDetailPage() {
                          contentType?.toLowerCase().includes('sheet') ||
                          contentType?.toLowerCase().includes('presentation')
     
-    // For Office files, show download message (external viewers need public URLs)
     if (isOfficeFile) {
+      try {
+        // Get presigned URL for Google Docs Viewer
+        const response = await MAIL_CONNECTOR_AXIOS.get(
+          `/api/v1/mail-messages/${messageId}/attachments/${attachmentId}/presigned-url`
+        )
+        const data = response.data as any
+        const presignedUrl = data?.data?.url || data?.url
+        if (presignedUrl) {
+          // Use Google Docs Viewer with presigned URL
+          const googleDocsUrl = `https://docs.google.com/viewer?url=${encodeURIComponent(presignedUrl)}&embedded=true`
+          setFileViewerUrl(googleDocsUrl)
+          setFileViewerName(fileName || "")
+          setFileViewerType(contentType || "")
+          setFileViewerAttachmentId(attachmentId)
+          setFileViewerOpen(true)
+          return
+        }
+      } catch (error) {
+        console.log("Presigned URL failed for Office file, showing download message")
+      }
+      // Fallback to download message if presigned URL fails
       setFileViewerUrl("")
       setFileViewerName(fileName || "")
       setFileViewerType(contentType || "")
+      setFileViewerAttachmentId(attachmentId)
       setFileViewerOpen(true)
       return
     }
@@ -468,6 +490,7 @@ export default function EmailDetailPage() {
       setFileViewerUrl(objectUrl)
       setFileViewerName(fileName || "")
       setFileViewerType(contentType || "")
+      setFileViewerAttachmentId(attachmentId)
       setFileViewerOpen(true)
     } catch (error) {
       alert(getErrorMessage(error, "Không thể xem trước tệp."))
@@ -680,7 +703,14 @@ export default function EmailDetailPage() {
         content={attachmentViewMode === "extract" ? (attachmentExtractTextQuery.data ?? null) : (attachmentContentQuery.data ?? null)}
       />
 
-      <FileViewerModal open={fileViewerOpen} onOpenChange={setFileViewerOpen} fileUrl={fileViewerUrl} fileName={fileViewerName} fileType={fileViewerType} />
+      <FileViewerModal 
+        open={fileViewerOpen} 
+        onOpenChange={setFileViewerOpen} 
+        fileUrl={fileViewerUrl} 
+        fileName={fileViewerName} 
+        fileType={fileViewerType} 
+        downloadUrl={fileViewerAttachmentId ? `${API_BASE}/mail-messages/${messageId}/attachments/${fileViewerAttachmentId}/download` : undefined}
+      />
 
       <ExtractionResultModal open={extractionResultOpen} onOpenChange={setExtractionResultOpen} result={extractionResult} preview={extractionPreview} fileName={extractionFileName} />
     </div>
