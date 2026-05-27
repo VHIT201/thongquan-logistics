@@ -33,7 +33,7 @@ deploy:
     - runner-vpd-que
   script:
     # 1. Dọn dẹp tiến trình cũ
-    - pm2 delete tms-admin-be || true
+    - pm2 delete logistics-platform || true
     
     # 2. Tạo thư mục và copy artifact
     - mkdir -p $DEPLOY_DIR

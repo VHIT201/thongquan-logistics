@@ -1,12 +1,9 @@
 module.exports = {
   apps: [
     {
-      name: "tms-admin-be",
+      name: "logistics-platform",
       script: "node_modules/.bin/next",
-      args: "start",
-      env: {
-        NODE_ENV: "development",
-      },
+      args: "start -p 3020",
       env_production: {
         NODE_ENV: "production",
       },
