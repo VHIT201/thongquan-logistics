@@ -28,6 +28,7 @@ const emptyForm: WebhookFormState = {
   isActive: true,
 }
 
+/*
 export default function WebhooksPage() {
   const webhooksQuery = useWebhookSubscriptionsQuery()
   const createMutation = useCreateWebhookMutation()
@@ -270,6 +271,16 @@ export default function WebhooksPage() {
           </div>
         </div>
       </div>
+    </div>
+  )
+}
+*/
+
+export default function WebhooksPage() {
+  return (
+    <div className="space-y-4">
+      <h1 className="text-2xl font-bold text-neutral-300">Webhook Subscriptions</h1>
+      <p className="text-sm text-neutral-200">Trang này đang được tạm ẩn.</p>
     </div>
   )
 }
