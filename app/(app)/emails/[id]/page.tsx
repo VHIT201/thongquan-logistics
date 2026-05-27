@@ -1,6 +1,6 @@
 "use client"
 
-import { useMemo, useState } from "react"
+import { useEffect, useMemo, useState } from "react"
 import mammoth from "mammoth"
 import Link from "next/link"
 import { useParams, useRouter } from "next/navigation"
@@ -78,6 +78,7 @@ export default function EmailDetailPage() {
   const [extractionResult, setExtractionResult] = useState<string | null>(null)
   const [extractionPreview, setExtractionPreview] = useState<ExtractionPreviewSources | null>(null)
   const [extractionFileName, setExtractionFileName] = useState<string | null>(null)
+  const [processedHtml, setProcessedHtml] = useState<string>("")
 
   const emailData = messageQuery.data
   const attachments: {
@@ -100,6 +101,65 @@ export default function EmailDetailPage() {
       /<head[\s>]/i.test(trimmed)
     return looksLikeHtml ? trimmed : ""
   }, [bodyHtml, bodyText])
+
+  // Process HTML to replace CID with base64 images
+  useEffect(() => {
+    const processInlineImages = async () => {
+      if (!htmlContent || !/cid:/i.test(htmlContent)) {
+        setProcessedHtml(htmlContent)
+        return
+      }
+
+      let processed = htmlContent
+      const cidRegex = /cid:([a-zA-Z0-9_-]+)/gi
+      const cids = new Set<string>()
+      let match
+
+      while ((match = cidRegex.exec(htmlContent)) !== null) {
+        cids.add(match[1])
+      }
+
+      // Try to find matching attachments by contentId or fileName
+      for (const cid of cids) {
+        const attachment = attachments.find(a =>
+          (a as any).contentId === cid ||
+          (a as any).contentId === `<${cid}>` ||
+          a.fileName.includes(cid) ||
+          // Match by image index: cid:ii_mpng8ohd0 -> image (1).png
+          (a.fileName.startsWith("image") && cid.includes("ii_"))
+        )
+
+        if (attachment) {
+          try {
+            const response = await MAIL_CONNECTOR_AXIOS.get(
+              `/api/v1/mail-messages/${messageId}/attachments/${attachment.id}/content`
+            )
+
+            const responseData = response.data
+            let content = ""
+            if (typeof responseData === 'string') {
+              content = responseData
+            } else if (responseData?.data?.content) {
+              content = responseData.data.content
+            } else if (responseData?.content) {
+              content = responseData.content
+            }
+
+            if (content && attachment.contentType?.startsWith('image/')) {
+              const dataUrl = `data:${attachment.contentType};base64,${content}`
+              processed = processed.replace(new RegExp(`cid:${cid}`, 'gi'), dataUrl)
+            }
+          } catch (error) {
+            console.error(`Failed to fetch content for CID ${cid}:`, error)
+          }
+        }
+      }
+
+      setProcessedHtml(processed)
+    }
+
+    processInlineImages()
+  }, [htmlContent, attachments, messageId])
 
   const attachmentExtractTextQuery = useAttachmentExtractTextQuery(
     messageId,
@@ -313,8 +373,8 @@ export default function EmailDetailPage() {
             {shouldShowHtml ? (
               <iframe
                 title="email-html-content"
-                srcDoc={htmlContent}
-                sandbox="allow-popups allow-popups-to-escape-sandbox"
+                srcDoc={processedHtml || htmlContent}
+                sandbox="allow-same-origin allow-scripts allow-popups allow-popups-to-escape-sandbox"
                 className="h-[720px] w-full rounded border border-neutral-100 bg-white"
               />
             ) : (
