@@ -1,10 +1,10 @@
 "use client"
 
-import { useEffect, useMemo, useState } from "react"
+import { useEffect, useMemo, useRef, useState } from "react"
 import mammoth from "mammoth"
 import Link from "next/link"
 import { useParams, useRouter } from "next/navigation"
-import { ArrowLeft, Paperclip, Send } from "lucide-react"
+import { ArrowLeft, Bot, Paperclip, Send, User, X } from "lucide-react"
 import dayjs from "dayjs"
 import { getErrorMessage } from "@/lib/get-error-message"
 import { MAIL_CONNECTOR_AXIOS } from "@/lib/orval/mail-connector-mutator"
@@ -18,6 +18,7 @@ import {
   useAttachmentContentQuery,
   useAttachmentExtractTextQuery,
   useDownloadAttachmentMutation,
+  useEmailTemplatesQuery,
   useMailMessageQuery,
   useProcessDocumentsMutation,
 } from "@/hooks/use-mail-queries"
@@ -55,12 +56,101 @@ function resolvePresignedPreview(response: unknown): ExtractionPreviewSources | 
   return null
 }
 
+function extractTextFromApiResponse(payload: unknown): string {
+  if (typeof payload === "string") return payload
+  if (!payload || typeof payload !== "object") return ""
+  const top = payload as Record<string, unknown>
+  const nested = top.data && typeof top.data === "object" ? (top.data as Record<string, unknown>) : null
+
+  const candidates: unknown[] = [
+    top.text,
+    top.content,
+    top.body,
+    top.extractedText,
+    top.result,
+    top.value,
+    nested?.text,
+    nested?.content,
+    nested?.body,
+    nested?.extractedText,
+    nested?.result,
+    nested?.value,
+  ]
+
+  for (const candidate of candidates) {
+    if (typeof candidate === "string" && candidate.trim()) return candidate
+  }
+  return ""
+}
+
+function extractResultStringFromProcessResponse(payload: unknown): string | null {
+  if (!payload || typeof payload !== "object") {
+    return typeof payload === "string" ? payload : null
+  }
+  const top = payload as Record<string, unknown>
+  const nested = top.data && typeof top.data === "object" ? (top.data as Record<string, unknown>) : null
+
+  const candidates: unknown[] = [top.result, nested?.result, top.data]
+  for (const candidate of candidates) {
+    if (typeof candidate === "string" && candidate.trim()) return candidate
+  }
+  return null
+}
+
+type TemplateItem = {
+  id?: string | null
+  templateCode?: string | null
+  templateName?: string | null
+  description?: string | null
+  expectedFields?: Record<string, string> | null
+  isActive?: boolean | null
+}
+
+type ChatMessage = {
+  id: string
+  role: "user" | "assistant"
+  content: string
+  result?: string | null
+  isLoading?: boolean
+}
+
+function buildChatPrompt(userPrompt: string) {
+  return [
+    "Bạn là hệ thống hỗ trợ bóc tách chứng từ logistics.",
+    "Trả lời trực tiếp bằng văn bản tự nhiên, không bắt buộc JSON.",
+    "Có thể liệt kê thông tin, giải thích hoặc trích xuất theo yêu cầu người dùng.",
+    `Yêu cầu: ${userPrompt}`,
+  ].join(" ")
+}
+
+function buildTemplatePrompt(template: TemplateItem) {
+  const templateName = [template.templateCode, template.templateName].filter(Boolean).join(" - ")
+  const expectedFields = template.expectedFields ?? {}
+  const fieldsDescription =
+    Object.keys(expectedFields).length > 0
+      ? JSON.stringify(expectedFields)
+      : "{}"
+  return [
+    "Bạn là hệ thống bóc tách chứng từ logistics.",
+    "Trả về DUY NHẤT JSON hợp lệ, không markdown, không giải thích.",
+    "Định dạng bắt buộc: một mảng object (array of objects).",
+    "Nếu chỉ có 1 bản ghi thì vẫn trả về mảng gồm 1 object.",
+    "Bóc tách theo template đã chọn, giữ nguyên key field theo expectedFields.",
+    "Nếu thiếu dữ liệu cho trường nào thì để chuỗi rỗng.",
+    "Không trả về base64, không hướng dẫn decode, không thêm ghi chú ngoài JSON.",
+    `Template đang áp dụng: ${templateName || "N/A"}.`,
+    `Mô tả template: ${template.description || "N/A"}.`,
+    `Expected fields JSON: ${fieldsDescription}.`,
+  ].join(" ")
+}
+
 export default function EmailDetailPage() {
   const router = useRouter()
   const params = useParams<{ id: string }>()
   const messageId = params.id
 
   const messageQuery = useMailMessageQuery(messageId)
+  const templatesQuery = useEmailTemplatesQuery()
   const processDocumentsMutation = useProcessDocumentsMutation()
   const downloadAttachmentMutation = useDownloadAttachmentMutation(messageId)
 
@@ -78,7 +168,23 @@ export default function EmailDetailPage() {
   const [extractionResult, setExtractionResult] = useState<string | null>(null)
   const [extractionPreview, setExtractionPreview] = useState<ExtractionPreviewSources | null>(null)
   const [extractionFileName, setExtractionFileName] = useState<string | null>(null)
+  const [aiMode, setAiMode] = useState<"chat" | "template">("chat")
+  const [userPrompt, setUserPrompt] = useState("")
+  const [selectedTemplateId, setSelectedTemplateId] = useState("")
+  const [promptError, setPromptError] = useState<string | null>(null)
   const [processedHtml, setProcessedHtml] = useState<string>("")
+  const [chatMessages, setChatMessages] = useState<ChatMessage[]>([])
+  const [chatInput, setChatInput] = useState("")
+  const [chatLoading, setChatLoading] = useState(false)
+  const chatEndRef = useRef<HTMLDivElement>(null)
+
+  const templates = useMemo(
+    () =>
+      ((templatesQuery.data ?? []) as TemplateItem[]).filter((template) =>
+        template.isActive === undefined || template.isActive === null ? true : Boolean(template.isActive)
+      ),
+    [templatesQuery.data]
+  )
 
   const emailData = messageQuery.data
   const attachments: {
@@ -161,6 +267,10 @@ export default function EmailDetailPage() {
     processInlineImages()
   }, [htmlContent, attachments, messageId])
 
+  useEffect(() => {
+    chatEndRef.current?.scrollIntoView({ behavior: "smooth" })
+  }, [chatMessages])
+
   const attachmentExtractTextQuery = useAttachmentExtractTextQuery(
     messageId,
     attachmentViewMode === "extract" ? selectedAttachmentId : null
@@ -170,44 +280,62 @@ export default function EmailDetailPage() {
     attachmentViewMode === "content" ? selectedAttachmentId : null
   )
 
-  const handleSendToAI = async () => {
+  const sendChatMessage = async (messageText?: string) => {
+    const text = (messageText ?? chatInput).trim()
+    if (!text) return
+
     if (selectedForAI.size === 0) {
-      alert("Vui lòng chọn ít nhất một file đính kèm để gửi AI bóc tách.")
+      setPromptError("Vui lòng chọn ít nhất một file đính kèm trước khi chat.")
       return
     }
 
+    const selectedTemplate = templates.find((template) => template.id === selectedTemplateId) ?? null
+    if (aiMode === "template" && !selectedTemplate) {
+      setPromptError("Vui lòng chọn template để bóc tách.")
+      return
+    }
+
+    setPromptError(null)
+    setChatInput("")
+
+    const userMsg: ChatMessage = {
+      id: crypto.randomUUID(),
+      role: "user",
+      content: text,
+    }
+    const aiMsg: ChatMessage = {
+      id: crypto.randomUUID(),
+      role: "assistant",
+      content: "",
+      isLoading: true,
+    }
+    setChatMessages((prev) => [...prev, userMsg, aiMsg])
+    setChatLoading(true)
+
     try {
       setExtractionPreview(null)
-      // Fetch content for all selected attachments using authenticated axios
       const files = await Promise.all(
         Array.from(selectedForAI).map(async (attachmentId) => {
           const attachment = attachments.find((a) => a.id === attachmentId)
           if (!attachment) throw new Error(`Attachment ${attachmentId} not found`)
+          const mimeType = attachment.contentType || "application/octet-stream"
 
-          // Get attachment content using authenticated axios instance
-          const response = await MAIL_CONNECTOR_AXIOS.get(
-            `/api/v1/mail-messages/${messageId}/attachments/${attachmentId}/content`
-          )
-
-          // Extract content from response - handle various response formats
-          const responseData = response.data
-          let content = ""
-          if (typeof responseData === 'string') {
-            content = responseData
-          } else if (responseData?.data?.content) {
-            content = responseData.data.content
-          } else if (responseData?.content) {
-            content = responseData.content
-          } else if (responseData?.text) {
-            content = responseData.text
+          let aiContent = ""
+          if (mimeType.includes("pdf")) {
+            const extractTextResponse = await MAIL_CONNECTOR_AXIOS.get(
+              `/api/v1/mail-messages/${messageId}/attachments/${attachmentId}/extract-text`
+            )
+            aiContent = extractTextFromApiResponse(extractTextResponse.data)
+          } else {
+            const contentResponse = await MAIL_CONNECTOR_AXIOS.get(
+              `/api/v1/mail-messages/${messageId}/attachments/${attachmentId}/content`
+            )
+            aiContent = extractTextFromApiResponse(contentResponse.data)
           }
 
-          // Extract text from DOCX if needed before sending to AI
-          let aiContent = content
-          const mimeType = attachment.contentType || "application/octet-stream"
-          if (mimeType.includes("wordprocessingml") && content) {
+          if (mimeType.includes("wordprocessingml") && aiContent) {
             try {
-              const byteCharacters = atob(content)
+              const byteCharacters = atob(aiContent)
               const byteNumbers = new Array(byteCharacters.length)
               for (let i = 0; i < byteCharacters.length; i++) {
                 byteNumbers[i] = byteCharacters.charCodeAt(i)
@@ -230,28 +358,76 @@ export default function EmailDetailPage() {
         })
       )
 
-      // Send to document processor
-      const result = await processDocumentsMutation.mutateAsync(files)
+      const extractionPrompt =
+        aiMode === "template" && selectedTemplate
+          ? buildTemplatePrompt(selectedTemplate)
+          : buildChatPrompt(text)
 
-      // Get presigned URL for preview
-      const firstAttachmentId = Array.from(selectedForAI)[0]
-      const firstAttachment = attachments.find((a) => a.id === firstAttachmentId)
-      if (firstAttachment) {
-        const presignedResponse = await mailApi.getApiV1MailMessagesMessageIdAttachmentsAttachmentIdPresignedUrl(
-          messageId,
-          firstAttachmentId,
-          { expiryMinutes: 30 }
+      const result = await processDocumentsMutation.mutateAsync({
+        files,
+        prompt: extractionPrompt,
+        model: "gpt-4",
+      })
+
+      const resultStr = extractResultStringFromProcessResponse(result)
+
+      if (aiMode === "template") {
+        const firstAttachmentId = Array.from(selectedForAI)[0]
+        const firstAttachment = attachments.find((a) => a.id === firstAttachmentId)
+        if (firstAttachment) {
+          const presignedResponse = await mailApi.getApiV1MailMessagesMessageIdAttachmentsAttachmentIdPresignedUrl(
+            messageId,
+            firstAttachmentId,
+            { expiryMinutes: 30 }
+          )
+          setExtractionPreview(resolvePresignedPreview(presignedResponse))
+          setExtractionFileName(firstAttachment.fileName)
+        }
+        setChatMessages((prev) =>
+          prev.map((msg) =>
+            msg.id === aiMsg.id
+              ? { ...msg, content: resultStr ? "Đã bóc tách xong theo template. Xem kết quả bên dưới." : "Không tìm thấy dữ liệu phù hợp.", result: resultStr, isLoading: false }
+              : msg
+          )
         )
-        setExtractionPreview(resolvePresignedPreview(presignedResponse))
-        setExtractionFileName(firstAttachment.fileName)
+      } else {
+        setChatMessages((prev) =>
+          prev.map((msg) =>
+            msg.id === aiMsg.id
+              ? { ...msg, content: resultStr || "Không có phản hồi.", isLoading: false }
+              : msg
+          )
+        )
       }
-
-      // Open modal with result
-      setExtractionResult(result?.result || null)
-      setExtractionResultOpen(true)
     } catch (error) {
-      alert(getErrorMessage(error, "Gửi AI bóc tách thất bại."))
+      setChatMessages((prev) =>
+        prev.map((msg) =>
+          msg.id === aiMsg.id
+            ? { ...msg, content: getErrorMessage(error, "Gửi AI bóc tách thất bại."), isLoading: false }
+            : msg
+        )
+      )
+    } finally {
+      setChatLoading(false)
     }
+  }
+
+  const handleSendToAI = async () => {
+    if (aiMode === "template") {
+      const selectedTemplate = templates.find((template) => template.id === selectedTemplateId) ?? null
+      if (!selectedTemplate) {
+        setPromptError("Vui lòng chọn template để bóc tách.")
+        return
+      }
+      await sendChatMessage(`Bóc tách theo template: ${selectedTemplate.templateName || selectedTemplate.templateCode || "N/A"}`)
+    } else {
+      await sendChatMessage()
+    }
+  }
+
+  const openExtractionDetail = (result: string) => {
+    setExtractionResult(result)
+    setExtractionResultOpen(true)
   }
 
   const handleShowAttachmentExtractText = (attachmentId: string | undefined) => {
@@ -299,100 +475,29 @@ export default function EmailDetailPage() {
 
   return (
     <div className="space-y-4">
-      <div className="flex items-center gap-2">
-        <Link href="/emails" className="flex cursor-pointer items-center gap-1 text-sm text-neutral-200 hover:text-neutral-300">
-          <ArrowLeft className="h-4 w-4" /> Quay lại
+      <div className="flex items-center gap-2 text-xs text-neutral-200">
+        <Link href="/emails" className="flex cursor-pointer items-center gap-1 hover:text-neutral-300">
+          <ArrowLeft className="h-3.5 w-3.5" /> Quay lại
         </Link>
+        <span className="text-neutral-300">|</span>
+        <span className="truncate max-w-[200px] font-medium text-neutral-300">{emailData?.subject || "(Không tiêu đề)"}</span>
+        <span className="hidden sm:inline text-neutral-300">—</span>
+        <span className="hidden sm:inline">{emailData?.fromName || "N/A"}</span>
+        <span className="ml-auto hidden sm:inline">{emailData?.receivedAt ? dayjs(emailData.receivedAt).format("DD/MM HH:mm") : "—"}</span>
+        <Link href={`/emails/${messageId}/extract`} className="ml-2 rounded-md border border-neutral-100 px-2.5 py-1 text-[11px] font-medium hover:bg-neutral-50">Trích xuất</Link>
       </div>
 
-      <div className="flex gap-4">
-        {/* Left — 70% Nội dung */}
-        <div className="w-[70%] space-y-4 rounded-xl border border-neutral-100 bg-white p-6">
-          <div id="tour-email-header" className="flex items-start justify-between gap-4">
-            <div className="min-w-0">
-              <h1 className="text-xl font-bold text-neutral-300">{emailData?.subject || "(Không có tiêu đề)"}</h1>
-              <p className="mt-1 text-sm text-neutral-200">
-                Từ: {emailData?.fromName || "N/A"} ({emailData?.fromEmail || "N/A"})
-              </p>
-              <p className="text-sm text-neutral-200">
-                Nhận lúc: {emailData?.receivedAt ? dayjs(emailData.receivedAt).format("DD/MM/YYYY HH:mm") : "—"}
-              </p>
-            </div>
-            <div className="flex gap-2">
-              <Link
-                href={`/emails/${messageId}/extract`}
-                className="flex cursor-pointer items-center gap-2 rounded-lg border border-neutral-100 px-4 py-2 text-sm font-medium text-neutral-200 hover:bg-neutral-50"
-              >
-                Trích xuất
-              </Link>
-              <button
-                id="tour-email-ai-btn"
-                onClick={handleSendToAI}
-                disabled={processDocumentsMutation.isPending}
-                className="flex cursor-pointer items-center gap-2 rounded-lg bg-primary px-4 py-2 text-sm font-medium text-white hover:bg-primary-500 disabled:opacity-50 disabled:cursor-not-allowed"
-              >
-                <Send className="h-4 w-4" />
-                {processDocumentsMutation.isPending ? "Đang xử lý..." : `Gửi AI bóc tách${selectedForAI.size > 0 ? ` (${selectedForAI.size})` : ""}`}
-              </button>
-            </div>
-          </div>
-
-          <div id="tour-email-body" className="rounded-lg border border-neutral-100 bg-neutral-50 p-4">
-            <div className="mb-2 flex items-center justify-between">
-              <h3 className="text-sm font-medium text-neutral-200">Nội dung email</h3>
-              {htmlContent && (
-                <div className="flex items-center gap-1 rounded-md border border-neutral-100 bg-white p-1 text-xs">
-                  <button
-                    onClick={() => setContentMode("auto")}
-                    className={`cursor-pointer rounded px-2 py-1 ${
-                      contentMode === "auto" ? "bg-primary text-white" : "text-neutral-300 hover:bg-neutral-50"
-                    }`}
-                  >
-                    Auto
-                  </button>
-                  <button
-                    onClick={() => setContentMode("text")}
-                    className={`cursor-pointer rounded px-2 py-1 ${
-                      contentMode === "text" ? "bg-primary text-white" : "text-neutral-300 hover:bg-neutral-50"
-                    }`}
-                  >
-                    Text
-                  </button>
-                  <button
-                    onClick={() => setContentMode("html")}
-                    className={`cursor-pointer rounded px-2 py-1 ${
-                      contentMode === "html" ? "bg-primary text-white" : "text-neutral-300 hover:bg-neutral-50"
-                    }`}
-                  >
-                    HTML
-                  </button>
-                </div>
-              )}
-            </div>
-
-            {shouldShowHtml ? (
-              <iframe
-                title="email-html-content"
-                srcDoc={processedHtml || htmlContent}
-                sandbox="allow-same-origin allow-scripts allow-popups allow-popups-to-escape-sandbox"
-                className="h-[720px] w-full rounded border border-neutral-100 bg-white"
-              />
+      <div className="flex flex-col gap-4 md:flex-row md:h-[calc(100dvh-116px)]">
+        {/* Col 1 — Files */}
+        <div className="order-2 flex w-full flex-col gap-2 md:order-1 md:w-[220px] md:min-w-[220px]">
+          <div className="rounded-xl border border-neutral-100 bg-white p-3 md:flex-1 md:overflow-y-auto">
+            <h3 className="mb-2 flex items-center gap-1.5 text-[11px] font-medium text-neutral-200">
+              <Paperclip className="h-3 w-3" /> Tệp ({attachments.length})
+            </h3>
+            {attachments.length === 0 ? (
+              <p className="text-xs text-neutral-200">Không có tệp.</p>
             ) : (
-              <div className="whitespace-pre-wrap text-sm text-neutral-300">
-                {bodyText || "Không có nội dung text."}
-              </div>
-            )}
-          </div>
-        </div>
-
-        {/* Right — 30% File đính kèm */}
-        {attachments.length > 0 && (
-          <div className="w-[30%] min-w-0 overflow-hidden rounded-xl border border-neutral-100 bg-white p-3">
-            <div id="tour-email-attachments">
-              <h3 className="mb-3 flex items-center gap-2 text-sm font-medium text-neutral-200">
-                <Paperclip className="h-4 w-4" /> Tệp đính kèm ({attachments.length})
-              </h3>
-              <div className="grid gap-2 min-w-0">
+              <div className="flex flex-col gap-2">
                 {attachments.map((attachment) => (
                   <FileAttachmentItem
                     key={attachment.id}
@@ -414,37 +519,143 @@ export default function EmailDetailPage() {
                   />
                 ))}
               </div>
+            )}
+          </div>
+        </div>
 
-              <AttachmentViewerModal
-                open={!!selectedAttachmentId}
-                onOpenChange={(open) => {
-                  if (!open) setSelectedAttachmentId(null)
-                }}
-                title={attachmentViewMode === "extract" ? "Text trích xuất từ tệp" : "Nội dung tệp"}
-                isLoading={attachmentExtractTextQuery.isPending || attachmentContentQuery.isPending}
-                error={(attachmentExtractTextQuery.error || attachmentContentQuery.error) as Error | null}
-                content={attachmentViewMode === "extract" ? (attachmentExtractTextQuery.data ?? null) : (attachmentContentQuery.data ?? null)}
-              />
+        {/* Col 2 — Email */}
+        <div className="order-1 flex w-full flex-col rounded-xl border border-neutral-100 bg-white p-4 md:order-2 md:flex-1 md:overflow-y-auto md:p-5">
+          <div id="tour-email-body" className="rounded-lg border border-neutral-100 bg-neutral-50 p-3">
+            <div className="mb-2 flex items-center justify-between">
+              <h3 className="text-xs font-medium text-neutral-200">Nội dung</h3>
+              {htmlContent && (
+                <div className="flex items-center gap-1 rounded-md border border-neutral-100 bg-white p-1 text-[11px]">
+                  <button onClick={() => setContentMode("auto")} className={`cursor-pointer rounded px-2 py-1 ${contentMode === "auto" ? "bg-primary text-white" : "text-neutral-300 hover:bg-neutral-50"}`}>Auto</button>
+                  <button onClick={() => setContentMode("text")} className={`cursor-pointer rounded px-2 py-1 ${contentMode === "text" ? "bg-primary text-white" : "text-neutral-300 hover:bg-neutral-50"}`}>Text</button>
+                  <button onClick={() => setContentMode("html")} className={`cursor-pointer rounded px-2 py-1 ${contentMode === "html" ? "bg-primary text-white" : "text-neutral-300 hover:bg-neutral-50"}`}>HTML</button>
+                </div>
+              )}
+            </div>
+            {shouldShowHtml ? (
+              <iframe title="email-html-content" srcDoc={processedHtml || htmlContent} sandbox="allow-same-origin allow-scripts allow-popups allow-popups-to-escape-sandbox" className="h-[400px] w-full rounded border border-neutral-100 bg-white md:h-full md:min-h-[400px]" />
+            ) : (
+              <div className="whitespace-pre-wrap text-sm text-neutral-300">{bodyText || "Không có nội dung text."}</div>
+            )}
+          </div>
+        </div>
 
-              <FileViewerModal
-                open={fileViewerOpen}
-                onOpenChange={setFileViewerOpen}
-                fileUrl={fileViewerUrl}
-                fileName={fileViewerName}
-                fileType={fileViewerType}
-              />
+        {/* Col 3 — AI Chat */}
+        <div className="order-3 flex w-full flex-col rounded-xl border border-neutral-200 bg-white shadow-sm md:w-[300px] md:min-w-[300px] md:overflow-hidden">
+          <div className="flex items-center justify-between bg-primary px-3 py-2">
+            <div className="flex items-center gap-2">
+              <Bot className="h-3.5 w-3.5 text-white" />
+              <div>
+                <p className="text-[11px] font-semibold text-white">AI Bóc tách</p>
+                <p className="text-[10px] text-white/70">{selectedForAI.size > 0 ? `${selectedForAI.size} file` : "Chưa chọn file"}</p>
+              </div>
+            </div>
+            <button onClick={() => setChatMessages([])} className="flex h-5 w-5 items-center justify-center rounded text-white/70 hover:bg-white/10 hover:text-white">
+              <X className="h-3 w-3" />
+            </button>
+          </div>
 
-              <ExtractionResultModal
-                open={extractionResultOpen}
-                onOpenChange={setExtractionResultOpen}
-                result={extractionResult}
-                preview={extractionPreview}
-                fileName={extractionFileName}
+          <div className="flex items-center gap-1.5 border-b border-neutral-100 px-3 py-1.5">
+            <button type="button" onClick={() => { setAiMode("chat"); setPromptError(null) }} className={`rounded-md px-2.5 py-1 text-[11px] font-medium ${aiMode === "chat" ? "bg-primary text-white" : "text-neutral-500 hover:bg-neutral-100"}`}>Chat</button>
+            <button type="button" onClick={() => { setAiMode("template"); setPromptError(null) }} className={`rounded-md px-2.5 py-1 text-[11px] font-medium ${aiMode === "template" ? "bg-primary text-white" : "text-neutral-500 hover:bg-neutral-100"}`}>Template</button>
+            {aiMode === "template" && (
+              <select value={selectedTemplateId} onChange={(event) => { setSelectedTemplateId(event.target.value); setPromptError(null) }} disabled={templatesQuery.isPending} className="ml-auto rounded-md border border-neutral-200 px-1.5 py-1 text-[11px] text-neutral-700 outline-none focus:border-primary">
+                <option value="">-- Chọn --</option>
+                {templates.map((template) => (
+                  <option key={template.id || template.templateCode || "unknown"} value={template.id || ""}>
+                    {[template.templateCode, template.templateName].filter(Boolean).join(" - ") || "Template"}
+                  </option>
+                ))}
+              </select>
+            )}
+          </div>
+
+          <div className="flex-1 overflow-y-auto bg-neutral-50/50 px-3 py-2 space-y-2">
+            {chatMessages.length === 0 && (
+              <div className="flex flex-col items-center justify-center py-6 text-center gap-2">
+                <Bot className="h-8 w-8 text-primary/40" />
+                <div>
+                  <p className="text-xs font-medium text-neutral-400">Chat với AI</p>
+                  <p className="text-[11px] text-neutral-300 mt-0.5 max-w-[220px]">
+                    {selectedForAI.size === 0 ? "Chọn file đính kèm trước." : `Đã chọn ${selectedForAI.size} file.`}
+                  </p>
+                </div>
+              </div>
+            )}
+            {chatMessages.map((msg) => (
+              <div key={msg.id} className={`flex gap-1.5 ${msg.role === "user" ? "justify-end" : "justify-start"}`}>
+                {msg.role === "assistant" && (
+                  <div className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-primary-50 mt-0.5">
+                    <Bot className="h-3 w-3 text-primary" />
+                  </div>
+                )}
+                <div className={`max-w-[82%] space-y-1 ${msg.role === "user" ? "items-end" : "items-start"}`}>
+                  <div className={`rounded-xl px-2.5 py-1.5 text-xs leading-relaxed ${msg.role === "user" ? "bg-primary text-white rounded-br-md" : "bg-white border border-neutral-100 text-neutral-700 rounded-bl-md"}`}>
+                    {msg.isLoading ? (
+                      <div className="flex items-center gap-1 py-0.5">
+                        <span className="h-1.5 w-1.5 animate-bounce rounded-full bg-neutral-300" style={{ animationDelay: "0ms" }} />
+                        <span className="h-1.5 w-1.5 animate-bounce rounded-full bg-neutral-300" style={{ animationDelay: "150ms" }} />
+                        <span className="h-1.5 w-1.5 animate-bounce rounded-full bg-neutral-300" style={{ animationDelay: "300ms" }} />
+                      </div>
+                    ) : (
+                      <>{msg.content}</>
+                    )}
+                  </div>
+                  {msg.result && (
+                    <button onClick={() => openExtractionDetail(msg.result!)} className="inline-flex items-center gap-1 rounded-md border border-primary/20 bg-primary/5 px-2 py-1 text-[11px] font-medium text-primary hover:bg-primary/10">
+                      Xem chi tiết
+                    </button>
+                  )}
+                </div>
+                {msg.role === "user" && (
+                  <div className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-primary/10 mt-0.5">
+                    <User className="h-3 w-3 text-primary" />
+                  </div>
+                )}
+              </div>
+            ))}
+            <div ref={chatEndRef} />
+          </div>
+
+          {promptError && <p className="px-3 py-1 text-[11px] text-red-500 bg-red-50 border-t border-red-100">{promptError}</p>}
+
+          <div className="border-t border-neutral-100 bg-white px-3 py-2">
+            <div className="flex items-center gap-1.5">
+              <input
+                type="text"
+                value={chatInput}
+                onChange={(event) => { setChatInput(event.target.value); setPromptError(null) }}
+                onKeyDown={(event) => { if (event.key === "Enter" && !event.shiftKey) { event.preventDefault(); sendChatMessage() } }}
+                disabled={chatLoading}
+                placeholder={aiMode === "chat" ? "Nhập yêu cầu..." : "Enter để bóc template"}
+                className="flex-1 rounded-lg border border-neutral-200 bg-neutral-50 px-3 py-2 text-xs text-neutral-800 outline-none focus:border-primary focus:bg-white disabled:opacity-50"
               />
+              <button onClick={() => sendChatMessage()} disabled={chatLoading || !chatInput.trim()} className="flex h-8 w-8 shrink-0 cursor-pointer items-center justify-center rounded-lg bg-primary text-white hover:bg-primary-500 disabled:opacity-30 disabled:cursor-not-allowed">
+                <Send className="h-3.5 w-3.5" />
+              </button>
             </div>
           </div>
-        )}
+        </div>
       </div>
+
+      <AttachmentViewerModal
+        open={!!selectedAttachmentId}
+        onOpenChange={(open) => { if (!open) setSelectedAttachmentId(null) }}
+        title={attachmentViewMode === "extract" ? "Text trích xuất từ tệp" : "Nội dung tệp"}
+        isLoading={attachmentExtractTextQuery.isPending || attachmentContentQuery.isPending}
+        error={(attachmentExtractTextQuery.error || attachmentContentQuery.error) as Error | null}
+        content={attachmentViewMode === "extract" ? (attachmentExtractTextQuery.data ?? null) : (attachmentContentQuery.data ?? null)}
+      />
+
+      <FileViewerModal open={fileViewerOpen} onOpenChange={setFileViewerOpen} fileUrl={fileViewerUrl} fileName={fileViewerName} fileType={fileViewerType} />
+
+      <ExtractionResultModal open={extractionResultOpen} onOpenChange={setExtractionResultOpen} result={extractionResult} preview={extractionPreview} fileName={extractionFileName} />
     </div>
   )
 }
+
+

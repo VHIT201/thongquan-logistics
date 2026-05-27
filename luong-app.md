@@ -56,39 +56,64 @@
 
 ### 4.1 Mở chi tiết
 - **Hành động**: Mở Chi tiết Email
-- **Dữ liệu hiển thị**:
-  - 📝 Nội dung email
-  - 📎 Tệp đính kèm
+- **Layout**: 3 cột ngang (Desktop) / xếp dọc (Mobile)
+  - 📎 **Cột trái**: Tệp đính kèm — chọn checkbox để gửi AI
+  - 📝 **Cột giữa**: Nội dung email (HTML/Text/Auto)
+  - 🤖 **Cột phải**: AI Chat — luôn hiển thị, không floating
 
-### 4.2 Kiểm tra nội dung
-- **Điều kiện**: Nội dung đầy đủ?
-  - **❌ Không**: Yêu cầu bổ sung → Quay lại chi tiết
-  - **✅ Có**: Tiếp tục
+### 4.2 Chọn file đính kèm cho AI
+- **Hành động**: Click checkbox bên cạnh từng file
+- **Hiển thị**: Badge đếm số file đã chọn trong header AI panel
+- **Điều kiện**: Chưa chọn file?
+  - **❌ Chưa**: Chat hiển thị "Chọn file đính kèm trước"
+  - **✅ Đã chọn**: Có thể gửi yêu cầu AI
 
-### 4.3 Kiểm tra tệp đính kèm
-- **Điều kiện**: Có tệp đính kèm?
-  - **❌ Không**: Gửi nội dung vào AI
-  - **✅ Có**: Kiểm tra từng tệp
+### 4.3 Chat với AI bóc tách
+- **Hành động**: Nhập yêu cầu vào input box, nhấn Enter hoặc nút gửi
+- **2 chế độ**:
+  - **Chat mode**: AI trả lời text tự do trong khung chat (hỏi gì đáp nấy)
+  - **Template mode**: AI trả về JSON theo template đã chọn → hiển thị nút "Xem chi tiết" mở modal
 
-#### 4.3.1 Kiểm tra tệp
-- **Hành động**: Kiểm tra từng tệp
-- **Điều kiện**: Tệp hợp lệ?
-  - **❌ Không hợp lệ**: Bỏ qua tệp → Kiểm tra tệp tiếp theo
-  - **🟡 Đang kiểm tra**: Đang kiểm tra
-  - **✅ Đã duyệt**: Gửi vào AI
+#### 4.3.1 Chuyển đổi mode
+- **Chat**: Trả lời tự do, không bắt JSON
+- **Template**: Chọn template từ dropdown → AI trả về dữ liệu cấu trúc theo `expectedFields`
 
 ---
 
-## Giai đoạn 5: Bóc Tách bằng AI
+## Giai đoạn 5: Bóc Tách bằng AI (Chat-based)
 
-### 5.1 Gửi dữ liệu vào AI
-- **Dữ liệu gửi**: Nội dung + Tệp đính kèm (PDF, Excel, Word...)
-- **Hành động**: AI bóc tách dữ liệu
+### 5.1 Chuẩn bị dữ liệu
+- **File đã chọn**: Lấy file từ `selectedForAI` (Set của attachment IDs)
+- **Download & encode**: Tải nội dung file, base64 encode
+- **DOCX đặc biệt**: Dùng `mammoth` để extract text raw trước khi gửi AI
 
-### 5.2 Kiểm tra kết quả bóc tách
-- **Điều kiện**: AI bóc tách thành công?
-  - **❌ Thất bại**: Ghi log lỗi → Quay lại gửi lại
-  - **✅ Thành công**: Tiếp tục
+### 5.2 Gửi prompt vào AI
+- **API**: `POST /document-processor/process-multiple`
+- **Payload**:
+  ```json
+  {
+    "files": [{"fileName", "content": "base64", "type", "mimeType"}],
+    "prompt": "Yêu cầu bóc tách từ người dùng",
+    "model": "gpt-4"
+  }
+  ```
+- **2 loại prompt**:
+  - **Chat**: Trả lời tự do text, không bắt JSON
+  - **Template**: Bắt buộc JSON array theo `expectedFields` của template
+
+### 5.3 Nhận kết quả trong chat
+- **Chat mode**: AI trả lời text → hiển thị trực tiếp trong message bubble
+- **Template mode**: AI trả JSON → hiển thị "Đã bóc tách xong" + nút **"Xem chi tiết"**
+- **Lỗi**: Hiển thị error message inline trong chat
+
+### 5.4 Xem kết quả chi tiết (Template mode)
+- **Hành động**: Click "Xem chi tiết" trong chat message
+- **Mở modal**: `ExtractionResultModal` hiển thị bảng dữ liệu logistics
+- **Chức năng modal**:
+  - Hiển thị dạng bảng (có thể chỉnh sửa)
+  - Xem raw JSON
+  - Sao chép JSON
+  - Preview file đính kèm
 
 ---
 
