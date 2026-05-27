@@ -243,12 +243,8 @@ export function useProcessMailMutation() {
 
 export function useProcessDocumentsMutation() {
   return useMutation({
-    mutationFn: async (files: Array<{ fileName: string; content: string; type: string; mimeType: string }>) => {
-      const response = await mailApi.postApiV1DocumentProcessorProcessMultiple({
-        files,
-        prompt: "Extract key information from these documents",
-        model: "gpt-4",
-      })
+    mutationFn: async (payload: { files: Array<{ fileName: string; content: string; type: string; mimeType: string }>; prompt: string; model: string }) => {
+      const response = await mailApi.postApiV1DocumentProcessorProcessMultiple(payload)
       return response.data
     },
   })
