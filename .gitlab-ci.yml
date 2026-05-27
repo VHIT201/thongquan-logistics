@@ -8,6 +8,8 @@ variables:
 # Cấu hình Build
 build:
   stage: build
+  tags:
+    - runner-vpd-que
   script:
     - dotnet clean -c Release
     - dotnet restore
@@ -39,5 +41,3 @@ deploy:
     - pm2 status
   only:
     - release/staging
-  tags:
-    - runner-vpd-que
