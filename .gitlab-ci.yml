@@ -3,9 +3,9 @@ stages:
   - deploy
 
 variables:
-  DEPLOY_DIR: "/opt/tms-admin-be"
+  # 1. Đổi tên thư mục deploy cho đúng
+  DEPLOY_DIR: "/opt/logistics-platform"
 
-# Cấu hình Build: Chỉ lưu lại những gì cần thiết để deploy
 build:
   stage: build
   tags:
@@ -26,7 +26,6 @@ build:
   only:
     - release/staging
 
-# Cấu hình Deploy
 deploy:
   stage: deploy
   tags:
@@ -35,21 +34,25 @@ deploy:
     # 1. Dọn dẹp tiến trình cũ
     - pm2 delete logistics-platform || true
     
-    # 2. Tạo thư mục và copy artifact
-    - mkdir -p $DEPLOY_DIR
+    # 2. Đảm bảo quyền sở hữu thư mục (Nếu bạn chạy Runner với quyền sudo, bỏ qua dòng này)
+    # Nếu bị lỗi permission, hãy đảm bảo user gitlab-runner có quyền ghi vào /opt
+    - sudo mkdir -p $DEPLOY_DIR
+    - sudo chown -R $USER:$USER $DEPLOY_DIR
+    
+    # 3. Copy artifact vào thư mục
     - cp -r ./.next $DEPLOY_DIR/
     - cp -r ./public $DEPLOY_DIR/
     - cp package.json $DEPLOY_DIR/
     - cp pnpm-lock.yaml $DEPLOY_DIR/
     - cp ecosystem.config.js $DEPLOY_DIR/
     
-    # 3. Cài đặt lại dependency production trên server
+    # 4. Cài đặt dependency và chạy
     - cd $DEPLOY_DIR
     - corepack enable
     - corepack prepare pnpm@latest --activate
     - pnpm install --prod --frozen-lockfile
     
-    # 4. Khởi động ứng dụng
+    # 5. Khởi động ứng dụng
     - pm2 start ecosystem.config.js --env production
     - pm2 save
     - pm2 status
