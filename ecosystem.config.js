@@ -3,7 +3,7 @@ module.exports = {
     {
       name: "logistics-platform",
       script: "node_modules/.bin/next",
-      args: "start -p 3020",
+      args: "start -p 3056",
       env_production: {
         NODE_ENV: "production",
       },
