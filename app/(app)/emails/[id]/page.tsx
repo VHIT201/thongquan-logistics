@@ -467,24 +467,16 @@ export default function EmailDetailPage() {
         })
       )
 
-      // Build message: append expected fields when in template mode
-      let aiMessage = text
-      if (aiMode === "template" && selectedTemplate?.expectedFields) {
-        const fieldsDescription = Object.entries(selectedTemplate.expectedFields)
-          .map(([key, desc]) => `- ${key}: ${desc}`)
-          .join("\n")
-        aiMessage = `${text}\n\nTrích xuất dữ liệu theo các trường sau và trả về JSON với các key tương ứng:\n${fieldsDescription}`
-      }
-
       // Send message — assistant response will sync via messagesQuery refetch
       await sendMessageMutation.mutateAsync({
         conversationId,
         payload: {
-          message: aiMessage,
+          message: text,
           selectedAttachmentIds: linkedAttachments.filter(Boolean),
           provider: "openai",
           model: "deepseek/deepseek-v4-flash-20260423",
           responseFormat: aiMode === "template" ? "json" : "text",
+          templateType: aiMode === "template" ? (selectedTemplate?.templateCode ?? null) : null,
           ...(tenantId ? { tenantId } : {}),
           createdBy: currentUser?.userId || "",
         },
@@ -946,7 +938,7 @@ export default function EmailDetailPage() {
                 </button>
 
               {aiMode === "template" && (
-                <>
+                <div className="ml-auto flex min-w-0 items-center gap-2">
                   <select
                     value={selectedTemplateId}
                     onChange={(event) => {
@@ -954,7 +946,8 @@ export default function EmailDetailPage() {
                       setPromptError(null)
                     }}
                     disabled={templatesQuery.isPending}
-                    className="ml-auto rounded-md border border-neutral-200 px-2 py-1 text-[11px] text-neutral-700 outline-none focus:border-primary"
+                    className="max-w-[180px] rounded-md border border-neutral-200 px-2 py-1 text-[11px] text-neutral-700 outline-none focus:border-primary"
+                    title={templates.find((t) => t.id === selectedTemplateId)?.templateName ?? ""}
                   >
                     <option value="">-- Chọn template --</option>
                     {templates.map((template) => (
@@ -966,12 +959,12 @@ export default function EmailDetailPage() {
                   <button
                     type="button"
                     onClick={() => setShowCreateTemplate((s) => !s)}
-                    className="rounded-md px-2 py-1 text-[11px] font-medium text-neutral-600 hover:bg-neutral-100"
+                    className="shrink-0 rounded-md px-2 py-1 text-[11px] font-medium text-neutral-600 hover:bg-neutral-100"
                     title="Tạo template mới"
                   >
                     +
                   </button>
-                </>
+                </div>
               )}
             </div>
 

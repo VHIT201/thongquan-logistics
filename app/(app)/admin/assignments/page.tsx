@@ -71,8 +71,7 @@ export default function AdminAssignmentsPage() {
   )
   // Fetch all assignments with status=assigned for checking "already assigned" in unassigned tab
   const allAssignedQuery = useMailAssignmentsByStatusQuery("assigned")
-  const messagesQuery = useMailMessagesQuery({ page, pageSize })
-  // Fetch more messages for subject lookup in assignment rows
+  // Fetch all messages for unassigned tab + subject lookup in assignment rows
   const allMessagesQuery = useMailMessagesQuery({ page: 1, pageSize: 500 })
   const usersQuery = useUsersQuery({ page: 1, pageSize: 100 })
   const assignMutation = useAssignMailMutation()
@@ -92,24 +91,18 @@ export default function AdminAssignmentsPage() {
   // Normalized data
   const assignments = normalizeArray(assignmentsQuery.data)
   const allAssigned = normalizeArray(allAssignedQuery.data)
-  const messages = normalizeArray(messagesQuery.data)
   const allMessages = normalizeArray(allMessagesQuery.data)
   const users = normalizeArray(usersQuery.data)
-
-  const pagination = getPagination(messagesQuery.data)
-  const totalPages = (pagination?.totalPages as number) ?? 1
-  const totalItems = (pagination?.totalItems as number) ?? 0
 
   // Build lookup maps
   const messageMap = useMemo(() => {
     const map = new Map<string, Record<string, unknown>>()
-    // Merge messages from both queries (paginated + bulk lookup)
-    for (const m of [...messages, ...allMessages]) {
+    for (const m of allMessages) {
       const id = String(m.id ?? "")
       if (id && !map.has(id)) map.set(id, m)
     }
     return map
-  }, [messages, allMessages])
+  }, [allMessages])
 
   // Merge all assignment sources (tab-specific + all assigned) for lookup
   const allAssignments = useMemo(() => {
@@ -129,6 +122,14 @@ export default function AdminAssignmentsPage() {
     }
     return set
   }, [allAssignments])
+
+  // Unassigned messages = all messages NOT in any assignment
+  const unassignedMessages = useMemo(() => {
+    return allMessages.filter((m) => {
+      const id = String(m.id ?? "")
+      return !assignedMessageIds.has(id)
+    })
+  }, [allMessages, assignedMessageIds])
 
   const getUserName = (userId: string) => {
     const u = users.find((item) => String(item.id) === userId)
@@ -203,15 +204,18 @@ export default function AdminAssignmentsPage() {
     }
   }
 
+  const tabData = activeTab === "unassigned" ? unassignedMessages : assignments
+  const tabTotalPages = Math.max(1, Math.ceil(tabData.length / pageSize))
+  const tabPaged = tabData.slice((page - 1) * pageSize, page * pageSize)
+  const tabTotalItems = tabData.length
+
   const isLoading = activeTab === "unassigned"
-    ? messagesQuery.isPending
+    ? allMessagesQuery.isPending
     : assignmentsQuery.isPending
 
-  const hasData = activeTab === "unassigned"
-    ? messages.length > 0
-    : assignments.length > 0
+  const hasData = tabPaged.length > 0
 
-  const currentData = activeTab === "unassigned" ? messages : assignments
+  const currentData = tabPaged
 
   return (
     <div className="space-y-5">
@@ -226,7 +230,7 @@ export default function AdminAssignmentsPage() {
           return (
             <button
               key={tab.key}
-              onClick={() => setActiveTab(tab.key)}
+              onClick={() => { setActiveTab(tab.key); setPage(1) }}
               className={`flex items-center gap-2 rounded-md px-4 py-2 text-sm font-medium transition-colors cursor-pointer ${
                 active
                   ? "bg-primary text-white"
@@ -282,9 +286,8 @@ export default function AdminAssignmentsPage() {
                   </td>
                 </tr>
               )}
-              {activeTab === "unassigned" && messages.map((m) => {
+              {activeTab === "unassigned" && tabPaged.map((m) => {
                 const messageId = String(m.id ?? "")
-                const isAssigned = assignedMessageIds.has(messageId)
                 return (
                   <tr key={messageId} className="hover:bg-neutral-50 transition-colors">
                     <td className="px-4 py-3">
@@ -313,26 +316,10 @@ export default function AdminAssignmentsPage() {
                       </span>
                     </td>
                     <td className="px-4 py-3">
-                      {isAssigned ? (
-                        <span className="inline-flex items-center gap-1 rounded-full bg-amber-50 px-2 py-0.5 text-[10px] font-medium text-amber-700">
-                          <UserCheck className="h-3 w-3" />
-                          Đã gán
-                        </span>
-                      ) : (
-                        <span className="text-xs text-neutral-200">—</span>
-                      )}
+                      <span className="text-xs text-neutral-200">—</span>
                     </td>
                     <td className="px-4 py-3 text-right">
                       <div className="flex items-center justify-end gap-1">
-                        {isAssigned && (
-                          <button
-                            onClick={() => openAssignModal(messageId)}
-                            className="inline-flex items-center gap-1 rounded-lg border border-amber-200 bg-amber-50 px-3 py-1.5 text-xs font-medium text-amber-700 hover:bg-amber-100 cursor-pointer"
-                          >
-                            <Send className="h-3 w-3" />
-                            Chuyển
-                          </button>
-                        )}
                         <button
                           onClick={() => openDetailModal(messageId)}
                           className="inline-flex items-center gap-1 rounded-lg border border-neutral-200 bg-white px-3 py-1.5 text-xs font-medium text-neutral-600 hover:bg-neutral-50 cursor-pointer"
@@ -340,21 +327,19 @@ export default function AdminAssignmentsPage() {
                           <Eye className="h-3 w-3" />
                           Xem
                         </button>
-                        {!isAssigned && (
-                          <button
-                            onClick={() => openAssignModal(messageId)}
-                            className="inline-flex items-center gap-1 rounded-lg border border-primary/20 bg-primary/5 px-3 py-1.5 text-xs font-medium text-primary hover:bg-primary/10 cursor-pointer"
-                          >
-                            <Send className="h-3 w-3" />
-                            Gán
-                          </button>
-                        )}
+                        <button
+                          onClick={() => openAssignModal(messageId)}
+                          className="inline-flex items-center gap-1 rounded-lg border border-primary/20 bg-primary/5 px-3 py-1.5 text-xs font-medium text-primary hover:bg-primary/10 cursor-pointer"
+                        >
+                          <Send className="h-3 w-3" />
+                          Gán
+                        </button>
                       </div>
                     </td>
                   </tr>
                 )
               })}
-              {activeTab !== "unassigned" && assignments.map((a) => {
+              {activeTab !== "unassigned" && tabPaged.map((a) => {
                 const messageId = String(a.mailConnectorMessageId ?? "")
                 const userId = String(a.assignedToUserId ?? "")
                 const status = String(a.status ?? "")
@@ -427,10 +412,10 @@ export default function AdminAssignmentsPage() {
           </table>
         </div>
 
-        {activeTab === "unassigned" && totalPages > 1 && (
+        {tabTotalPages > 1 && (
           <div className="flex items-center justify-between border-t border-neutral-100 px-4 py-3">
             <p className="text-xs text-neutral-200">
-              Trang {page} / {totalPages} ({totalItems} bản ghi)
+              Trang {page} / {tabTotalPages} ({tabTotalItems} bản ghi)
             </p>
             <div className="flex gap-2">
               <button
@@ -441,8 +426,8 @@ export default function AdminAssignmentsPage() {
                 Trước
               </button>
               <button
-                onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
-                disabled={page >= totalPages}
+                onClick={() => setPage((p) => Math.min(tabTotalPages, p + 1))}
+                disabled={page >= tabTotalPages}
                 className="rounded-lg border border-neutral-100 px-3 py-1.5 text-xs font-medium text-neutral-300 hover:bg-neutral-50 disabled:opacity-50 cursor-pointer disabled:cursor-not-allowed"
               >
                 Sau

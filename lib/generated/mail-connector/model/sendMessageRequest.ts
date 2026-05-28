@@ -16,6 +16,8 @@ export interface SendMessageRequest {
   model?: string | null;
   /** @nullable */
   responseFormat?: string | null;
+  /** @nullable */
+  templateType?: string | null;
   tenantId?: string;
   createdBy?: string;
 }

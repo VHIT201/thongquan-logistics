@@ -1,6 +1,14 @@
 # Logistics Platform – Source Export
 
-Generated: 2026-05-27T02:42:08.293Z
+Generated: 2026-05-28T11:14:23.088Z
+
+---
+
+## File: `.windsurf\workflows\emails.md`
+
+```md
+
+```
 
 ---
 
@@ -18,10 +26,3557 @@ This version has breaking changes — APIs, conventions, and file structure may 
 
 ---
 
+## File: `ai-chat-api (1).md`
+
+```md
+# AI Chat API Documentation
+
+**Ngày:** 2026-05-28
+**Phiên bản:** 1.1.0
+**Dự án:** LogisticsPlatformBE
+**Mục đích:** Tài liệu API đầy đủ cho module AI Chat - tính năng trò chuyện AI tích hợp với hệ thống logistics
+
+**Changelog v1.1.0:**
+- Thêm GET messages endpoint để lấy lịch sử tin nhắn
+- Thêm responseFormat parameter để hỗ trợ JSON response cho template mode
+- Thêm idempotencyKey để tránh tạo duplicate conversation
+- Thêm mail_message entity type với context từ MailConnector
+- Thêm GET conversations by entity endpoint để tìm conversation theo entity (mail_message, order, etc.)
+- Cập nhật LinkAttachmentRequest model đầy đủ
+
+---
+
+## Tổng quan
+
+Module AI Chat được thiết kế để hỗ trợ quá trình bóc tách dữ liệu logistics từ email và tài liệu đính kèm. Module cho phép người dùng:
+
+- **Tư vấn bóc tách dữ liệu:** Hỏi AI về các trường cần bóc tách từ tài liệu logistics (invoice, BOL, AWB, etc.)
+- **Xác định cấu trúc dữ liệu:** Nhận tư vấn về cách cấu trúc dữ liệu cho các loại tài liệu khác nhau
+- **Phân tích tài liệu:** Upload tài liệu và yêu cầu AI phân tích nội dung để xác định các trường quan trọng
+- **Tạo mapping schema:** Xây dựng mapping giữa các trường trong tài liệu và hệ thống
+- **Review kết quả bóc tách:** So sánh kết quả bóc tách tự động với bản gốc để xác định các trường bị thiếu
+
+### Use Case Chính
+
+**Scenario:** Người dùng nhận email có đính kèm invoice vận chuyển và muốn bóc tách dữ liệu vào hệ thống logistics.
+
+**Workflow:**
+1. User tạo conversation mới liên kết với email/attachment từ MailConnector
+2. User upload tài liệu (PDF, Excel, Word) hoặc link attachment từ MailConnector
+3. User hỏi AI: "Tài liệu này có những trường nào cần bóc tách?"
+4. AI phân tích tài liệu và liệt kê các trường: invoice_number, bill_of_lading, shipper_name, consignee_name, etc.
+5. User hỏi thêm: "Làm sao để map trường 'Total Amount' sang hệ thống?"
+6. AI tư vấn về mapping và validation rules
+7. User sử dụng thông tin này để cấu hình MailConnector extraction rules
+
+### Kiến trúc
+
+```
+┌─────────────────────────────────────────────────────────────────┐
+│                    LogisticsPlatformBE                           │
+├─────────────────────────────────────────────────────────────────┤
+│  ┌──────────────┐    ┌──────────────┐    ┌──────────────┐      │
+│  │  AI Chat     │    │  Mail        │    │  Business    │      │
+│  │  API         │───▶│  Connector   │───▶│  Entities    │      │
+│  └──────────────┘    └──────────────┘    └──────────────┘      │
+│         │                   │                   │                │
+│         ▼                   ▼                   ▼                │
+│  ┌──────────────┐    ┌──────────────┐    ┌──────────────┐      │
+│  │  AI Provider │    │  File        │    │  Context     │      │
+│  │  (OpenAI/    │    │  Storage     │    │  Building    │      │
+│  │   Azure)     │    │              │    │              │      │
+│  └──────────────┘    └──────────────┘    └──────────────┘      │
+└─────────────────────────────────────────────────────────────────┘
+```
+
+---
+
+## 1. Conversation Management API
+
+### 1.1 Tạo Conversation Mới
+
+```http
+POST /api/v1/ai-chat/conversations
+```
+
+**Mô tả:** Tạo một cuộc hội thoại mới.
+
+**Request Body:**
+```json
+{
+  "title": "Hỏi về vận đơn #BOL-123456",
+  "tenantId": "guid",
+  "createdBy": "guid",
+  "idempotencyKey": "optional-client-generated-key"
+}
+```
+
+**Parameters:**
+- `title` (string, required): Tiêu đề conversation
+- `tenantId` (GUID, required): Tenant ID
+- `createdBy` (GUID, required): User ID
+- `idempotencyKey` (string, optional): Client-generated key để tránh tạo duplicate conversation
+
+**Response:**
+```json
+{
+  "correlationId": "guid",
+  "traceId": "trace-id",
+  "timestamp": "2026-05-28T10:00:00Z",
+  "data": {
+    "id": "guid",
+    "title": "Hỏi về vận đơn #BOL-123456",
+    "description": null,
+    "status": "active",
+    "tenantId": "guid",
+    "organizationId": null,
+    "createdBy": "guid",
+    "entityType": null,
+    "entityId": null,
+    "createdAt": "2026-05-28T10:00:00Z",
+    "updatedAt": null
+  },
+  "meta": {},
+  "errors": []
+}
+```
+
+**Status Codes:**
+- `200 OK`: Conversation được tạo thành công
+- `400 Bad Request`: Request không hợp lệ
+
+---
+
+### 1.2 Lấy Conversation Theo ID
+
+```http
+GET /api/v1/ai-chat/conversations/{id}
+```
+
+**Mô tả:** Lấy thông tin chi tiết của một conversation.
+
+**Path Parameters:**
+- `id` (GUID): Conversation ID
+
+**Response:**
+```json
+{
+  "correlationId": "guid",
+  "traceId": "trace-id",
+  "timestamp": "2026-05-28T10:00:00Z",
+  "data": {
+    "id": "guid",
+    "title": "Hỏi về vận đơn #BOL-123456",
+    "description": "Thảo luận về vận đơn BOL-123456",
+    "status": "active",
+    "tenantId": "guid",
+    "organizationId": "guid",
+    "createdBy": "guid",
+    "entityType": "shipment",
+    "entityId": "guid",
+    "createdAt": "2026-05-28T10:00:00Z",
+    "updatedAt": "2026-05-28T10:30:00Z"
+  },
+  "meta": {},
+  "errors": []
+}
+```
+
+**Status Codes:**
+- `200 OK`: Thành công
+- `404 Not Found`: Conversation không tồn tại
+
+---
+
+### 1.3 Lấy Danh sách Conversations
+
+```http
+GET /api/v1/ai-chat/conversations
+```
+
+**Mô tả:** Lấy danh sách conversations theo tenant hoặc user.
+
+**Query Parameters:**
+- `tenantId` (GUID, optional): Lọc theo tenant
+- `createdBy` (GUID, optional): Lọc theo user tạo
+
+**Lưu ý:** Phải cung cấp ít nhất một trong hai tham số.
+
+**Response:**
+```json
+{
+  "correlationId": "guid",
+  "traceId": "trace-id",
+  "timestamp": "2026-05-28T10:00:00Z",
+  "data": [
+    {
+      "id": "guid-1",
+      "title": "Hỏi về vận đơn #BOL-123456",
+      "description": null,
+      "status": "active",
+      "tenantId": "guid",
+      "organizationId": null,
+      "createdBy": "guid",
+      "entityType": null,
+      "entityId": null,
+      "createdAt": "2026-05-28T10:00:00Z",
+      "updatedAt": "2026-05-28T10:30:00Z"
+    },
+    {
+      "id": "guid-2",
+      "title": "Hỏi về đơn hàng #ORD-789",
+      "description": "Thảo luận về đơn hàng",
+      "status": "archived",
+      "tenantId": "guid",
+      "organizationId": "guid",
+      "createdBy": "guid",
+      "entityType": "order",
+      "entityId": "guid",
+      "createdAt": "2026-05-27T15:00:00Z",
+      "updatedAt": "2026-05-27T16:00:00Z"
+    }
+  ],
+  "meta": {},
+  "errors": []
+}
+```
+
+**Status Codes:**
+- `200 OK`: Thành công
+- `400 Bad Request`: Không cung cấp tenantId hoặc createdBy
+
+---
+
+### 1.4 Lấy Conversation Theo Entity
+
+```http
+GET /api/v1/ai-chat/conversations/by-entity?entityType={entityType}&entityId={entityId}
+```
+
+**Mô tả:** Lấy conversation đã link với một entity cụ thể (ví dụ: mail message).
+
+**Query Parameters:**
+- `entityType` (string, required): Loại entity (`mail_message`, `order`, `shipment`, `invoice`, `customer`)
+- `entityId` (GUID, required): Entity ID
+
+**Response:**
+```json
+{
+  "correlationId": "guid",
+  "traceId": "trace-id",
+  "timestamp": "2026-05-28T10:00:00Z",
+  "data": {
+    "id": "guid",
+    "title": "Hỏi về vận đơn #BOL-123456",
+    "description": null,
+    "status": "active",
+    "tenantId": "guid",
+    "organizationId": null,
+    "createdBy": "guid",
+    "entityType": "mail_message",
+    "entityId": "guid",
+    "createdAt": "2026-05-28T10:00:00Z",
+    "updatedAt": "2026-05-28T10:00:00Z"
+  },
+  "meta": {},
+  "errors": []
+}
+```
+
+**Status Codes:**
+- `200 OK`: Thành công
+- `404 Not Found`: Không tìm thấy conversation cho entity được chỉ định
+
+**Use Case:**
+FE có thể dùng endpoint này để check xem conversation cho một mail message đã tồn tại chưa trước khi tạo mới, giúp tránh duplicate conversations.
+
+---
+
+### 1.5 Cập nhật Conversation
+
+```http
+PUT /api/v1/ai-chat/conversations/{id}
+```
+
+**Mô tả:** Cập nhật tiêu đề và mô tả của conversation.
+
+**Path Parameters:**
+- `id` (GUID): Conversation ID
+
+**Request Body:**
+```json
+{
+  "title": "Tiêu đề mới",
+  "description": "Mô tả chi tiết về cuộc hội thoại"
+}
+```
+
+**Response:**
+```json
+{
+  "correlationId": "guid",
+  "traceId": "trace-id",
+  "timestamp": "2026-05-28T10:00:00Z",
+  "data": {
+    "id": "guid",
+    "title": "Tiêu đề mới",
+    "description": "Mô tả chi tiết về cuộc hội thoại",
+    "status": "active",
+    "tenantId": "guid",
+    "organizationId": null,
+    "createdBy": "guid",
+    "entityType": null,
+    "entityId": null,
+    "createdAt": "2026-05-28T10:00:00Z",
+    "updatedAt": "2026-05-28T10:35:00Z"
+  },
+  "meta": {},
+  "errors": []
+}
+```
+
+**Status Codes:**
+- `200 OK`: Cập nhật thành công
+- `404 Not Found`: Conversation không tồn tại
+
+---
+
+### 1.6 Archive Conversation
+
+```http
+POST /api/v1/ai-chat/conversations/{id}/archive
+```
+
+**Mô tả:** Archive một conversation (đánh dấu là archived).
+
+**Path Parameters:**
+- `id` (GUID): Conversation ID
+
+**Response:**
+```json
+{
+  "correlationId": "guid",
+  "traceId": "trace-id",
+  "timestamp": "2026-05-28T10:00:00Z",
+  "data": {
+    "id": "guid",
+    "title": "Hỏi về vận đơn #BOL-123456",
+    "description": null,
+    "status": "archived",
+    "tenantId": "guid",
+    "organizationId": null,
+    "createdBy": "guid",
+    "entityType": null,
+    "entityId": null,
+    "createdAt": "2026-05-28T10:00:00Z",
+    "updatedAt": "2026-05-28T10:40:00Z"
+  },
+  "meta": {},
+  "errors": []
+}
+```
+
+**Status Codes:**
+- `200 OK`: Archive thành công
+- `404 Not Found`: Conversation không tồn tại
+
+---
+
+### 1.7 Xóa Conversation
+
+```http
+DELETE /api/v1/ai-chat/conversations/{id}
+```
+
+**Mô tả:** Xóa một conversation (đánh dấu là deleted).
+
+**Path Parameters:**
+- `id` (GUID): Conversation ID
+
+**Response:**
+```json
+{
+  "correlationId": "guid",
+  "traceId": "trace-id",
+  "timestamp": "2026-05-28T10:00:00Z",
+  "data": {
+    "id": "guid",
+    "title": "Hỏi về vận đơn #BOL-123456",
+    "description": null,
+    "status": "deleted",
+    "tenantId": "guid",
+    "organizationId": null,
+    "createdBy": "guid",
+    "entityType": null,
+    "entityId": null,
+    "createdAt": "2026-05-28T10:00:00Z",
+    "updatedAt": "2026-05-28T10:45:00Z"
+  },
+  "meta": {},
+  "errors": []
+}
+```
+
+**Status Codes:**
+- `200 OK`: Xóa thành công
+- `404 Not Found`: Conversation không tồn tại
+
+---
+
+### 1.8 Liên kết Conversation với Business Entity
+
+```http
+POST /api/v1/ai-chat/conversations/{id}/link-entity
+```
+
+**Mô tả:** Liên kết conversation với một business entity (order, shipment, etc.).
+
+**Path Parameters:**
+- `id` (GUID): Conversation ID
+
+**Request Body:**
+```json
+{
+  "entityType": "shipment",
+  "entityId": "guid"
+}
+```
+
+**Entity Types hỗ trợ:**
+- `order`: Đơn hàng
+- `shipment`: Lô hàng
+- `invoice`: Hóa đơn
+- `customer`: Khách hàng
+- `mail_message`: Email từ MailConnector (trả về context: subject, from, to, date, body preview, attachment list)
+
+**Response:**
+```json
+{
+  "correlationId": "guid",
+  "traceId": "trace-id",
+  "timestamp": "2026-05-28T10:00:00Z",
+  "data": {
+    "id": "guid",
+    "title": "Hỏi về vận đơn #BOL-123456",
+    "description": null,
+    "status": "active",
+    "tenantId": "guid",
+    "organizationId": null,
+    "createdBy": "guid",
+    "entityType": "shipment",
+    "entityId": "guid",
+    "createdAt": "2026-05-28T10:00:00Z",
+    "updatedAt": "2026-05-28T10:50:00Z"
+  },
+  "meta": {},
+  "errors": []
+}
+```
+
+**Status Codes:**
+- `200 OK`: Liên kết thành công
+- `404 Not Found`: Conversation không tồn tại
+
+---
+
+## 2. Chat API
+
+### 2.1 Lấy Tin Nhắn
+
+```http
+GET /api/v1/ai-chat/conversations/{conversationId}/messages
+```
+
+**Mô tả:** Lấy danh sách tin nhắn của một conversation.
+
+**Path Parameters:**
+- `conversationId` (GUID): Conversation ID
+
+**Response:**
+```json
+{
+  "correlationId": "guid",
+  "traceId": "trace-id",
+  "timestamp": "2026-05-28T10:00:00Z",
+  "data": [
+    {
+      "id": "guid-1",
+      "conversationId": "guid",
+      "role": "user",
+      "content": "Hãy cho tôi biết thông tin về vận đơn BOL-123456",
+      "contentType": "text",
+      "inputTokens": null,
+      "outputTokens": null,
+      "totalTokens": null,
+      "model": null,
+      "provider": null,
+      "finishReason": null,
+      "createdAt": "2026-05-28T10:00:00Z"
+    },
+    {
+      "id": "guid-2",
+      "conversationId": "guid",
+      "role": "assistant",
+      "content": "Theo thông tin từ hệ thống, vận đơn BOL-123456 là một lô hàng vận chuyển từ Singapore đến Việt Nam...",
+      "contentType": "text",
+      "inputTokens": 1500,
+      "outputTokens": 500,
+      "totalTokens": 2000,
+      "model": "gpt-4",
+      "provider": "openai",
+      "finishReason": "stop",
+      "createdAt": "2026-05-28T10:00:05Z"
+    }
+  ],
+  "meta": {},
+  "errors": []
+}
+```
+
+**Status Codes:**
+- `200 OK`: Thành công
+- `404 Not Found`: Conversation không tồn tại
+
+---
+
+### 2.2 Gửi Tin Nhắn
+
+```http
+POST /api/v1/ai-chat/conversations/{conversationId}/messages
+```
+
+**Mô tả:** Gửi tin nhắn đến AI và nhận phản hồi.
+
+**Path Parameters:**
+- `conversationId` (GUID): Conversation ID
+
+**Request Body:**
+```json
+{
+  "message": "Hãy cho tôi biết thông tin về vận đơn BOL-123456",
+  "selectedAttachmentIds": ["guid-1", "guid-2"],
+  "provider": "openai",
+  "model": "gpt-4",
+  "responseFormat": "text",
+  "tenantId": "guid",
+  "createdBy": "guid"
+}
+```
+
+**Parameters:**
+- `message` (string, required): Nội dung tin nhắn
+- `selectedAttachmentIds` (GUID[], optional): Danh sách attachment IDs để include trong context
+- `provider` (string, optional): AI provider (`openai`, `azure`, default: `openai`)
+- `model` (string, optional): AI model (`gpt-4`, `gpt-3.5-turbo`, default: `gpt-4`)
+- `responseFormat` (string, optional): Format phản hồi (`text` hoặc `json`, default: `text`)
+- `tenantId` (GUID, required): Tenant ID
+- `createdBy` (GUID, required): User ID
+
+**Response Format:**
+- Khi `responseFormat = "text"`: AI trả về text tự do (mặc định)
+- Khi `responseFormat = "json"`: AI được hướng dẫn trả về JSON có cấu trúc, BE sẽ parse và validate JSON trước khi trả về
+
+**Response:**
+```json
+{
+  "correlationId": "guid",
+  "traceId": "trace-id",
+  "timestamp": "2026-05-28T10:00:00Z",
+  "data": {
+    "message": "Theo thông tin từ hệ thống, vận đơn BOL-123456 là một lô hàng vận chuyển từ Singapore đến Việt Nam...",
+    "inputTokens": 1500,
+    "outputTokens": 500,
+    "totalTokens": 2000,
+    "finishReason": "stop"
+  },
+  "meta": {},
+  "errors": []
+}
+```
+
+**Finish Reasons:**
+- `stop`: AI hoàn thành phản hồi bình thường
+- `length`: Đạt giới hạn token
+- `content_filter`: Nội dung bị filter
+- `error`: Có lỗi xảy ra
+
+**Status Codes:**
+- `200 OK`: Gửi tin nhắn thành công
+- `400 Bad Request`: Request không hợp lệ
+- `404 Not Found`: Conversation không tồn tại
+
+---
+
+## 3. Data Models
+
+### 3.1 Conversation
+
+```csharp
+public class Conversation
+{
+    public Guid Id { get; set; }
+    public string Title { get; set; }
+    public string? Description { get; set; }
+    public string Status { get; set; }  // active, archived, deleted
+    
+    // Ownership
+    public Guid TenantId { get; set; }
+    public Guid? OrganizationId { get; set; }
+    public Guid CreatedBy { get; set; }
+    
+    // Business Entity Link
+    public string? EntityType { get; set; }
+    public Guid? EntityId { get; set; }
+    
+    // Timestamps
+    public DateTime CreatedAtUtc { get; set; }
+    public DateTime? UpdatedAtUtc { get; set; }
+}
+```
+
+**Status Values:**
+- `active`: Đang hoạt động
+- `archived`: Đã lưu trữ
+- `deleted`: Đã xóa
+
+---
+
+### 3.2 Message
+
+```csharp
+public class Message
+{
+    public Guid Id { get; set; }
+    public Guid ConversationId { get; set; }
+    public string Role { get; set; }  // user, assistant, system
+    public string Content { get; set; }
+    
+    // AI Metadata
+    public string? Provider { get; set; }
+    public string? Model { get; set; }
+    public int? InputTokens { get; set; }
+    public int? OutputTokens { get; set; }
+    public string? FinishReason { get; set; }
+    
+    // Timestamps
+    public DateTime CreatedAtUtc { get; set; }
+}
+```
+
+**Role Values:**
+- `user`: Tin nhắn từ người dùng
+- `assistant`: Phản hồi từ AI
+- `system`: Tin nhắn hệ thống
+
+---
+
+### 3.3 ConversationAttachment
+
+```csharp
+public class ConversationAttachment
+{
+    public Guid Id { get; set; }
+    public Guid ConversationId { get; set; }
+    public string FileName { get; set; }
+    public string? ContentType { get; set; }
+    public long? FileSize { get; set; }
+    
+    // Source
+    public string Source { get; set; }  // upload, mailconnector
+    public string? SourceReference { get; set; }
+    
+    // Storage
+    public string? FileHash { get; set; }
+    public string? StorageBucket { get; set; }
+    public string? StoragePath { get; set; }
+    
+    // Extracted Text
+    public string? ExtractedText { get; set; }
+    public int ExtractedTextVersion { get; set; }
+    
+    // Ownership
+    public Guid TenantId { get; set; }
+    public Guid CreatedBy { get; set; }
+    
+    // Timestamps
+    public DateTime CreatedAtUtc { get; set; }
+    public DateTime? UpdatedAtUtc { get; set; }
+}
+```
+
+**Source Values:**
+- `upload`: File được upload trực tiếp
+- `mailconnector`: File từ MailConnector (email attachment)
+
+**LinkAttachment Request Model:**
+```csharp
+public record LinkAttachmentRequest
+{
+    public string Source { get; init; } = string.Empty;  // 'mailconnector' or 'upload'
+    public Guid? MessageId { get; init; }  // Required for mailconnector
+    public Guid? AttachmentId { get; init; }  // Required for mailconnector
+    public string FileName { get; init; } = string.Empty;
+    public string? ContentType { get; init; }
+    public long? FileSize { get; init; }
+    public string? FileHash { get; init; }
+    public string? StorageBucket { get; init; }
+    public string? StoragePath { get; init; }
+    public Guid TenantId { get; init; }
+    public Guid CreatedBy { get; init; }
+}
+```
+
+**Attachment Response Model:**
+```csharp
+public record AttachmentDto
+{
+    public Guid Id { get; init; }  // Conversation attachment ID - use this in selectedAttachmentIds
+    public Guid ConversationId { get; init; }
+    public string Source { get; init; } = string.Empty;
+    public string? SourceReference { get; init; }
+    public string FileName { get; init; } = string.Empty;
+    public string? ContentType { get; init; }
+    public long? FileSize { get; init; }
+    public string? FileHash { get; init; }
+    public string? StorageBucket { get; init; }
+    public string? StoragePath { get; init; }
+    public string? ExtractedText { get; init; }
+    public int ExtractedTextVersion { get; init; }
+    public Guid TenantId { get; init; }
+    public Guid CreatedBy { get; init; }
+    public DateTime CreatedAt { get; init; }
+    public DateTime? UpdatedAt { get; init; }
+}
+```
+
+---
+
+### 3.4 AiRequestLog
+
+```csharp
+public class AiRequestLog
+{
+    public Guid Id { get; set; }
+    public Guid ConversationId { get; set; }
+    public Guid MessageId { get; set; }
+    
+    // AI Provider Info
+    public string Provider { get; set; }
+    public string Model { get; set; }
+    
+    // Token Usage
+    public int InputTokens { get; set; }
+    public int OutputTokens { get; set; }
+    public int TotalTokens { get; set; }
+    
+    // Cost
+    public decimal EstimatedCostUsd { get; set; }
+    
+    // Timestamps
+    public DateTime CreatedAtUtc { get; set; }
+}
+```
+
+---
+
+## 4. Authentication & Authorization
+
+### 4.1 Authentication
+
+Tất cả các API endpoint yêu cầu authentication qua Bearer token:
+
+```http
+Authorization: Bearer {jwt_token}
+```
+
+Token phải chứa:
+- `userId`: ID của user
+- `tenantId`: ID của tenant
+- `roles`: Danh sách quyền của user
+
+### 4.2 Authorization
+
+**Tenant Isolation:**
+- Mọi request phải bao gồm `tenantId` trong request body
+- User chỉ có thể truy cập conversations của tenant mình
+- Cross-tenant access bị chặn
+
+**Permission Checks:**
+- `ai-chat:read`: Đọc conversations và messages
+- `ai-chat:write`: Tạo/cập nhật/xóa conversations
+- `ai-chat:send`: Gửi tin nhắn đến AI
+- `ai-chat:manage`: Quản lý toàn bộ (admin)
+
+---
+
+## 5. Error Handling
+
+### 5.1 Error Response Format
+
+```json
+{
+  "correlationId": "guid",
+  "traceId": "trace-id",
+  "timestamp": "2026-05-28T10:00:00Z",
+  "data": null,
+  "meta": {},
+  "errors": [
+    {
+      "field": "tenantId",
+      "code": "INVALID_TENANT",
+      "message": "Tenant không hợp lệ",
+      "messageKey": "tenant.invalid",
+      "severity": "high"
+    }
+  ]
+}
+```
+
+### 5.2 Common Error Codes
+
+| Code | Message | Severity |
+|------|---------|----------|
+| `NOT_FOUND` | Resource không tồn tại | high |
+| `INVALID_REQUEST` | Request không hợp lệ | high |
+| `UNAUTHORIZED` | Không có quyền truy cập | high |
+| `FORBIDDEN` | Không có quyền thực hiện hành động | high |
+| `VALIDATION_ERROR` | Dữ liệu không hợp lệ | medium |
+| `AI_ERROR` | Lỗi từ AI provider | high |
+| `QUOTA_EXCEEDED` | Vượt quá quota token | high |
+| `FILE_TOO_LARGE` | File quá lớn | medium |
+| `UNSUPPORTED_FILE_TYPE` | Loại file không hỗ trợ | medium |
+
+---
+
+## 6. Rate Limiting
+
+### 6.1 Rate Limits
+
+- **Messages per minute:** 60 requests/user
+- **Messages per hour:** 1000 requests/user
+- **Messages per day:** 10000 requests/user
+
+### 6.2 Rate Limit Headers
+
+```http
+X-RateLimit-Limit: 60
+X-RateLimit-Remaining: 45
+X-RateLimit-Reset: 1620000000
+```
+
+### 6.3 Rate Limit Exceeded Response
+
+```http
+HTTP/1.1 429 Too Many Requests
+X-RateLimit-Limit: 60
+X-RateLimit-Remaining: 0
+X-RateLimit-Reset: 1620000000
+Retry-After: 60
+```
+
+---
+
+## 7. Webhooks
+
+### 7.1 Webhook Events
+
+Các sự kiện webhook được gửi khi:
+
+- `conversation.created`: Conversation được tạo mới
+- `conversation.archived`: Conversation được archive
+- `conversation.deleted`: Conversation bị xóa
+- `message.sent`: Tin nhắn được gửi
+- `message.received`: Phản hồi AI được nhận
+
+### 7.2 Webhook Payload Format
+
+```json
+{
+  "eventId": "guid",
+  "eventType": "message.sent",
+  "timestamp": "2026-05-28T10:00:00Z",
+  "data": {
+    "conversationId": "guid",
+    "messageId": "guid",
+    "userId": "guid",
+    "tenantId": "guid"
+  }
+}
+```
+
+---
+
+## 8. Examples
+
+### 8.1 Workflow Bóc Tách Dữ liệu Logistics
+
+**Scenario:** User muốn bóc tách dữ liệu từ invoice vận chuyển đính kèm trong email.
+
+#### Bước 1: Tạo Conversation liên kết với Email
+
+```bash
+curl -X POST https://api.example.com/api/v1/ai-chat/conversations \
+  -H "Authorization: Bearer {token}" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "title": "Bóc tách invoice INV-2024-001",
+    "tenantId": "tenant-guid",
+    "createdBy": "user-guid"
+  }'
+
+# Response: { "data": { "id": "conv-guid", ... } }
+```
+
+#### Bước 2: Liên kết Conversation với Email từ MailConnector
+
+```bash
+curl -X POST https://api.example.com/api/v1/ai-chat/conversations/conv-guid/link-entity \
+  -H "Authorization: Bearer {token}" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "entityType": "mail_message",
+    "entityId": "mail-message-guid"
+  }'
+```
+
+#### Bước 3: Upload Attachment từ MailConnector vào Conversation
+
+```bash
+# Giả sử có endpoint để link attachment (cần implement)
+curl -X POST https://api.example.com/api/v1/ai-chat/conversations/conv-guid/attachments \
+  -H "Authorization: Bearer {token}" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "source": "mailconnector",
+    "sourceReference": "attachment-guid",
+    "fileName": "invoice.pdf"
+  }'
+```
+
+#### Bước 4: Hỏi AI về các trường cần bóc tách
+
+```bash
+curl -X POST https://api.example.com/api/v1/ai-chat/conversations/conv-guid/messages \
+  -H "Authorization: Bearer {token}" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "message": "Tài liệu invoice này có những trường nào cần bóc tách cho hệ thống logistics? Hãy liệt kê kèm vị trí trong tài liệu.",
+    "selectedAttachmentIds": ["attachment-guid"],
+    "provider": "openai",
+    "model": "gpt-4",
+    "tenantId": "tenant-guid",
+    "createdBy": "user-guid"
+  }'
+
+# Response:
+{
+  "data": {
+    "message": "Dựa trên phân tích invoice INV-2024-001, các trường cần bóc tách bao gồm:\n\n1. **Invoice Number** (Trang 1, góc trên phải): INV-2024-001\n2. **Bill of Lading** (Trang 1, giữa): BOL-SG-VN-123456\n3. **Shipper Name** (Trang 1, cột trái): ABC Logistics Pte Ltd\n4. **Consignee Name** (Trang 1, cột phải): XYZ Corporation Vietnam\n5. **Gross Weight** (Trang 2, bảng hàng hóa): 5,000 KG\n6. **Commodity** (Trang 2, bảng hàng hóa): Electronics Components\n7. **Freight Amount** (Trang 3, tổng cộng): USD 2,500.00\n8. **Departure Date** (Trang 1): 2024-06-01\n9. **Arrival Date** (Trang 1): 2024-06-15\n\nCác trường này có thể map trực tiếp sang hệ thống logistics của bạn.",
+    "inputTokens": 2500,
+    "outputTokens": 350,
+    "totalTokens": 2850,
+    "finishReason": "stop"
+  }
+}
+```
+
+#### Bước 5: Hỏi thêm về Validation Rules
+
+```bash
+curl -X POST https://api.example.com/api/v1/ai-chat/conversations/conv-guid/messages \
+  -H "Authorization: Bearer {token}" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "message": "Làm sao để validate trường Bill of Lading? Có format đặc biệt không?",
+    "provider": "openai",
+    "model": "gpt-4",
+    "tenantId": "tenant-guid",
+    "createdBy": "user-guid"
+  }'
+
+# Response:
+{
+  "data": {
+    "message": "Bill of Lading (BOL) thường có các format sau:\n\n**Format phổ biến:**\n- BOL-{PortOrigin}-{PortDest}-{6 digits}\n- Ví dụ: BOL-SG-VN-123456\n\n**Validation Rules:**\n1. Bắt đầu bằng 'BOL-'\n2. Chứa mã port 3 chữ cái (ISO 3166-1 alpha-2)\n3. Kết thúc bằng 6 chữ số\n4. Regex: ^BOL-[A-Z]{2}-[A-Z]{2}-\\d{6}$\n\n**Ngoại lệ:**\n- Một số carrier dùng format riêng: MAERSK-XXXXX, COSCO-XXXXX\n- Nên cho phép custom regex trong cấu hình",
+    "inputTokens": 800,
+    "outputTokens": 200,
+    "totalTokens": 1000,
+    "finishReason": "stop"
+  }
+}
+```
+
+#### Bước 6: Hỏi về Mapping sang Hệ thống
+
+```bash
+curl -X POST https://api.example.com/api/v1/ai-chat/conversations/conv-guid/messages \
+  -H "Authorization: Bearer {token}" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "message": "Làm sao để map trường 'Freight Amount' sang hệ thống? Cần convert currency không?",
+    "provider": "openai",
+    "model": "gpt-4",
+    "tenantId": "tenant-guid",
+    "createdBy": "user-guid"
+  }'
+
+# Response:
+{
+  "data": {
+    "message": "Để map Freight Amount sang hệ thống:\n\n**Mapping Config:**\n```json\n{\n  \"sourceField\": \"Freight Amount\",\n  \"targetField\": \"freight_charge\",\n  \"dataType\": \"decimal\",\n  \"required\": true,\n  \"currencyConversion\": {\n    \"enabled\": true,\n    \"sourceCurrency\": \"USD\",\n    \"targetCurrency\": \"VND\",\n    \"rateProvider\": \"central_bank\"\n  },\n  \"validation\": {\n    \"min\": 0,\n    \"max\": 1000000\n  }\n}\n```\n\n**Lưu ý:**\n- Invoice này dùng USD, cần convert sang VND theo tỷ lệ hiện tại\n- Sử dụng API tỷ giá từ Ngân hàng Trung ương\n- Cache tỷ giá trong 1 giờ để tối ưu performance",
+    "inputTokens": 900,
+    "outputTokens": 250,
+    "totalTokens": 1150,
+    "finishReason": "stop"
+  }
+}
+```
+
+---
+
+### 8.2 Review Kết quả Bóc Tách Tự Động
+
+**Scenario:** MailConnector đã bóc tách tự động, user muốn review với AI.
+
+```bash
+curl -X POST https://api.example.com/api/v1/ai-chat/conversations/conv-guid/messages \
+  -H "Authorization: Bearer {token}" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "message": "MailConnector đã bóc tách các trường sau: invoice_number=INV-2024-001, bill_of_lading=BOL-SG-VN-123456, shipper=ABC Logistics. Hãy so sánh với tài liệu gốc và cho biết có trường nào bị thiếu không?",
+    "selectedAttachmentIds": ["attachment-guid"],
+    "provider": "openai",
+    "model": "gpt-4",
+    "tenantId": "tenant-guid",
+    "createdBy": "user-guid"
+  }'
+
+# Response:
+{
+  "data": {
+    "message": "So sánh kết quả bóc tách với tài liệu gốc:\n\n**Đúng:**\n- invoice_number: INV-2024-001 ✓\n- bill_of_lading: BOL-SG-VN-123456 ✓\n- shipper: ABC Logistics ✓\n\n**Thiếu:**\n- consignee_name: XYZ Corporation Vietnam (quan trọng)\n- gross_weight: 5,000 KG (quan trọng)\n- commodity: Electronics Components (quan trọng)\n- freight_amount: USD 2,500.00 (quan trọng)\n- departure_date: 2024-06-01 (quan trọng)\n- arrival_date: 2024-06-15 (quan trọng)\n\n**Khuyến nghị:**\n1. Cập nhật extraction rules để bóc tách thêm 6 trường bị thiếu\n2. Tăng confidence score threshold cho consignee_name\n3. Thêm validation cho gross_weight (> 0)",
+    "inputTokens": 1800,
+    "outputTokens": 300,
+    "totalTokens": 2100,
+    "finishReason": "stop"
+  }
+}
+```
+
+---
+
+### 8.3 Lấy Danh sách Conversations theo Tenant
+
+```bash
+curl -X GET "https://api.example.com/api/v1/ai-chat/conversations?tenantId=tenant-guid" \
+  -H "Authorization: Bearer {token}"
+
+# Response: { "data": [ { "id": "conv-1", ... }, { "id": "conv-2", ... } ] }
+```
+
+---
+
+## 9. Best Practices
+
+### 9.1 Context Management
+
+- **Giới hạn lịch sử tin nhắn:** Chỉ gửi 20 tin nhắn gần nhất để tiết kiệm token
+- **Sử dụng selectedAttachmentIds:** Chỉ include attachment cần thiết
+- **Archive conversations cũ:** Archive các conversation không còn sử dụng
+
+### 9.2 Cost Optimization
+
+- **Sử dụng model phù hợp:** GPT-3.5-turbo cho câu hỏi đơn giản, GPT-4 cho câu hỏi phức tạp
+- **Giới hạn token output:** Thiết lập maxTokens hợp lý
+- **Cache phản hồi:** Cache các câu hỏi lặp lại
+
+### 9.3 Security
+
+- **Validate input:** Luôn validate user input trước khi gửi đến AI
+- **Sanitize output:** Sanitize phản hồi từ AI trước khi hiển thị
+- **Prompt injection defense:** Sử dụng XML tags để ngăn chặn prompt injection
+
+---
+
+## 10. Limitations
+
+### 10.1 Current Limitations (MVP)
+
+- **File size limit:** 10MB per file
+- **Supported file types:** PDF, DOCX, XLSX, PNG, JPG
+- **Max attachments per conversation:** 50
+- **Max messages per conversation:** 1000
+- **Context window:** 128K tokens (GPT-4)
+
+### 10.2 Future Enhancements
+
+- Streaming responses
+- Multi-turn conversations with context retention
+- Voice input/output
+- Image analysis (GPT-4 Vision)
+- Custom AI models
+- Fine-tuned models for logistics domain
+
+---
+
+## 11. Support
+
+**Documentation Updates:** 2026-05-28
+**Version:** 1.0.0 (MVP)
+**Contact:** dev-team@example.com
+
+```
+
+---
+
+## File: `ai-chat-api-fe-be-gap-analysis.md`
+
+```md
+# AI Chat API - FE/BE Gap Analysis
+
+**Ngày:** 2026-05-28
+**Dự án:** LogisticsPlatformBE
+**Mục đích:** Phân tích sự khác biệt giữa Frontend plan và Backend implementation cho AI Chat API
+
+---
+
+## Tổng quan
+
+FE đã báo cáo 7 lỗ hổng trong plan. Bài phân tích này kiểm tra từng vấn đề để xác định lỗi FE hay lỗi BE, và đề xuất giải pháp.
+
+---
+
+## 1. entityType: "mail_message" không có trong docs (Nghiêm trọng)
+
+### FE Claim
+Docs AI Chat chỉ liệt kê: order, shipment, invoice, customer. Không có mail_message. Nếu BE chưa implement entity type này, link-entity sẽ trả về lỗi.
+
+### BE Implementation Check
+
+**File:** `src/Modules/AIChat/Domain/Conversation.cs`
+```csharp
+public string? EntityType { get; private set; }  // Optional: Link to business entity (order, shipment, etc.)
+```
+
+**File:** `src/Modules/AIChat/Infrastructure/Persistence/AIChatDbContext.cs`
+```csharp
+entity.Property(e => e.EntityType).HasMaxLength(50);
+```
+
+**File:** `src/Modules/AIChat/Infrastructure/Services/BusinessEntityContextClient.cs`
+```csharp
+public Task<string> GetEntityContextAsync(string entityType, Guid entityId, CancellationToken cancellationToken = default)
+{
+    // TODO: Implement actual business entity context fetching
+    // This will integrate with the Business Logic Module to fetch order, shipment, etc. details
+    // For now, return empty string as placeholder
+    
+    var context = $"Entity: {entityType} (ID: {entityId})\n" +
+                 "Context not yet implemented. This will be populated with actual entity data " +
+                 "from the Business Logic Module (orders, shipments, customers, etc.).";
+    // ...
+}
+```
+
+### Kết luận
+- **Lỗi BE:** EntityType là string không có validation
+- **Trạng thái hiện tại:** BE chấp nhận bất kỳ string nào (bao gồm "mail_message")
+- **Vấn đề thực tế:** Context fetching cho "mail_message" chưa được implement (trả về placeholder)
+- **Độ nghiêm trọng:** Trung bình - API sẽ không lỗi nhưng context sẽ không có dữ liệu thực
+
+### Giải pháp đề xuất
+**Option 1 (Khuyên dùng):** Implement mail_message context trong BusinessEntityContextClient
+- Thêm logic để fetch mail message data từ MailConnector module
+- Cập nhật docs để thêm "mail_message" vào danh sách entity types hỗ trợ
+
+**Option 2 (Tạm thời):** Dùng entityType: "order" hoặc không link entity
+- Link entity không bắt buộc, conversation vẫn hoạt động
+- Nhưng mất context về email gốc
+
+---
+
+## 2. Template mode không còn trả về JSON (Nghiêm trọng)
+
+### FE Claim
+processDocumentsMutation hiện tại gọi DocumentProcessor — module chuyên bóc tách, trả về JSON có cấu trúc. sendMessageMutation qua AI Chat API trả về data.message là text tự do. Template mode cần JSON để parse, nếu BE không xử lý đặc biệt cho template prompt thì extraction bị hỏng.
+
+### BE Implementation Check
+
+**File:** `src/Modules/AIChat/Api/Controllers/ChatController.cs`
+```csharp
+public record ChatResponseDto
+{
+    public string Message { get; init; } = string.Empty;  // Chỉ có string
+    public int InputTokens { get; init; }
+    public int OutputTokens { get; init; }
+    public int TotalTokens { get; init; }
+    public string? FinishReason { get; init; }
+}
+```
+
+**File:** `src/Modules/AIChat/Application/Services/ChatService.cs`
+```csharp
+public async Task<ChatResponse> SendMessageAsync(...)
+{
+    // ...
+    var sanitizedResponse = SanitizeAiResponse(aiResponse.Content);
+    
+    return new ChatResponse
+    {
+        Message = sanitizedResponse,  // Luôn là string
+        InputTokens = aiResponse.InputTokens,
+        OutputTokens = aiResponse.OutputTokens,
+        TotalTokens = aiResponse.TotalTokens,
+        FinishReason = aiResponse.FinishReason
+    };
+}
+```
+
+**Grep check:** Không tìm thấy bất kỳ code nào liên quan đến "template" hoặc "json response"
+
+### Kết luận
+- **Lỗi BE:** ChatService không hỗ trợ trả về JSON
+- **Trạng thái hiện tại:** Luôn trả về text string
+- **Độ nghiêm trọng:** Nghiêm trọng - Template mode không thể hoạt động
+
+### Giải pháp đề xuất
+**Option 1 (Khuyên dùng):** Thêm parameter `responseFormat` vào SendMessageRequest
+```csharp
+public record SendMessageRequest
+{
+    public string Message { get; init; } = string.Empty;
+    public Guid[]? SelectedAttachmentIds { get; init; }
+    public string? Provider { get; init; }
+    public string? Model { get; init; }
+    public string? ResponseFormat { get; init; }  // "text" hoặc "json"
+    public Guid TenantId { get; init; }
+    public Guid CreatedBy { get; init; }
+}
+```
+
+- Khi `responseFormat = "json"`, BE sẽ:
+  - Thêm instruction vào system prompt để AI trả về JSON
+  - Parse AI response và validate JSON
+  - Trả về `data.message` là JSON string (hoặc field riêng `data.jsonData`)
+
+**Option 2:** Giữ processDocumentsMutation riêng cho Template mode
+- FE tiếp tục dùng DocumentProcessor cho template mode
+- Chỉ dùng AI Chat API cho tư vấn (consultation mode)
+- 2 luồng riêng biệt, không merge
+
+---
+
+## 3. selectedAttachmentIds là conversation attachment IDs (Nghiêm trọng)
+
+### FE Claim
+SendMessageRequest.selectedAttachmentIds theo Swagger là ID của attachment đã được link vào conversation (qua POST /attachments), không phải MailConnector attachment IDs.
+
+Luồng đúng phải là:
+1. Link MailConnector attachment → conversation (POST /attachments)
+2. BE trả về conversation attachment ID
+3. Dùng ID đó trong sendMessage
+4. Nhưng Swagger return type void cho POST /attachments → không lấy được ID.
+
+### BE Implementation Check
+
+**File:** `src/Modules/AIChat/Api/Controllers/AttachmentsController.cs`
+```csharp
+[HttpPost]
+public async Task<IActionResult> LinkAttachment(Guid conversationId, [FromBody] LinkAttachmentRequest request)
+{
+    // ... validation logic ...
+    
+    return Ok(new ApiResponse<AttachmentDto>
+    {
+        CorrelationId = HttpContext.Items["CorrelationId"]?.ToString() ?? Guid.NewGuid().ToString(),
+        TraceId = HttpContext.TraceIdentifier,
+        Timestamp = DateTime.UtcNow.ToString("o"),
+        Data = MapToDto(attachment),  // TRẢ VỀ AttachmentDto với Id
+        Meta = new ApiMeta(),
+        Errors = new List<ApiError>()
+    });
+}
+```
+
+**File:** `src/Modules/AIChat/Api/Controllers/AttachmentsController.cs` (AttachmentDto)
+```csharp
+public record AttachmentDto
+{
+    public Guid Id { get; init; }  // Conversation attachment ID
+    public Guid ConversationId { get; init; }
+    public string Source { get; init; } = string.Empty;
+    public string? SourceReference { get; init; }
+    // ... other fields
+}
+```
+
+**File:** `src/Modules/AIChat/Api/Controllers/AttachmentsController.cs` (LinkAttachmentRequest)
+```csharp
+public record LinkAttachmentRequest
+{
+    public string Source { get; init; } = string.Empty;  // 'mailconnector' or 'upload'
+    public Guid? MessageId { get; init; }  // Required for mailconnector
+    public Guid? AttachmentId { get; init; }  // Required for mailconnector
+    public string FileName { get; init; } = string.Empty;
+    // ... other fields
+}
+```
+
+### Kết luận
+- **Lỗi FE:** FE claim sai về return type void
+- **Trạng thái hiện tại:** BE CÓ trả về AttachmentDto với Id (conversation attachment ID)
+- **Độ nghiêm trọng:** Không nghiêm trọng - BE đã implement đúng
+- **Vấn đề docs:** Docs có thể outdated hoặc FE đọc docs sai
+
+### Giải pháp đề xuất
+**Cập nhật docs:** Đảm bảo docs phản ánh đúng implementation
+- POST /attachments trả về `ApiResponse<AttachmentDto>`
+- AttachmentDto.Id là conversation attachment ID để dùng trong selectedAttachmentIds
+
+**Luồng đúng:**
+1. POST /attachments với `source: "mailconnector"`, `messageId`, `attachmentId`
+2. Response trả về `data.id` (conversation attachment ID)
+3. Dùng `data.id` trong POST /messages `selectedAttachmentIds`
+
+---
+
+## 4. Không có endpoint GET messages (Trung bình)
+
+### FE Claim
+BE lưu message qua POST /messages nhưng FE không thể lấy lại. localStorage chỉ lưu FE-side:
+- Mất khi đổi browser/máy
+- Không share giữa user
+- Không đồng bộ nếu user mở 2 tab
+
+### BE Implementation Check
+
+**File:** `src/Modules/AIChat/Api/Controllers/ChatController.cs`
+```csharp
+[HttpPost("conversations/{conversationId:guid}/messages")]
+public async Task<IActionResult> SendMessage(Guid conversationId, [FromBody] SendMessageRequest request)
+{
+    // Chỉ có POST, không có GET
+}
+```
+
+**Grep check:** Không tìm thấy GET endpoint cho messages trong AIChat module
+
+**File:** `src/Modules/AIChat/Infrastructure/Persistence/MessageRepository.cs`
+```csharp
+public async Task<List<Message>> GetByConversationIdAsync(Guid conversationId)
+{
+    // Repository CÓ method để lấy messages
+    return await _context.Messages
+        .Where(m => m.ConversationId == conversationId)
+        .OrderBy(m => m.CreatedAtUtc)
+        .ToListAsync();
+}
+```
+
+### Kết luận
+- **Lỗi BE:** Không có GET endpoint cho messages
+- **Trạng thái hiện tại:** Repository có method nhưng Controller không expose
+- **Độ nghiêm trọng:** Trung bình - FE phải dùng localStorage thay vì server-side storage
+- **Impact:** User experience kém, không sync giữa tabs/devices
+
+### Giải pháp đề xuất
+**Thêm GET endpoint:**
+```csharp
+[HttpGet("conversations/{conversationId:guid}/messages")]
+public async Task<IActionResult> GetMessages(Guid conversationId)
+{
+    var messages = await _messageRepository.GetByConversationIdAsync(conversationId);
+    
+    return Ok(new ApiResponse<List<MessageDto>>
+    {
+        CorrelationId = HttpContext.Items["CorrelationId"]?.ToString() ?? Guid.NewGuid().ToString(),
+        TraceId = HttpContext.TraceIdentifier,
+        Timestamp = DateTime.UtcNow.ToString("o"),
+        Data = messages.Select(MapToDto).ToList(),
+        Meta = new ApiMeta(),
+        Errors = new List<ApiError>()
+    });
+}
+```
+
+**MessageDto:**
+```csharp
+public record MessageDto
+{
+    public Guid Id { get; init; }
+    public Guid ConversationId { get; init; }
+    public string Role { get; init; }  // user, assistant, system
+    public string Content { get; init; } = string.Empty;
+    public string? ContentType { get; init; }
+    public int? InputTokens { get; init; }
+    public int? OutputTokens { get; init; }
+    public int? TotalTokens { get; init; }
+    public string? Model { get; init; }
+    public string? Provider { get; init; }
+    public string? FinishReason { get; init; }
+    public DateTime CreatedAt { get; init; }
+}
+```
+
+---
+
+## 5. Race condition tạo conversation (Trung bình)
+
+### FE Claim
+Mở email → check localStorage → chưa có → tạo conversation. Nếu 2 tab cùng mở 1 email trong cùng 1ms, cả 2 đều tạo conversation trên BE.
+
+### BE Implementation Check
+
+**File:** `src/Modules/AIChat/Api/Controllers/ConversationsController.cs`
+```csharp
+[HttpPost]
+public async Task<IActionResult> CreateConversation([FromBody] CreateConversationRequest request)
+{
+    var conversation = await _conversationService.CreateConversationAsync(
+        request.Title,
+        request.TenantId,
+        request.CreatedBy);
+    // Không có idempotency check
+}
+```
+
+**File:** `src/Modules/AIChat/Application/Services/ConversationService.cs`
+```csharp
+public async Task<Conversation> CreateConversationAsync(string title, Guid tenantId, Guid createdBy)
+{
+    var conversation = Conversation.Create(title, tenantId, createdBy);
+    await _conversationRepository.AddAsync(conversation);
+    await _conversationRepository.SaveChangesAsync();
+    return conversation;
+}
+```
+
+### Kết luận
+- **Lỗi BE:** Không có idempotency mechanism
+- **Trạng thái hiện tại:** Mỗi POST tạo conversation mới
+- **Độ nghiêm trọng:** Trung bình - Có thể tạo duplicate conversations
+- **Impact:** Database bloat, nhưng không gây lỗi functional
+
+### Giải pháp đề xuất
+**Option 1 (Khuyên dùng):** Thêm idempotency key
+```csharp
+public record CreateConversationRequest
+{
+    public string Title { get; init; } = string.Empty;
+    public Guid TenantId { get; init; }
+    public Guid CreatedBy { get; init; }
+    public string? IdempotencyKey { get; init; }  // Client-generated key
+}
+```
+
+- BE lưu idempotency key trong DB với TTL
+- Nếu key đã tồn tại, trả về conversation đã tạo thay vì tạo mới
+
+**Option 2:** FE-side deduplication
+- FE dùng `messageId` làm key trong localStorage
+- Check localStorage trước khi gọi API
+- Không hoàn toàn giải quyết race condition nhưng giảm tỷ lệ
+
+**Option 3:** BE check existing conversation by entity
+- Nếu link-entity sau khi tạo, BE có thể check xem conversation với entity đó đã tồn tại chưa
+- Nhưng conversation có thể tạo trước khi link entity
+
+---
+
+## 6. LinkAttachment model khác docs (Nhẹ)
+
+### FE Claim
+Docs gợi ý sourceReference nhưng Swagger generate có messageId, attachmentId, fileHash, storageBucket, storagePath. Không rõ BE expect payload nào.
+
+### BE Implementation Check
+
+**Docs (ai-chat-api.md line 528-529):**
+```csharp
+public string? SourceReference { get; set; }  // Giả định
+```
+
+**BE actual (AttachmentsController.cs line 205-218):**
+```csharp
+public record LinkAttachmentRequest
+{
+    public string Source { get; init; } = string.Empty;  // 'mailconnector' or 'upload'
+    public Guid? MessageId { get; init; }  // Required for mailconnector
+    public Guid? AttachmentId { get; init; }  // Required for mailconnector
+    public string FileName { get; init; } = string.Empty;
+    public string? ContentType { get; init; }
+    public long? FileSize { get; init; }
+    public string? FileHash { get; init; }
+    public string? StorageBucket { get; init; }
+    public string? StoragePath { get; init; }
+    public Guid TenantId { get; init; }
+    public Guid CreatedBy { get; init; }
+}
+```
+
+**BE actual (ConversationAttachment domain):**
+```csharp
+public class ConversationAttachment
+{
+    public string Source { get; private set; }  // upload, mailconnector
+    public string? SourceReference { get; private set; }  // Vẫn có field này
+    // ... other fields
+}
+```
+
+### Kết luận
+- **Lỗi Docs:** Docs không đầy đủ
+- **Trạng thái hiện tại:** BE request model chi tiết hơn docs
+- **Độ nghiêm trọng:** Nhẹ - Chỉ cần cập nhật docs
+- **Mapping:** SourceReference trong domain được populate từ MessageId+AttachmentId
+
+### Giải pháp đề xuất
+**Cập nhật docs:**
+- Thêm LinkAttachmentRequest đầy đủ vào docs
+- Giải thích mapping: SourceReference = `${messageId}:${attachmentId}` cho mailconnector
+
+---
+
+## 7. Conversation orphaned (Nhẹ)
+
+### FE Claim
+Mỗi lần mở email tạo 1 conversation trên BE. Nếu user không dùng chat, conversation vẫn tồn tại trên BE không có cách cleanup.
+
+### BE Implementation Check
+
+**File:** `src/Modules/AIChat/Domain/Conversation.cs`
+```csharp
+public void Archive()
+{
+    Status = "archived";
+    UpdateTimestamp();
+}
+
+public void Delete()
+{
+    Status = "deleted";
+    UpdateTimestamp();
+}
+```
+
+**Grep check:** Không tìm thấy scheduled job, TTL, hoặc auto-cleanup mechanism
+
+### Kết luận
+- **Lỗi BE:** Không có auto-cleanup mechanism
+- **Trạng thái hiện tại:** Conversations tồn tại vĩnh viễn trừ khi manual delete
+- **Độ nghiêm trọng:** Nhẹ - Database bloat về lâu dài
+- **Impact:** Performance degradation sau thời gian dài
+
+### Giải pháp đề xuất
+**Option 1 (Khuyên dùng):** Scheduled cleanup job
+- Tạo background service chạy hàng ngày
+- Archive conversations:
+  - Không có message trong 30 ngày
+  - Status = active nhưng không có activity
+- Delete conversations:
+  - Status = archived trong 90 ngày
+
+**Option 2:** Soft delete với TTL
+- Thêm TTL field vào Conversation
+- Set TTL khi tạo (ví dụ 7 ngày)
+- Nếu có activity, extend TTL
+- Background job delete expired conversations
+
+**Option 3:** FE-side cleanup
+- FE hiển thị danh sách conversations
+- User manual delete/archived
+- Không tự động
+
+---
+
+## Tóm tắt
+
+| # | Vấn đề | Lỗi FE/BE | Độ nghiêm trọng | Trạng thái |
+|---|--------|-----------|-----------------|------------|
+| 1 | entityType "mail_message" không có trong docs | BE (chưa implement context) | Trung bình | Cần implement context |
+| 2 | Template mode không trả về JSON | BE (không hỗ trợ) | Nghiêm trọng | Cần thêm responseFormat |
+| 3 | selectedAttachmentIds mapping | FE (claim sai về void return) | Không nghiêm trọng | BE đã đúng |
+| 4 | Không có GET messages | BE (thiếu endpoint) | Trung bình | Cần thêm GET endpoint |
+| 5 | Race condition tạo conversation | BE (không idempotency) | Trung bình | Cần idempotency key |
+| 6 | LinkAttachment model khác docs | Docs (outdated) | Nhẹ | Cần cập nhật docs |
+| 7 | Conversation orphaned | BE (không cleanup) | Nhẹ | Cần scheduled job |
+
+---
+
+## Priority Actions
+
+### High Priority (Fix ngay)
+1. **Thêm GET messages endpoint** - FE cần để sync conversations
+2. **Thêm responseFormat parameter** - Template mode cần JSON response
+
+### Medium Priority (Fix trong sprint sau)
+3. **Implement mail_message context** - Để link entity hoạt động đúng
+4. **Thêm idempotency key** - Tránh duplicate conversations
+
+### Low Priority (Fix khi có thời gian)
+5. **Cập nhật docs LinkAttachment** - Đảm bảo docs đúng implementation
+6. **Thêm scheduled cleanup job** - Database maintenance
+
+---
+
+## Mapping giữa FE và BE
+
+### Luồng đúng hiện tại
+
+```
+1. FE mở email
+   ↓
+2. FE check localStorage cho conversationId
+   ↓
+3a. Nếu chưa có:
+   POST /api/v1/ai-chat/conversations
+   Response: { data: { id: "conv-guid" } }
+   ↓
+   POST /api/v1/ai-chat/conversations/{conv-guid}/link-entity
+   Body: { entityType: "mail_message", entityId: "mail-msg-guid" }
+   ↓
+   Lưu conv-guid vào localStorage
+   ↓
+3b. Nếu đã có:
+   Dùng conv-guid từ localStorage
+   ↓
+4. Link attachment (nếu cần)
+   POST /api/v1/ai-chat/conversations/{conv-guid}/attachments
+   Body: { 
+     source: "mailconnector",
+     messageId: "mail-msg-guid",
+     attachmentId: "mail-att-guid",
+     fileName: "invoice.pdf",
+     tenantId: "...",
+     createdBy: "..."
+   }
+   Response: { data: { id: "conv-att-guid" } }
+   ↓
+5. Gửi message
+   POST /api/v1/ai-chat/conversations/{conv-guid}/messages
+   Body: {
+     message: "Hỏi về invoice...",
+     selectedAttachmentIds: ["conv-att-guid"],  // Dùng conversation attachment ID
+     provider: "openai",
+     model: "gpt-4",
+     tenantId: "...",
+     createdBy: "..."
+   }
+   Response: { data: { message: "AI response...", ... } }
+   ↓
+6. (TODO) Lấy messages
+   GET /api/v1/ai-chat/conversations/{conv-guid}/messages
+   Response: { data: [ { role: "user", content: "..." }, { role: "assistant", content: "..." } ] }
+```
+
+### Vấn đề trong luồng
+
+- **Bước 3a:** Race condition nếu 2 tab cùng mở
+- **Bước 3a:** entityType "mail_message" không có context
+- **Bước 5:** Template mode không thể request JSON response
+- **Bước 6:** GET messages chưa có endpoint
+
+---
+
+## Contact
+
+**Documentation:** 2026-05-28
+**Version:** 1.0.0
+**Reviewed by:** Backend Team
+
+```
+
+---
+
+## File: `ai-chat-api.md`
+
+```md
+# AI Chat API Documentation
+
+**Ngày:** 2026-05-28
+**Dự án:** LogisticsPlatformBE
+**Mục đích:** Tài liệu API đầy đủ cho module AI Chat - tính năng trò chuyện AI tích hợp với hệ thống logistics
+
+---
+
+## Tổng quan
+
+Module AI Chat được thiết kế để hỗ trợ quá trình bóc tách dữ liệu logistics từ email và tài liệu đính kèm. Module cho phép người dùng:
+
+- **Tư vấn bóc tách dữ liệu:** Hỏi AI về các trường cần bóc tách từ tài liệu logistics (invoice, BOL, AWB, etc.)
+- **Xác định cấu trúc dữ liệu:** Nhận tư vấn về cách cấu trúc dữ liệu cho các loại tài liệu khác nhau
+- **Phân tích tài liệu:** Upload tài liệu và yêu cầu AI phân tích nội dung để xác định các trường quan trọng
+- **Tạo mapping schema:** Xây dựng mapping giữa các trường trong tài liệu và hệ thống
+- **Review kết quả bóc tách:** So sánh kết quả bóc tách tự động với bản gốc để xác định các trường bị thiếu
+
+### Use Case Chính
+
+**Scenario:** Người dùng nhận email có đính kèm invoice vận chuyển và muốn bóc tách dữ liệu vào hệ thống logistics.
+
+**Workflow:**
+1. User tạo conversation mới liên kết với email/attachment từ MailConnector
+2. User upload tài liệu (PDF, Excel, Word) hoặc link attachment từ MailConnector
+3. User hỏi AI: "Tài liệu này có những trường nào cần bóc tách?"
+4. AI phân tích tài liệu và liệt kê các trường: invoice_number, bill_of_lading, shipper_name, consignee_name, etc.
+5. User hỏi thêm: "Làm sao để map trường 'Total Amount' sang hệ thống?"
+6. AI tư vấn về mapping và validation rules
+7. User sử dụng thông tin này để cấu hình MailConnector extraction rules
+
+### Kiến trúc
+
+```
+┌─────────────────────────────────────────────────────────────────┐
+│                    LogisticsPlatformBE                           │
+├─────────────────────────────────────────────────────────────────┤
+│  ┌──────────────┐    ┌──────────────┐    ┌──────────────┐      │
+│  │  AI Chat     │    │  Mail        │    │  Business    │      │
+│  │  API         │───▶│  Connector   │───▶│  Entities    │      │
+│  └──────────────┘    └──────────────┘    └──────────────┘      │
+│         │                   │                   │                │
+│         ▼                   ▼                   ▼                │
+│  ┌──────────────┐    ┌──────────────┐    ┌──────────────┐      │
+│  │  AI Provider │    │  File        │    │  Context     │      │
+│  │  (OpenAI/    │    │  Storage     │    │  Building    │      │
+│  │   Azure)     │    │              │    │              │      │
+│  └──────────────┘    └──────────────┘    └──────────────┘      │
+└─────────────────────────────────────────────────────────────────┘
+```
+
+---
+
+## 1. Conversation Management API
+
+### 1.1 Tạo Conversation Mới
+
+```http
+POST /api/v1/ai-chat/conversations
+```
+
+**Mô tả:** Tạo một cuộc hội thoại mới.
+
+**Request Body:**
+```json
+{
+  "title": "Hỏi về vận đơn #BOL-123456",
+  "tenantId": "guid",
+  "createdBy": "guid"
+}
+```
+
+**Response:**
+```json
+{
+  "correlationId": "guid",
+  "traceId": "trace-id",
+  "timestamp": "2026-05-28T10:00:00Z",
+  "data": {
+    "id": "guid",
+    "title": "Hỏi về vận đơn #BOL-123456",
+    "description": null,
+    "status": "active",
+    "tenantId": "guid",
+    "organizationId": null,
+    "createdBy": "guid",
+    "entityType": null,
+    "entityId": null,
+    "createdAt": "2026-05-28T10:00:00Z",
+    "updatedAt": null
+  },
+  "meta": {},
+  "errors": []
+}
+```
+
+**Status Codes:**
+- `200 OK`: Conversation được tạo thành công
+- `400 Bad Request`: Request không hợp lệ
+
+---
+
+### 1.2 Lấy Conversation Theo ID
+
+```http
+GET /api/v1/ai-chat/conversations/{id}
+```
+
+**Mô tả:** Lấy thông tin chi tiết của một conversation.
+
+**Path Parameters:**
+- `id` (GUID): Conversation ID
+
+**Response:**
+```json
+{
+  "correlationId": "guid",
+  "traceId": "trace-id",
+  "timestamp": "2026-05-28T10:00:00Z",
+  "data": {
+    "id": "guid",
+    "title": "Hỏi về vận đơn #BOL-123456",
+    "description": "Thảo luận về vận đơn BOL-123456",
+    "status": "active",
+    "tenantId": "guid",
+    "organizationId": "guid",
+    "createdBy": "guid",
+    "entityType": "shipment",
+    "entityId": "guid",
+    "createdAt": "2026-05-28T10:00:00Z",
+    "updatedAt": "2026-05-28T10:30:00Z"
+  },
+  "meta": {},
+  "errors": []
+}
+```
+
+**Status Codes:**
+- `200 OK`: Thành công
+- `404 Not Found`: Conversation không tồn tại
+
+---
+
+### 1.3 Lấy Danh sách Conversations
+
+```http
+GET /api/v1/ai-chat/conversations
+```
+
+**Mô tả:** Lấy danh sách conversations theo tenant hoặc user.
+
+**Query Parameters:**
+- `tenantId` (GUID, optional): Lọc theo tenant
+- `createdBy` (GUID, optional): Lọc theo user tạo
+
+**Lưu ý:** Phải cung cấp ít nhất một trong hai tham số.
+
+**Response:**
+```json
+{
+  "correlationId": "guid",
+  "traceId": "trace-id",
+  "timestamp": "2026-05-28T10:00:00Z",
+  "data": [
+    {
+      "id": "guid-1",
+      "title": "Hỏi về vận đơn #BOL-123456",
+      "description": null,
+      "status": "active",
+      "tenantId": "guid",
+      "organizationId": null,
+      "createdBy": "guid",
+      "entityType": null,
+      "entityId": null,
+      "createdAt": "2026-05-28T10:00:00Z",
+      "updatedAt": "2026-05-28T10:30:00Z"
+    },
+    {
+      "id": "guid-2",
+      "title": "Hỏi về đơn hàng #ORD-789",
+      "description": "Thảo luận về đơn hàng",
+      "status": "archived",
+      "tenantId": "guid",
+      "organizationId": "guid",
+      "createdBy": "guid",
+      "entityType": "order",
+      "entityId": "guid",
+      "createdAt": "2026-05-27T15:00:00Z",
+      "updatedAt": "2026-05-27T16:00:00Z"
+    }
+  ],
+  "meta": {},
+  "errors": []
+}
+```
+
+**Status Codes:**
+- `200 OK`: Thành công
+- `400 Bad Request`: Không cung cấp tenantId hoặc createdBy
+
+---
+
+### 1.4 Cập nhật Conversation
+
+```http
+PUT /api/v1/ai-chat/conversations/{id}
+```
+
+**Mô tả:** Cập nhật tiêu đề và mô tả của conversation.
+
+**Path Parameters:**
+- `id` (GUID): Conversation ID
+
+**Request Body:**
+```json
+{
+  "title": "Tiêu đề mới",
+  "description": "Mô tả chi tiết về cuộc hội thoại"
+}
+```
+
+**Response:**
+```json
+{
+  "correlationId": "guid",
+  "traceId": "trace-id",
+  "timestamp": "2026-05-28T10:00:00Z",
+  "data": {
+    "id": "guid",
+    "title": "Tiêu đề mới",
+    "description": "Mô tả chi tiết về cuộc hội thoại",
+    "status": "active",
+    "tenantId": "guid",
+    "organizationId": null,
+    "createdBy": "guid",
+    "entityType": null,
+    "entityId": null,
+    "createdAt": "2026-05-28T10:00:00Z",
+    "updatedAt": "2026-05-28T10:35:00Z"
+  },
+  "meta": {},
+  "errors": []
+}
+```
+
+**Status Codes:**
+- `200 OK`: Cập nhật thành công
+- `404 Not Found`: Conversation không tồn tại
+
+---
+
+### 1.5 Archive Conversation
+
+```http
+POST /api/v1/ai-chat/conversations/{id}/archive
+```
+
+**Mô tả:** Archive một conversation (đánh dấu là archived).
+
+**Path Parameters:**
+- `id` (GUID): Conversation ID
+
+**Response:**
+```json
+{
+  "correlationId": "guid",
+  "traceId": "trace-id",
+  "timestamp": "2026-05-28T10:00:00Z",
+  "data": {
+    "id": "guid",
+    "title": "Hỏi về vận đơn #BOL-123456",
+    "description": null,
+    "status": "archived",
+    "tenantId": "guid",
+    "organizationId": null,
+    "createdBy": "guid",
+    "entityType": null,
+    "entityId": null,
+    "createdAt": "2026-05-28T10:00:00Z",
+    "updatedAt": "2026-05-28T10:40:00Z"
+  },
+  "meta": {},
+  "errors": []
+}
+```
+
+**Status Codes:**
+- `200 OK`: Archive thành công
+- `404 Not Found`: Conversation không tồn tại
+
+---
+
+### 1.6 Xóa Conversation
+
+```http
+DELETE /api/v1/ai-chat/conversations/{id}
+```
+
+**Mô tả:** Xóa một conversation (đánh dấu là deleted).
+
+**Path Parameters:**
+- `id` (GUID): Conversation ID
+
+**Response:**
+```json
+{
+  "correlationId": "guid",
+  "traceId": "trace-id",
+  "timestamp": "2026-05-28T10:00:00Z",
+  "data": {
+    "id": "guid",
+    "title": "Hỏi về vận đơn #BOL-123456",
+    "description": null,
+    "status": "deleted",
+    "tenantId": "guid",
+    "organizationId": null,
+    "createdBy": "guid",
+    "entityType": null,
+    "entityId": null,
+    "createdAt": "2026-05-28T10:00:00Z",
+    "updatedAt": "2026-05-28T10:45:00Z"
+  },
+  "meta": {},
+  "errors": []
+}
+```
+
+**Status Codes:**
+- `200 OK`: Xóa thành công
+- `404 Not Found`: Conversation không tồn tại
+
+---
+
+### 1.7 Liên kết Conversation với Business Entity
+
+```http
+POST /api/v1/ai-chat/conversations/{id}/link-entity
+```
+
+**Mô tả:** Liên kết conversation với một business entity (order, shipment, etc.).
+
+**Path Parameters:**
+- `id` (GUID): Conversation ID
+
+**Request Body:**
+```json
+{
+  "entityType": "shipment",
+  "entityId": "guid"
+}
+```
+
+**Entity Types hỗ trợ:**
+- `order`: Đơn hàng
+- `shipment`: Lô hàng
+- `invoice`: Hóa đơn
+- `customer`: Khách hàng
+
+**Response:**
+```json
+{
+  "correlationId": "guid",
+  "traceId": "trace-id",
+  "timestamp": "2026-05-28T10:00:00Z",
+  "data": {
+    "id": "guid",
+    "title": "Hỏi về vận đơn #BOL-123456",
+    "description": null,
+    "status": "active",
+    "tenantId": "guid",
+    "organizationId": null,
+    "createdBy": "guid",
+    "entityType": "shipment",
+    "entityId": "guid",
+    "createdAt": "2026-05-28T10:00:00Z",
+    "updatedAt": "2026-05-28T10:50:00Z"
+  },
+  "meta": {},
+  "errors": []
+}
+```
+
+**Status Codes:**
+- `200 OK`: Liên kết thành công
+- `404 Not Found`: Conversation không tồn tại
+
+---
+
+## 2. Chat API
+
+### 2.1 Gửi Tin Nhắn
+
+```http
+POST /api/v1/ai-chat/conversations/{conversationId}/messages
+```
+
+**Mô tả:** Gửi tin nhắn đến AI và nhận phản hồi.
+
+**Path Parameters:**
+- `conversationId` (GUID): Conversation ID
+
+**Request Body:**
+```json
+{
+  "message": "Hãy cho tôi biết thông tin về vận đơn BOL-123456",
+  "selectedAttachmentIds": ["guid-1", "guid-2"],
+  "provider": "openai",
+  "model": "gpt-4",
+  "tenantId": "guid",
+  "createdBy": "guid"
+}
+```
+
+**Parameters:**
+- `message` (string, required): Nội dung tin nhắn
+- `selectedAttachmentIds` (GUID[], optional): Danh sách attachment IDs để include trong context
+- `provider` (string, optional): AI provider (`openai`, `azure`, default: `openai`)
+- `model` (string, optional): AI model (`gpt-4`, `gpt-3.5-turbo`, default: `gpt-4`)
+- `tenantId` (GUID, required): Tenant ID
+- `createdBy` (GUID, required): User ID
+
+**Response:**
+```json
+{
+  "correlationId": "guid",
+  "traceId": "trace-id",
+  "timestamp": "2026-05-28T10:00:00Z",
+  "data": {
+    "message": "Theo thông tin từ hệ thống, vận đơn BOL-123456 là một lô hàng vận chuyển từ Singapore đến Việt Nam...",
+    "inputTokens": 1500,
+    "outputTokens": 500,
+    "totalTokens": 2000,
+    "finishReason": "stop"
+  },
+  "meta": {},
+  "errors": []
+}
+```
+
+**Finish Reasons:**
+- `stop`: AI hoàn thành phản hồi bình thường
+- `length`: Đạt giới hạn token
+- `content_filter`: Nội dung bị filter
+- `error`: Có lỗi xảy ra
+
+**Status Codes:**
+- `200 OK`: Gửi tin nhắn thành công
+- `400 Bad Request`: Request không hợp lệ
+- `404 Not Found`: Conversation không tồn tại
+
+---
+
+## 3. Data Models
+
+### 3.1 Conversation
+
+```csharp
+public class Conversation
+{
+    public Guid Id { get; set; }
+    public string Title { get; set; }
+    public string? Description { get; set; }
+    public string Status { get; set; }  // active, archived, deleted
+    
+    // Ownership
+    public Guid TenantId { get; set; }
+    public Guid? OrganizationId { get; set; }
+    public Guid CreatedBy { get; set; }
+    
+    // Business Entity Link
+    public string? EntityType { get; set; }
+    public Guid? EntityId { get; set; }
+    
+    // Timestamps
+    public DateTime CreatedAtUtc { get; set; }
+    public DateTime? UpdatedAtUtc { get; set; }
+}
+```
+
+**Status Values:**
+- `active`: Đang hoạt động
+- `archived`: Đã lưu trữ
+- `deleted`: Đã xóa
+
+---
+
+### 3.2 Message
+
+```csharp
+public class Message
+{
+    public Guid Id { get; set; }
+    public Guid ConversationId { get; set; }
+    public string Role { get; set; }  // user, assistant, system
+    public string Content { get; set; }
+    
+    // AI Metadata
+    public string? Provider { get; set; }
+    public string? Model { get; set; }
+    public int? InputTokens { get; set; }
+    public int? OutputTokens { get; set; }
+    public string? FinishReason { get; set; }
+    
+    // Timestamps
+    public DateTime CreatedAtUtc { get; set; }
+}
+```
+
+**Role Values:**
+- `user`: Tin nhắn từ người dùng
+- `assistant`: Phản hồi từ AI
+- `system`: Tin nhắn hệ thống
+
+---
+
+### 3.3 ConversationAttachment
+
+```csharp
+public class ConversationAttachment
+{
+    public Guid Id { get; set; }
+    public Guid ConversationId { get; set; }
+    public string FileName { get; set; }
+    public string MimeType { get; set; }
+    public long FileSize { get; set; }
+    
+    // Source
+    public string Source { get; set; }  // upload, mailconnector
+    public string? SourceReference { get; set; }
+    
+    // Extracted Text
+    public string? ExtractedText { get; set; }
+    public string? DocumentType { get; set; }
+    public decimal? DocumentTypeConfidence { get; set; }
+    
+    // Timestamps
+    public DateTime CreatedAtUtc { get; set; }
+}
+```
+
+**Source Values:**
+- `upload`: File được upload trực tiếp
+- `mailconnector`: File từ MailConnector (email attachment)
+
+---
+
+### 3.4 AiRequestLog
+
+```csharp
+public class AiRequestLog
+{
+    public Guid Id { get; set; }
+    public Guid ConversationId { get; set; }
+    public Guid MessageId { get; set; }
+    
+    // AI Provider Info
+    public string Provider { get; set; }
+    public string Model { get; set; }
+    
+    // Token Usage
+    public int InputTokens { get; set; }
+    public int OutputTokens { get; set; }
+    public int TotalTokens { get; set; }
+    
+    // Cost
+    public decimal EstimatedCostUsd { get; set; }
+    
+    // Timestamps
+    public DateTime CreatedAtUtc { get; set; }
+}
+```
+
+---
+
+## 4. Authentication & Authorization
+
+### 4.1 Authentication
+
+Tất cả các API endpoint yêu cầu authentication qua Bearer token:
+
+```http
+Authorization: Bearer {jwt_token}
+```
+
+Token phải chứa:
+- `userId`: ID của user
+- `tenantId`: ID của tenant
+- `roles`: Danh sách quyền của user
+
+### 4.2 Authorization
+
+**Tenant Isolation:**
+- Mọi request phải bao gồm `tenantId` trong request body
+- User chỉ có thể truy cập conversations của tenant mình
+- Cross-tenant access bị chặn
+
+**Permission Checks:**
+- `ai-chat:read`: Đọc conversations và messages
+- `ai-chat:write`: Tạo/cập nhật/xóa conversations
+- `ai-chat:send`: Gửi tin nhắn đến AI
+- `ai-chat:manage`: Quản lý toàn bộ (admin)
+
+---
+
+## 5. Error Handling
+
+### 5.1 Error Response Format
+
+```json
+{
+  "correlationId": "guid",
+  "traceId": "trace-id",
+  "timestamp": "2026-05-28T10:00:00Z",
+  "data": null,
+  "meta": {},
+  "errors": [
+    {
+      "field": "tenantId",
+      "code": "INVALID_TENANT",
+      "message": "Tenant không hợp lệ",
+      "messageKey": "tenant.invalid",
+      "severity": "high"
+    }
+  ]
+}
+```
+
+### 5.2 Common Error Codes
+
+| Code | Message | Severity |
+|------|---------|----------|
+| `NOT_FOUND` | Resource không tồn tại | high |
+| `INVALID_REQUEST` | Request không hợp lệ | high |
+| `UNAUTHORIZED` | Không có quyền truy cập | high |
+| `FORBIDDEN` | Không có quyền thực hiện hành động | high |
+| `VALIDATION_ERROR` | Dữ liệu không hợp lệ | medium |
+| `AI_ERROR` | Lỗi từ AI provider | high |
+| `QUOTA_EXCEEDED` | Vượt quá quota token | high |
+| `FILE_TOO_LARGE` | File quá lớn | medium |
+| `UNSUPPORTED_FILE_TYPE` | Loại file không hỗ trợ | medium |
+
+---
+
+## 6. Rate Limiting
+
+### 6.1 Rate Limits
+
+- **Messages per minute:** 60 requests/user
+- **Messages per hour:** 1000 requests/user
+- **Messages per day:** 10000 requests/user
+
+### 6.2 Rate Limit Headers
+
+```http
+X-RateLimit-Limit: 60
+X-RateLimit-Remaining: 45
+X-RateLimit-Reset: 1620000000
+```
+
+### 6.3 Rate Limit Exceeded Response
+
+```http
+HTTP/1.1 429 Too Many Requests
+X-RateLimit-Limit: 60
+X-RateLimit-Remaining: 0
+X-RateLimit-Reset: 1620000000
+Retry-After: 60
+```
+
+---
+
+## 7. Webhooks
+
+### 7.1 Webhook Events
+
+Các sự kiện webhook được gửi khi:
+
+- `conversation.created`: Conversation được tạo mới
+- `conversation.archived`: Conversation được archive
+- `conversation.deleted`: Conversation bị xóa
+- `message.sent`: Tin nhắn được gửi
+- `message.received`: Phản hồi AI được nhận
+
+### 7.2 Webhook Payload Format
+
+```json
+{
+  "eventId": "guid",
+  "eventType": "message.sent",
+  "timestamp": "2026-05-28T10:00:00Z",
+  "data": {
+    "conversationId": "guid",
+    "messageId": "guid",
+    "userId": "guid",
+    "tenantId": "guid"
+  }
+}
+```
+
+---
+
+## 8. Examples
+
+### 8.1 Workflow Bóc Tách Dữ liệu Logistics
+
+**Scenario:** User muốn bóc tách dữ liệu từ invoice vận chuyển đính kèm trong email.
+
+#### Bước 1: Tạo Conversation liên kết với Email
+
+```bash
+curl -X POST https://api.example.com/api/v1/ai-chat/conversations \
+  -H "Authorization: Bearer {token}" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "title": "Bóc tách invoice INV-2024-001",
+    "tenantId": "tenant-guid",
+    "createdBy": "user-guid"
+  }'
+
+# Response: { "data": { "id": "conv-guid", ... } }
+```
+
+#### Bước 2: Liên kết Conversation với Email từ MailConnector
+
+```bash
+curl -X POST https://api.example.com/api/v1/ai-chat/conversations/conv-guid/link-entity \
+  -H "Authorization: Bearer {token}" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "entityType": "mail_message",
+    "entityId": "mail-message-guid"
+  }'
+```
+
+#### Bước 3: Upload Attachment từ MailConnector vào Conversation
+
+```bash
+# Giả sử có endpoint để link attachment (cần implement)
+curl -X POST https://api.example.com/api/v1/ai-chat/conversations/conv-guid/attachments \
+  -H "Authorization: Bearer {token}" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "source": "mailconnector",
+    "sourceReference": "attachment-guid",
+    "fileName": "invoice.pdf"
+  }'
+```
+
+#### Bước 4: Hỏi AI về các trường cần bóc tách
+
+```bash
+curl -X POST https://api.example.com/api/v1/ai-chat/conversations/conv-guid/messages \
+  -H "Authorization: Bearer {token}" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "message": "Tài liệu invoice này có những trường nào cần bóc tách cho hệ thống logistics? Hãy liệt kê kèm vị trí trong tài liệu.",
+    "selectedAttachmentIds": ["attachment-guid"],
+    "provider": "openai",
+    "model": "gpt-4",
+    "tenantId": "tenant-guid",
+    "createdBy": "user-guid"
+  }'
+
+# Response:
+{
+  "data": {
+    "message": "Dựa trên phân tích invoice INV-2024-001, các trường cần bóc tách bao gồm:\n\n1. **Invoice Number** (Trang 1, góc trên phải): INV-2024-001\n2. **Bill of Lading** (Trang 1, giữa): BOL-SG-VN-123456\n3. **Shipper Name** (Trang 1, cột trái): ABC Logistics Pte Ltd\n4. **Consignee Name** (Trang 1, cột phải): XYZ Corporation Vietnam\n5. **Gross Weight** (Trang 2, bảng hàng hóa): 5,000 KG\n6. **Commodity** (Trang 2, bảng hàng hóa): Electronics Components\n7. **Freight Amount** (Trang 3, tổng cộng): USD 2,500.00\n8. **Departure Date** (Trang 1): 2024-06-01\n9. **Arrival Date** (Trang 1): 2024-06-15\n\nCác trường này có thể map trực tiếp sang hệ thống logistics của bạn.",
+    "inputTokens": 2500,
+    "outputTokens": 350,
+    "totalTokens": 2850,
+    "finishReason": "stop"
+  }
+}
+```
+
+#### Bước 5: Hỏi thêm về Validation Rules
+
+```bash
+curl -X POST https://api.example.com/api/v1/ai-chat/conversations/conv-guid/messages \
+  -H "Authorization: Bearer {token}" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "message": "Làm sao để validate trường Bill of Lading? Có format đặc biệt không?",
+    "provider": "openai",
+    "model": "gpt-4",
+    "tenantId": "tenant-guid",
+    "createdBy": "user-guid"
+  }'
+
+# Response:
+{
+  "data": {
+    "message": "Bill of Lading (BOL) thường có các format sau:\n\n**Format phổ biến:**\n- BOL-{PortOrigin}-{PortDest}-{6 digits}\n- Ví dụ: BOL-SG-VN-123456\n\n**Validation Rules:**\n1. Bắt đầu bằng 'BOL-'\n2. Chứa mã port 3 chữ cái (ISO 3166-1 alpha-2)\n3. Kết thúc bằng 6 chữ số\n4. Regex: ^BOL-[A-Z]{2}-[A-Z]{2}-\\d{6}$\n\n**Ngoại lệ:**\n- Một số carrier dùng format riêng: MAERSK-XXXXX, COSCO-XXXXX\n- Nên cho phép custom regex trong cấu hình",
+    "inputTokens": 800,
+    "outputTokens": 200,
+    "totalTokens": 1000,
+    "finishReason": "stop"
+  }
+}
+```
+
+#### Bước 6: Hỏi về Mapping sang Hệ thống
+
+```bash
+curl -X POST https://api.example.com/api/v1/ai-chat/conversations/conv-guid/messages \
+  -H "Authorization: Bearer {token}" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "message": "Làm sao để map trường 'Freight Amount' sang hệ thống? Cần convert currency không?",
+    "provider": "openai",
+    "model": "gpt-4",
+    "tenantId": "tenant-guid",
+    "createdBy": "user-guid"
+  }'
+
+# Response:
+{
+  "data": {
+    "message": "Để map Freight Amount sang hệ thống:\n\n**Mapping Config:**\n```json\n{\n  \"sourceField\": \"Freight Amount\",\n  \"targetField\": \"freight_charge\",\n  \"dataType\": \"decimal\",\n  \"required\": true,\n  \"currencyConversion\": {\n    \"enabled\": true,\n    \"sourceCurrency\": \"USD\",\n    \"targetCurrency\": \"VND\",\n    \"rateProvider\": \"central_bank\"\n  },\n  \"validation\": {\n    \"min\": 0,\n    \"max\": 1000000\n  }\n}\n```\n\n**Lưu ý:**\n- Invoice này dùng USD, cần convert sang VND theo tỷ lệ hiện tại\n- Sử dụng API tỷ giá từ Ngân hàng Trung ương\n- Cache tỷ giá trong 1 giờ để tối ưu performance",
+    "inputTokens": 900,
+    "outputTokens": 250,
+    "totalTokens": 1150,
+    "finishReason": "stop"
+  }
+}
+```
+
+---
+
+### 8.2 Review Kết quả Bóc Tách Tự Động
+
+**Scenario:** MailConnector đã bóc tách tự động, user muốn review với AI.
+
+```bash
+curl -X POST https://api.example.com/api/v1/ai-chat/conversations/conv-guid/messages \
+  -H "Authorization: Bearer {token}" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "message": "MailConnector đã bóc tách các trường sau: invoice_number=INV-2024-001, bill_of_lading=BOL-SG-VN-123456, shipper=ABC Logistics. Hãy so sánh với tài liệu gốc và cho biết có trường nào bị thiếu không?",
+    "selectedAttachmentIds": ["attachment-guid"],
+    "provider": "openai",
+    "model": "gpt-4",
+    "tenantId": "tenant-guid",
+    "createdBy": "user-guid"
+  }'
+
+# Response:
+{
+  "data": {
+    "message": "So sánh kết quả bóc tách với tài liệu gốc:\n\n**Đúng:**\n- invoice_number: INV-2024-001 ✓\n- bill_of_lading: BOL-SG-VN-123456 ✓\n- shipper: ABC Logistics ✓\n\n**Thiếu:**\n- consignee_name: XYZ Corporation Vietnam (quan trọng)\n- gross_weight: 5,000 KG (quan trọng)\n- commodity: Electronics Components (quan trọng)\n- freight_amount: USD 2,500.00 (quan trọng)\n- departure_date: 2024-06-01 (quan trọng)\n- arrival_date: 2024-06-15 (quan trọng)\n\n**Khuyến nghị:**\n1. Cập nhật extraction rules để bóc tách thêm 6 trường bị thiếu\n2. Tăng confidence score threshold cho consignee_name\n3. Thêm validation cho gross_weight (> 0)",
+    "inputTokens": 1800,
+    "outputTokens": 300,
+    "totalTokens": 2100,
+    "finishReason": "stop"
+  }
+}
+```
+
+---
+
+### 8.3 Lấy Danh sách Conversations theo Tenant
+
+```bash
+curl -X GET "https://api.example.com/api/v1/ai-chat/conversations?tenantId=tenant-guid" \
+  -H "Authorization: Bearer {token}"
+
+# Response: { "data": [ { "id": "conv-1", ... }, { "id": "conv-2", ... } ] }
+```
+
+---
+
+## 9. Best Practices
+
+### 9.1 Context Management
+
+- **Giới hạn lịch sử tin nhắn:** Chỉ gửi 20 tin nhắn gần nhất để tiết kiệm token
+- **Sử dụng selectedAttachmentIds:** Chỉ include attachment cần thiết
+- **Archive conversations cũ:** Archive các conversation không còn sử dụng
+
+### 9.2 Cost Optimization
+
+- **Sử dụng model phù hợp:** GPT-3.5-turbo cho câu hỏi đơn giản, GPT-4 cho câu hỏi phức tạp
+- **Giới hạn token output:** Thiết lập maxTokens hợp lý
+- **Cache phản hồi:** Cache các câu hỏi lặp lại
+
+### 9.3 Security
+
+- **Validate input:** Luôn validate user input trước khi gửi đến AI
+- **Sanitize output:** Sanitize phản hồi từ AI trước khi hiển thị
+- **Prompt injection defense:** Sử dụng XML tags để ngăn chặn prompt injection
+
+---
+
+## 10. Limitations
+
+### 10.1 Current Limitations (MVP)
+
+- **File size limit:** 10MB per file
+- **Supported file types:** PDF, DOCX, XLSX, PNG, JPG
+- **Max attachments per conversation:** 50
+- **Max messages per conversation:** 1000
+- **Context window:** 128K tokens (GPT-4)
+
+### 10.2 Future Enhancements
+
+- Streaming responses
+- Multi-turn conversations with context retention
+- Voice input/output
+- Image analysis (GPT-4 Vision)
+- Custom AI models
+- Fine-tuned models for logistics domain
+
+---
+
+## 11. Support
+
+**Documentation Updates:** 2026-05-28
+**Version:** 1.0.0 (MVP)
+**Contact:** dev-team@example.com
+
+```
+
+---
+
+## File: `app\(app)\admin\ai-usage\page.tsx`
+
+```tsx
+"use client"
+// ADMIN ROUTE: Theo dõi chi phí và token AI sử dụng — chỉ admin
+
+import { useState } from "react"
+import dayjs from "dayjs"
+import {
+  BarChart3,
+  Cpu,
+  Loader,
+  TrendingUp,
+  Users,
+  Calendar,
+} from "lucide-react"
+import { toast } from "sonner"
+import {
+  useAiOpenaiUsageQuery,
+  useAiOpenaiUsageCurrentMonthQuery,
+  useAiOpenaiUsageUsersCurrentMonthQuery,
+} from "@/hooks/use-mail-queries"
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import { Button } from "@/components/ui/button"
+
+type UsageRecord = Record<string, unknown>
+
+function normalizeData(raw: unknown): UsageRecord[] {
+  if (Array.isArray(raw)) return raw as UsageRecord[]
+  if (raw && typeof raw === "object" && "data" in raw) {
+    const d = raw as Record<string, unknown>
+    if (Array.isArray(d.data)) return d.data as UsageRecord[]
+  }
+  return []
+}
+
+function getValue(record: UsageRecord, ...keys: string[]): number {
+  for (const key of keys) {
+    const val = record[key]
+    if (typeof val === "number") return val
+  }
+  return 0
+}
+
+function getString(record: UsageRecord, key: string): string {
+  const val = record[key]
+  return val != null ? String(val) : "—"
+}
+
+export default function AiUsagePage() {
+  const [dateRange, setDateRange] = useState({
+    startDate: dayjs().subtract(30, "day").format("YYYY-MM-DD"),
+    endDate: dayjs().format("YYYY-MM-DD"),
+  })
+
+  const usageQuery = useAiOpenaiUsageQuery(dateRange)
+  const currentMonthQuery = useAiOpenaiUsageCurrentMonthQuery()
+  const usersCurrentMonthQuery = useAiOpenaiUsageUsersCurrentMonthQuery()
+
+  const usageRecords = normalizeData(usageQuery.data)
+  const currentMonthData = (() => {
+    const raw = currentMonthQuery.data
+    if (raw && typeof raw === "object" && !Array.isArray(raw)) return raw as Record<string, unknown>
+    if (raw && typeof raw === "object" && "data" in raw) {
+      const d = raw as Record<string, unknown>
+      return (d.data ?? {}) as Record<string, unknown>
+    }
+    return null
+  })()
+
+  const usersRecords = normalizeData(usersCurrentMonthQuery.data)
+
+  const totalRequests = usageRecords.reduce((sum, r) => sum + getValue(r, "totalRequests", "requestCount", "requests"), 0)
+  const totalTokens = usageRecords.reduce((sum, r) => sum + getValue(r, "totalTokens", "tokenCount", "tokens"), 0)
+  const totalCost = usageRecords.reduce((sum, r) => sum + getValue(r, "totalCost", "cost", "estimatedCost"), 0)
+  const activeUsers = usersRecords.length
+
+  const isLoading = usageQuery.isPending || currentMonthQuery.isPending || usersCurrentMonthQuery.isPending
+
+  return (
+    <div className="space-y-6">
+      <div className="flex items-center justify-between">
+        <h1 className="text-2xl font-bold text-neutral-300">AI Usage Dashboard</h1>
+        <div className="flex items-center gap-2">
+          <Calendar className="h-4 w-4 text-neutral-200" />
+          <span className="text-sm text-neutral-200">
+            {dayjs(dateRange.startDate).format("DD/MM/YYYY")} - {dayjs(dateRange.endDate).format("DD/MM/YYYY")}
+          </span>
+        </div>
+      </div>
+
+      {isLoading && (
+        <div className="flex items-center gap-2 text-sm text-neutral-200">
+          <Loader className="h-4 w-4 animate-spin" />
+          Đang tải...
+        </div>
+      )}
+
+      {/* Stats */}
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between pb-2">
+            <CardTitle className="text-sm font-medium text-neutral-200">Tổng Requests</CardTitle>
+            <div className="rounded-lg bg-primary-50 p-2">
+              <Cpu className="h-4 w-4 text-primary" />
+            </div>
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold text-neutral-300">{totalRequests.toLocaleString("vi-VN")}</div>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between pb-2">
+            <CardTitle className="text-sm font-medium text-neutral-200">Tổng Tokens</CardTitle>
+            <div className="rounded-lg bg-blue-50 p-2">
+              <BarChart3 className="h-4 w-4 text-blue-600" />
+            </div>
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold text-neutral-300">{totalTokens.toLocaleString("vi-VN")}</div>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between pb-2">
+            <CardTitle className="text-sm font-medium text-neutral-200">Chi phí ước tính</CardTitle>
+            <div className="rounded-lg bg-green-50 p-2">
+              <TrendingUp className="h-4 w-4 text-green-600" />
+            </div>
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold text-neutral-300">${totalCost.toFixed(2)}</div>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between pb-2">
+            <CardTitle className="text-sm font-medium text-neutral-200">User active (tháng)</CardTitle>
+            <div className="rounded-lg bg-purple-50 p-2">
+              <Users className="h-4 w-4 text-purple-600" />
+            </div>
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold text-neutral-300">{activeUsers}</div>
+          </CardContent>
+        </Card>
+      </div>
+
+      {/* Current Month Summary */}
+      {currentMonthData && (
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <TrendingUp className="h-5 w-5 text-primary" />
+              Tháng hiện tại
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+              <div className="rounded-lg bg-neutral-50 p-4">
+                <p className="text-xs text-neutral-200">Requests</p>
+                <p className="text-xl font-bold text-neutral-300">
+                  {Number(currentMonthData["totalRequests"] ?? currentMonthData["requestCount"] ?? 0).toLocaleString("vi-VN")}
+                </p>
+              </div>
+              <div className="rounded-lg bg-neutral-50 p-4">
+                <p className="text-xs text-neutral-200">Tokens</p>
+                <p className="text-xl font-bold text-neutral-300">
+                  {Number(currentMonthData["totalTokens"] ?? currentMonthData["tokenCount"] ?? 0).toLocaleString("vi-VN")}
+                </p>
+              </div>
+              <div className="rounded-lg bg-neutral-50 p-4">
+                <p className="text-xs text-neutral-200">Chi phí</p>
+                <p className="text-xl font-bold text-neutral-300">
+                  ${Number(currentMonthData["totalCost"] ?? currentMonthData["cost"] ?? 0).toFixed(2)}
+                </p>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Usage by User */}
+      {usersRecords.length > 0 && (
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <Users className="h-5 w-5 text-primary" />
+              Usage theo user (tháng này)
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead className="bg-primary">
+                  <tr>
+                    <th className="px-4 py-3 text-left font-medium text-white/80">User</th>
+                    <th className="px-4 py-3 text-right font-medium text-white/80">Requests</th>
+                    <th className="px-4 py-3 text-right font-medium text-white/80">Tokens</th>
+                    <th className="px-4 py-3 text-right font-medium text-white/80">Chi phí</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-primary/15">
+                  {usersRecords.map((u, i) => (
+                    <tr key={i} className="hover:bg-neutral-50 transition-colors">
+                      <td className="px-4 py-3 text-neutral-300 font-medium">
+                        {getString(u, "userName") || getString(u, "userId") || getString(u, "email")}
+                      </td>
+                      <td className="px-4 py-3 text-right text-neutral-200">
+                        {getValue(u, "totalRequests", "requestCount", "requests").toLocaleString("vi-VN")}
+                      </td>
+                      <td className="px-4 py-3 text-right text-neutral-200">
+                        {getValue(u, "totalTokens", "tokenCount", "tokens").toLocaleString("vi-VN")}
+                      </td>
+                      <td className="px-4 py-3 text-right text-neutral-200">
+                        ${getValue(u, "totalCost", "cost", "estimatedCost").toFixed(2)}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Daily Usage */}
+      {usageRecords.length > 0 && (
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <BarChart3 className="h-5 w-5 text-primary" />
+              Chi tiết theo ngày
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead className="bg-primary">
+                  <tr>
+                    <th className="px-4 py-3 text-left font-medium text-white/80">Ngày</th>
+                    <th className="px-4 py-3 text-right font-medium text-white/80">Requests</th>
+                    <th className="px-4 py-3 text-right font-medium text-white/80">Tokens</th>
+                    <th className="px-4 py-3 text-right font-medium text-white/80">Chi phí</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-primary/15">
+                  {usageRecords.map((r, i) => {
+                    const dateVal = getString(r, "date") || getString(r, "usageDate") || getString(r, "day")
+                    return (
+                      <tr key={i} className="hover:bg-neutral-50 transition-colors">
+                        <td className="px-4 py-3 text-neutral-300">
+                          {dateVal !== "—" ? dayjs(dateVal).format("DD/MM/YYYY") : "—"}
+                        </td>
+                        <td className="px-4 py-3 text-right text-neutral-200">
+                          {getValue(r, "totalRequests", "requestCount", "requests").toLocaleString("vi-VN")}
+                        </td>
+                        <td className="px-4 py-3 text-right text-neutral-200">
+                          {getValue(r, "totalTokens", "tokenCount", "tokens").toLocaleString("vi-VN")}
+                        </td>
+                        <td className="px-4 py-3 text-right text-neutral-200">
+                          ${getValue(r, "totalCost", "cost", "estimatedCost").toFixed(2)}
+                        </td>
+                      </tr>
+                    )
+                  })}
+                </tbody>
+              </table>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+    </div>
+  )
+}
+
+```
+
+---
+
+## File: `app\(app)\admin\assignments\page.tsx`
+
+```tsx
+"use client"
+// ADMIN ROUTE: Quản lý phân công xử lý email (gán mail cho user) — chỉ admin
+
+import { useState, useMemo } from "react"
+import {
+  Loader,
+  Mail,
+  UserCheck,
+  CheckCircle,
+  Clock,
+  Send,
+  Eye,
+  X,
+  Calendar,
+  AlertTriangle,
+  Paperclip,
+} from "lucide-react"
+import dayjs from "dayjs"
+import { toast } from "sonner"
+import { useMailMessagesQuery, useMailMessageQuery } from "@/hooks/use-mail-queries"
+import {
+  useMailAssignmentsByStatusQuery,
+  useAssignMailMutation,
+  useUnassignMailMutation,
+} from "@/hooks/use-mail-assignments-queries"
+import { getLogisticsPlatformAPI } from "@/lib/generated/mail-connector/endpoints"
+import { useUsersQuery } from "@/hooks/use-user-queries"
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+} from "@/components/ui/dialog"
+import { Button } from "@/components/ui/button"
+
+const TABS = [
+  { key: "unassigned", label: "Chưa xử lý", icon: Mail },
+  { key: "assigned", label: "Đang xử lý", icon: Clock },
+  { key: "completed", label: "Hoàn thành", icon: CheckCircle },
+]
+
+function normalizeArray(raw: unknown): Record<string, unknown>[] {
+  if (Array.isArray(raw)) return raw as Record<string, unknown>[]
+  if (raw && typeof raw === "object" && "data" in raw) {
+    const d = raw as unknown as Record<string, unknown>
+    if (Array.isArray(d.data)) return d.data as Record<string, unknown>[]
+  }
+  return []
+}
+
+function getPagination(raw: unknown) {
+  if (raw && typeof raw === "object" && "meta" in raw) {
+    const m = raw as unknown as Record<string, unknown>
+    const meta = m.meta as Record<string, unknown> | undefined
+    if (meta && "pagination" in meta) {
+      return meta.pagination as Record<string, unknown>
+    }
+  }
+  return null
+}
+
+export default function AdminAssignmentsPage() {
+  const [activeTab, setActiveTab] = useState("unassigned")
+  const [page, setPage] = useState(1)
+  const pageSize = 20
+
+  // Queries
+  const assignmentsQuery = useMailAssignmentsByStatusQuery(
+    activeTab === "unassigned" ? "assigned" : activeTab
+  )
+  // Fetch all assignments with status=assigned for checking "already assigned" in unassigned tab
+  const allAssignedQuery = useMailAssignmentsByStatusQuery("assigned")
+  // Fetch all messages for unassigned tab + subject lookup in assignment rows
+  const allMessagesQuery = useMailMessagesQuery({ page: 1, pageSize: 500 })
+  const usersQuery = useUsersQuery({ page: 1, pageSize: 100 })
+  const assignMutation = useAssignMailMutation()
+  const unassignMutation = useUnassignMailMutation()
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const mailApi: any = getLogisticsPlatformAPI()
+
+  // Modals
+  const [assignModalOpen, setAssignModalOpen] = useState(false)
+  const [detailModalOpen, setDetailModalOpen] = useState(false)
+  const [selectedMessageId, setSelectedMessageId] = useState<string | null>(null)
+  const [selectedUserId, setSelectedUserId] = useState("")
+  const [currentAssignedUserId, setCurrentAssignedUserId] = useState<string | null>(null)
+
+  const detailMessageQuery = useMailMessageQuery(detailModalOpen ? selectedMessageId : null)
+
+  // Normalized data
+  const assignments = normalizeArray(assignmentsQuery.data)
+  const allAssigned = normalizeArray(allAssignedQuery.data)
+  const allMessages = normalizeArray(allMessagesQuery.data)
+  const users = normalizeArray(usersQuery.data)
+
+  // Build lookup maps
+  const messageMap = useMemo(() => {
+    const map = new Map<string, Record<string, unknown>>()
+    for (const m of allMessages) {
+      const id = String(m.id ?? "")
+      if (id && !map.has(id)) map.set(id, m)
+    }
+    return map
+  }, [allMessages])
+
+  // Merge all assignment sources (tab-specific + all assigned) for lookup
+  const allAssignments = useMemo(() => {
+    const map = new Map<string, Record<string, unknown>>()
+    for (const a of [...allAssigned, ...assignments]) {
+      const id = String(a.mailConnectorMessageId ?? "")
+      if (id && !map.has(id)) map.set(id, a)
+    }
+    return map
+  }, [allAssigned, assignments])
+
+  const assignedMessageIds = useMemo(() => {
+    const set = new Set<string>()
+    for (const a of allAssignments.values()) {
+      const id = String(a.mailConnectorMessageId ?? "")
+      if (id) set.add(id)
+    }
+    return set
+  }, [allAssignments])
+
+  // Unassigned messages = all messages NOT in any assignment
+  const unassignedMessages = useMemo(() => {
+    return allMessages.filter((m) => {
+      const id = String(m.id ?? "")
+      return !assignedMessageIds.has(id)
+    })
+  }, [allMessages, assignedMessageIds])
+
+  const getUserName = (userId: string) => {
+    const u = users.find((item) => String(item.id) === userId)
+    if (u) return String(u.fullName ?? u.email ?? "—")
+    return userId.slice(0, 8)
+  }
+
+  const getMessageSubject = (messageId: string) => {
+    const msg = messageMap.get(messageId)
+    if (msg) return String(msg.subject ?? "(Không tiêu đề)")
+    return null
+  }
+
+  const getMessageFromEmail = (messageId: string) => {
+    const msg = messageMap.get(messageId)
+    if (msg) return String(msg.fromEmail ?? "—")
+    return "—"
+  }
+
+  const getMessageReceivedAt = (messageId: string) => {
+    const msg = messageMap.get(messageId)
+    const val = msg?.receivedAt ?? msg?.sentAt ?? msg?.createdAt
+    if (val) return dayjs(String(val)).format("DD/MM/YYYY HH:mm")
+    return null
+  }
+
+  const openAssignModal = (messageId: string) => {
+    setSelectedMessageId(messageId)
+    setSelectedUserId("")
+    const existing = allAssignments.get(messageId)
+    setCurrentAssignedUserId(existing ? String(existing.assignedToUserId ?? "") : null)
+    setAssignModalOpen(true)
+  }
+
+  const openDetailModal = (messageId: string) => {
+    setSelectedMessageId(messageId)
+    setDetailModalOpen(true)
+  }
+
+  const handleAssign = async () => {
+    if (!selectedMessageId || !selectedUserId) return
+
+    try {
+      // Nếu mail đã gán cho người khác → unassign trước rồi assign mới
+      if (currentAssignedUserId) {
+        await unassignMutation.mutateAsync({
+          messageId: selectedMessageId,
+          payload: { userId: currentAssignedUserId },
+        })
+      }
+
+      assignMutation.mutate(
+        {
+          messageId: selectedMessageId,
+          payload: { toUserId: selectedUserId },
+        },
+        {
+          onSuccess: () => {
+            toast.success(currentAssignedUserId ? "Đã chuyển giao mail." : "Đã gán mail cho người dùng.")
+            setAssignModalOpen(false)
+            setSelectedMessageId(null)
+            setSelectedUserId("")
+            setCurrentAssignedUserId(null)
+          },
+          onError: (err: unknown) => {
+            toast.error((currentAssignedUserId ? "Chuyển giao" : "Gán mail") + " thất bại: " + String(err))
+          },
+        }
+      )
+    } catch (err) {
+      toast.error("Hủy gán cũ thất bại: " + String(err))
+    }
+  }
+
+  const tabData = activeTab === "unassigned" ? unassignedMessages : assignments
+  const tabTotalPages = Math.max(1, Math.ceil(tabData.length / pageSize))
+  const tabPaged = tabData.slice((page - 1) * pageSize, page * pageSize)
+  const tabTotalItems = tabData.length
+
+  const isLoading = activeTab === "unassigned"
+    ? allMessagesQuery.isPending
+    : assignmentsQuery.isPending
+
+  const hasData = tabPaged.length > 0
+
+  const currentData = tabPaged
+
+  return (
+    <div className="space-y-5">
+      <div className="flex items-center justify-between">
+        <h1 className="text-2xl font-bold text-neutral-300">Quản lý Phân công</h1>
+      </div>
+
+      <div className="flex gap-1 rounded-lg border border-neutral-100 bg-white p-1 w-fit">
+        {TABS.map((tab) => {
+          const Icon = tab.icon
+          const active = activeTab === tab.key
+          return (
+            <button
+              key={tab.key}
+              onClick={() => { setActiveTab(tab.key); setPage(1) }}
+              className={`flex items-center gap-2 rounded-md px-4 py-2 text-sm font-medium transition-colors cursor-pointer ${
+                active
+                  ? "bg-primary text-white"
+                  : "text-neutral-600 hover:bg-neutral-50"
+              }`}
+            >
+              <Icon className="h-4 w-4" />
+              {tab.label}
+            </button>
+          )
+        })}
+      </div>
+
+      <div className="rounded-xl border border-neutral-100 bg-white overflow-hidden">
+        <div className="overflow-x-auto">
+          <table className="w-full min-w-[700px] text-sm">
+            <thead className="bg-primary">
+              <tr>
+                {activeTab === "unassigned" ? (
+                  <>
+                    <th className="px-4 py-3 text-left font-medium text-white/80">Tiêu đề</th>
+                    <th className="px-4 py-3 text-left font-medium text-white/80">Người gửi</th>
+                    <th className="px-4 py-3 text-left font-medium text-white/80">Thời gian nhận</th>
+                    <th className="px-4 py-3 text-left font-medium text-white/80">Trạng thái xử lý</th>
+                    <th className="px-4 py-3 text-left font-medium text-white/80">Đang giao</th>
+                    <th className="px-4 py-3 text-right font-medium text-white/80"></th>
+                  </>
+                ) : (
+                  <>
+                    <th className="px-4 py-3 text-left font-medium text-white/80">Tiêu đề</th>
+                    <th className="px-4 py-3 text-left font-medium text-white/80">Người gửi</th>
+                    <th className="px-4 py-3 text-left font-medium text-white/80">Người được giao</th>
+                    <th className="px-4 py-3 text-left font-medium text-white/80">Trạng thái</th>
+                    <th className="px-4 py-3 text-left font-medium text-white/80">Thời gian</th>
+                    <th className="px-4 py-3 text-right font-medium text-white/80"></th>
+                  </>
+                )}
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-primary/15">
+              {isLoading && (
+                <tr>
+                  <td colSpan={6} className="px-4 py-8 text-center text-neutral-200">
+                    <Loader className="mx-auto h-5 w-5 animate-spin text-primary" />
+                    <p className="mt-2 text-sm">Đang tải...</p>
+                  </td>
+                </tr>
+              )}
+              {!isLoading && !hasData && (
+                <tr>
+                  <td colSpan={6} className="px-4 py-8 text-center text-neutral-200">
+                    Không có bản ghi nào.
+                  </td>
+                </tr>
+              )}
+              {activeTab === "unassigned" && tabPaged.map((m) => {
+                const messageId = String(m.id ?? "")
+                return (
+                  <tr key={messageId} className="hover:bg-neutral-50 transition-colors">
+                    <td className="px-4 py-3">
+                      <div className="flex items-center gap-2">
+                        <Mail className="h-4 w-4 shrink-0 text-neutral-300" />
+                        <span className="max-w-[200px] truncate font-medium text-neutral-300">
+                          {String(m.subject ?? "(Không tiêu đề)")}
+                        </span>
+                      </div>
+                    </td>
+                    <td className="px-4 py-3 text-neutral-200">{String(m.fromEmail ?? "—")}</td>
+                    <td className="px-4 py-3 text-neutral-200 text-xs">
+                      {m.receivedAt
+                        ? dayjs(String(m.receivedAt)).format("DD/MM/YYYY HH:mm")
+                        : "—"}
+                    </td>
+                    <td className="px-4 py-3">
+                      <span className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-medium ${
+                        m.processStatus === "completed"
+                          ? "bg-green-50 text-green-700"
+                          : m.processStatus === "processing"
+                          ? "bg-blue-50 text-blue-700"
+                          : "bg-neutral-100 text-neutral-500"
+                      }`}>
+                        {String(m.processStatus ?? "pending")}
+                      </span>
+                    </td>
+                    <td className="px-4 py-3">
+                      <span className="text-xs text-neutral-200">—</span>
+                    </td>
+                    <td className="px-4 py-3 text-right">
+                      <div className="flex items-center justify-end gap-1">
+                        <button
+                          onClick={() => openDetailModal(messageId)}
+                          className="inline-flex items-center gap-1 rounded-lg border border-neutral-200 bg-white px-3 py-1.5 text-xs font-medium text-neutral-600 hover:bg-neutral-50 cursor-pointer"
+                        >
+                          <Eye className="h-3 w-3" />
+                          Xem
+                        </button>
+                        <button
+                          onClick={() => openAssignModal(messageId)}
+                          className="inline-flex items-center gap-1 rounded-lg border border-primary/20 bg-primary/5 px-3 py-1.5 text-xs font-medium text-primary hover:bg-primary/10 cursor-pointer"
+                        >
+                          <Send className="h-3 w-3" />
+                          Gán
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                )
+              })}
+              {activeTab !== "unassigned" && tabPaged.map((a) => {
+                const messageId = String(a.mailConnectorMessageId ?? "")
+                const userId = String(a.assignedToUserId ?? "")
+                const status = String(a.status ?? "")
+                const subject = getMessageSubject(messageId) ?? messageId.slice(0, 12) + "..."
+                const fromEmail = getMessageFromEmail(messageId)
+                const receivedAt = getMessageReceivedAt(messageId)
+                const assignedUserName = String(a.assignedToUserName ?? a.assignedToUserEmail ?? userId.slice(0, 8))
+                const assignedAt = a.assignedAt
+                  ? dayjs(String(a.assignedAt)).format("DD/MM/YYYY HH:mm")
+                  : "—"
+                const completedAt = a.completedAt
+                  ? dayjs(String(a.completedAt)).format("DD/MM/YYYY HH:mm")
+                  : null
+
+                return (
+                  <tr key={messageId + userId} className="hover:bg-neutral-50 transition-colors">
+                    <td className="px-4 py-3">
+                      <div className="flex items-center gap-2">
+                        <Mail className="h-4 w-4 shrink-0 text-neutral-300" />
+                        <span className="max-w-[200px] truncate font-medium text-neutral-300">
+                          {subject}
+                        </span>
+                      </div>
+                    </td>
+                    <td className="px-4 py-3 text-neutral-200">{fromEmail}</td>
+                    <td className="px-4 py-3 text-neutral-300">
+                      <div className="flex items-center gap-2">
+                        <UserCheck className="h-4 w-4 text-neutral-300" />
+                        {assignedUserName}
+                      </div>
+                    </td>
+                    <td className="px-4 py-3">
+                      <span className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-medium ${
+                        status === "completed"
+                          ? "bg-green-50 text-green-700"
+                          : "bg-blue-50 text-blue-700"
+                      }`}>
+                        {status === "completed" ? "Hoàn thành" : "Đang xử lý"}
+                      </span>
+                    </td>
+                    <td className="px-4 py-3 text-neutral-200 text-xs">
+                      <div className="space-y-0.5">
+                        {receivedAt && <div>Nhận: {receivedAt}</div>}
+                        <div>Gán: {assignedAt}</div>
+                        {completedAt && <div>Hoàn tất: {completedAt}</div>}
+                      </div>
+                    </td>
+                    <td className="px-4 py-3 text-right">
+                      <div className="flex items-center justify-end gap-1">
+                        <button
+                          onClick={() => openAssignModal(messageId)}
+                          className="inline-flex items-center gap-1 rounded-lg border border-amber-200 bg-amber-50 px-3 py-1.5 text-xs font-medium text-amber-700 hover:bg-amber-100 cursor-pointer"
+                        >
+                          <Send className="h-3 w-3" />
+                          Chuyển
+                        </button>
+                        <button
+                          onClick={() => openDetailModal(messageId)}
+                          className="inline-flex items-center gap-1 rounded-lg border border-neutral-200 bg-white px-3 py-1.5 text-xs font-medium text-neutral-600 hover:bg-neutral-50 cursor-pointer"
+                        >
+                          <Eye className="h-3 w-3" />
+                          Xem
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                )
+              })}
+            </tbody>
+          </table>
+        </div>
+
+        {tabTotalPages > 1 && (
+          <div className="flex items-center justify-between border-t border-neutral-100 px-4 py-3">
+            <p className="text-xs text-neutral-200">
+              Trang {page} / {tabTotalPages} ({tabTotalItems} bản ghi)
+            </p>
+            <div className="flex gap-2">
+              <button
+                onClick={() => setPage((p) => Math.max(1, p - 1))}
+                disabled={page <= 1}
+                className="rounded-lg border border-neutral-100 px-3 py-1.5 text-xs font-medium text-neutral-300 hover:bg-neutral-50 disabled:opacity-50 cursor-pointer disabled:cursor-not-allowed"
+              >
+                Trước
+              </button>
+              <button
+                onClick={() => setPage((p) => Math.min(tabTotalPages, p + 1))}
+                disabled={page >= tabTotalPages}
+                className="rounded-lg border border-neutral-100 px-3 py-1.5 text-xs font-medium text-neutral-300 hover:bg-neutral-50 disabled:opacity-50 cursor-pointer disabled:cursor-not-allowed"
+              >
+                Sau
+              </button>
+            </div>
+          </div>
+        )}
+      </div>
+
+      {/* Assign Modal */}
+      <Dialog open={assignModalOpen} onOpenChange={setAssignModalOpen}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle className="text-black">
+              {selectedMessageId && assignedMessageIds.has(selectedMessageId) ? "Chuyển giao mail" : "Gán mail cho người dùng"}
+            </DialogTitle>
+          </DialogHeader>
+          <div className="space-y-3 py-2">
+            <p className="text-sm text-neutral-300">
+              {selectedMessageId && assignedMessageIds.has(selectedMessageId)
+                ? "Chọn người dùng khác để chuyển giao email này."
+                : "Chọn người dùng để xử lý email này."}
+            </p>
+            {currentAssignedUserId && (
+              <div className="rounded-lg border border-amber-100 bg-amber-50 px-3 py-2 text-sm text-amber-700">
+                <span className="font-medium">Đang gán cho:</span>{" "}
+                {(() => {
+                  const u = users.find((user) => String(user.id ?? "") === currentAssignedUserId)
+                  return u ? String(u.fullName ?? u.email ?? currentAssignedUserId) : currentAssignedUserId
+                })()}
+              </div>
+            )}
+            <div className="max-h-[300px] space-y-1 overflow-y-auto rounded-lg border border-neutral-100 p-2">
+              {usersQuery.isPending && (
+                <p className="text-sm text-neutral-200">Đang tải danh sách...</p>
+              )}
+              {users.map((u) => {
+                const uid = String(u.id ?? "")
+                const isCurrentAssignee = uid === currentAssignedUserId
+                return (
+                  <button
+                    key={uid}
+                    onClick={() => !isCurrentAssignee && setSelectedUserId(uid)}
+                    disabled={isCurrentAssignee}
+                    className={`flex w-full items-center gap-3 rounded-md px-3 py-2 text-left text-sm transition-colors ${
+                      isCurrentAssignee
+                        ? "cursor-not-allowed opacity-40"
+                        : selectedUserId === uid
+                        ? "bg-primary-50 text-primary cursor-pointer"
+                        : "text-neutral-300 hover:bg-neutral-50 cursor-pointer"
+                    }`}
+                  >
+                    <div className={`flex h-4 w-4 items-center justify-center rounded-full border ${
+                      selectedUserId === uid
+                        ? "border-primary bg-primary"
+                        : "border-neutral-300"
+                    }`}>
+                      {selectedUserId === uid && (
+                        <span className="block h-1.5 w-1.5 rounded-full bg-white" />
+                      )}
+                    </div>
+                    <div className="flex-1">
+                      <p className="font-medium">{String(u.fullName ?? u.email ?? "—")}</p>
+                      <p className="text-xs text-neutral-200">{String(u.email ?? "")}</p>
+                    </div>
+                    {isCurrentAssignee && (
+                      <span className="rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-medium text-amber-700">
+                        Đang gán
+                      </span>
+                    )}
+                  </button>
+                )
+              })}
+              {!usersQuery.isPending && users.length === 0 && (
+                <p className="text-sm text-neutral-200">Không có người dùng nào.</p>
+              )}
+            </div>
+            <div className="flex justify-end gap-2 pt-2">
+              <Button variant="outline" onClick={() => setAssignModalOpen(false)}>
+                Hủy
+              </Button>
+              <Button
+                onClick={handleAssign}
+                disabled={!selectedUserId || assignMutation.isPending || unassignMutation.isPending}
+              >
+                {assignMutation.isPending || unassignMutation.isPending ? "..." : "Xác nhận gán"}
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Detail Modal */}
+      <Dialog open={detailModalOpen} onOpenChange={setDetailModalOpen}>
+        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle className="text-black flex items-center gap-2">
+              <Mail className="h-5 w-5 text-primary" />
+              Thông tin phân công
+            </DialogTitle>
+            <DialogDescription className="text-neutral-500">
+              Chi tiết email, file đính kèm và trạng thái xử lý
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 py-2">
+            {detailMessageQuery.isPending && (
+              <div className="flex items-center gap-2 py-4 text-sm text-neutral-400">
+                <Loader className="h-4 w-4 animate-spin" /> Đang tải nội dung mail...
+              </div>
+            )}
+
+            {(() => {
+              const msgData = detailMessageQuery.data as Record<string, unknown> | undefined
+              const a = [...assignments, ...allAssigned].find(
+                (item) => String(item.mailConnectorMessageId ?? "") === selectedMessageId
+              )
+              const msgId = selectedMessageId ?? ""
+              const subject = getMessageSubject(msgId) ?? msgId
+              const fromName = msgData ? String(msgData.fromName ?? "—") : getMessageFromEmail(msgId)
+              const fromEmail = msgData ? String(msgData.fromEmail ?? "—") : getMessageFromEmail(msgId)
+              const receivedAt = msgData?.receivedAt
+                ? dayjs(String(msgData.receivedAt)).format("DD/MM/YYYY HH:mm")
+                : getMessageReceivedAt(msgId) ?? "—"
+              const body = msgData?.bodyText ?? msgData?.body ?? msgData?.htmlBody ?? ""
+              const attachments = msgData?.attachments as Array<Record<string, unknown>> | undefined
+
+              const assignedUserName = a ? String(a.assignedToUserName ?? a.assignedToUserEmail ?? "—") : "—"
+              const assignedAt = a?.assignedAt
+                ? dayjs(String(a.assignedAt)).format("DD/MM/YYYY HH:mm")
+                : null
+              const completedAt = a?.completedAt
+                ? dayjs(String(a.completedAt)).format("DD/MM/YYYY HH:mm")
+                : null
+              const confirmedAt = a?.confirmedAt
+                ? dayjs(String(a.confirmedAt)).format("DD/MM/YYYY HH:mm")
+                : null
+              const status = a ? String(a.status ?? "Chưa gán") : "Chưa gán"
+              const notes = a?.notes ? String(a.notes) : null
+
+              const statusMap: Record<string, { label: string; className: string }> = {
+                unassigned: { label: "Chưa gán", className: "bg-neutral-100 text-neutral-600" },
+                assigned: { label: "Đã gán", className: "bg-blue-50 text-blue-700" },
+                confirmed: { label: "Đã xác nhận", className: "bg-amber-50 text-amber-700" },
+                needSupplement: { label: "Cần bổ sung", className: "bg-red-50 text-red-700" },
+                extracted: { label: "Đã bóc tách", className: "bg-purple-50 text-purple-700" },
+                completed: { label: "Hoàn thành", className: "bg-green-50 text-green-700" },
+                exported: { label: "Đã xuất", className: "bg-neutral-100 text-neutral-600" },
+              }
+              const normalizedStatus = status.toLowerCase()
+              const statusInfo = statusMap[normalizedStatus] ?? { label: status, className: "bg-neutral-100 text-neutral-600" }
+
+              return (
+                <div className="space-y-4">
+                  {/* Mail Info */}
+                  <div className="rounded-lg border border-neutral-100 bg-neutral-50 p-3 space-y-2">
+                    <div>
+                      <span className="text-xs text-neutral-400">Tiêu đề</span>
+                      <p className="text-sm font-medium text-neutral-800">{subject}</p>
+                    </div>
+                    <div className="grid grid-cols-2 gap-2">
+                      <div>
+                        <span className="text-xs text-neutral-400">Người gửi</span>
+                        <p className="text-sm text-neutral-700">{fromName} &lt;{fromEmail}&gt;</p>
+                      </div>
+                      <div>
+                        <span className="text-xs text-neutral-400">Nhận lúc</span>
+                        <p className="text-sm text-neutral-700">{receivedAt}</p>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Assignment Status */}
+                  <div className="rounded-lg border border-neutral-100 bg-white p-3 space-y-2">
+                    <p className="text-xs font-semibold uppercase tracking-wide text-neutral-500">Trạng thái phân công</p>
+                    <div className="flex flex-wrap items-center gap-2">
+                      <span className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-medium ${statusInfo.className}`}>
+                        {statusInfo.label}
+                      </span>
+                      {assignedAt && <span className="text-xs text-neutral-400">Gán: {assignedAt}</span>}
+                      {confirmedAt && <span className="text-xs text-neutral-400">Xác nhận: {confirmedAt}</span>}
+                      {completedAt && <span className="text-xs text-green-600">Hoàn tất: {completedAt}</span>}
+                    </div>
+                    {notes && (
+                      <div>
+                        <span className="text-xs text-neutral-400">Ghi chú</span>
+                        <p className="text-sm text-neutral-700">{notes}</p>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Attachments */}
+                  {attachments && attachments.length > 0 && (
+                    <div className="rounded-lg border border-neutral-100 bg-white p-3 space-y-2">
+                      <p className="text-xs font-semibold uppercase tracking-wide text-neutral-500 flex items-center gap-1">
+                        <Paperclip className="h-3 w-3" />
+                        File đính kèm ({attachments.length})
+                      </p>
+                      <div className="space-y-1">
+                        {attachments.map((att, idx) => (
+                          <div key={idx} className="flex items-center gap-2 rounded-md bg-neutral-50 px-2 py-1.5 text-xs">
+                            <Paperclip className="h-3 w-3 text-neutral-400" />
+                            <span className="flex-1 truncate text-neutral-700">
+                              {String(att.fileName ?? att.name ?? `attachment-${idx + 1}`)}
+                            </span>
+                            <span className="text-neutral-400">
+                              {att.fileSize ? `${Math.round(Number(att.fileSize) / 1024)} KB` : ""}
+                            </span>
+                            <span className="text-neutral-400">
+                              {String(att.contentType ?? att.mimeType ?? "")}
+                            </span>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Body */}
+                  {body && (
+                    <div className="rounded-lg border border-neutral-100 bg-white p-3 space-y-2">
+                      <p className="text-xs font-semibold uppercase tracking-wide text-neutral-500">Nội dung mail</p>
+                      <div className="max-h-[300px] overflow-y-auto rounded-md bg-neutral-50 p-2 text-xs text-neutral-700 whitespace-pre-wrap">
+                        {String(body)}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )
+            })()}
+            <div className="flex justify-end pt-2">
+              <Button variant="outline" onClick={() => setDetailModalOpen(false)}>
+                Đóng
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+    </div>
+  )
+}
+
+```
+
+---
+
 ## File: `app\(app)\admin\logs\page.tsx`
 
 ```tsx
 "use client"
+// ADMIN ROUTE: Xem logs và lỗi hệ thống — chỉ admin
 
 import { useState } from "react"
 import { AlertTriangle, Info, XCircle, Filter } from "lucide-react"
@@ -125,6 +3680,7 @@ export default function LogsPage() {
 
 ```tsx
 "use client"
+// ADMIN ROUTE: Admin dashboard tổng — chỉ admin
 
 import Link from "next/link"
 import {
@@ -136,6 +3692,7 @@ import {
   AlertTriangle,
   Activity,
   FileCode,
+  ClipboardCheck,
 } from "lucide-react"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 
@@ -148,6 +3705,33 @@ const adminCards = [
     color: "text-primary",
     bg: "bg-primary-50",
     count: "3 tài khoản",
+  },
+  {
+    href: "/admin/permissions",
+    title: "Quyền hạn",
+    description: "Quản lý danh sách quyền hạn (permissions) theo module",
+    icon: Shield,
+    color: "text-purple-600",
+    bg: "bg-purple-50",
+    count: "Permission CRUD",
+  },
+  {
+    href: "/admin/roles",
+    title: "Vai trò",
+    description: "Quản lý vai trò (roles) và gán quyền",
+    icon: Users,
+    color: "text-blue-600",
+    bg: "bg-blue-50",
+    count: "Role CRUD",
+  },
+  {
+    href: "/admin/assignments",
+    title: "Phân công",
+    description: "Quản lý phân công xử lý email cho nhân viên",
+    icon: ClipboardCheck,
+    color: "text-teal-600",
+    bg: "bg-teal-50",
+    count: "Assignments",
   },
   {
     href: "/admin/settings",
@@ -166,6 +3750,15 @@ const adminCards = [
     color: "text-amber-600",
     bg: "bg-amber-50",
     count: "4 bản ghi",
+  },
+  {
+    href: "/admin/ai-usage",
+    title: "AI Usage",
+    description: "Theo dõi chi phí và token sử dụng AI theo user và thời gian",
+    icon: TrendingUp,
+    color: "text-cyan-600",
+    bg: "bg-cyan-50",
+    count: "Analytics",
   },
   {
     href: "/admin/templates",
@@ -274,21 +3867,767 @@ export default function AdminPage() {
 
 ---
 
+## File: `app\(app)\admin\permissions\page.tsx`
+
+```tsx
+"use client"
+// ADMIN ROUTE: Quản lý quyền hạn (permissions) — chỉ admin
+
+import { useState } from "react"
+import { Loader, Pencil, Plus, Shield, Trash2 } from "lucide-react"
+import { toast } from "sonner"
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog"
+import { Input } from "@/components/ui/input"
+import { Label } from "@/components/ui/label"
+import { Button } from "@/components/ui/button"
+import { Badge } from "@/components/ui/badge"
+import { getErrorMessage } from "@/lib/get-error-message"
+import {
+  usePermissionsQuery,
+  usePermissionModulesQuery,
+  useCreatePermissionMutation,
+  useUpdatePermissionMutation,
+  useDeletePermissionMutation,
+} from "@/hooks/use-permissions-queries"
+
+export default function AdminPermissionsPage() {
+  const [modalOpen, setModalOpen] = useState(false)
+  const [modalMode, setModalMode] = useState<"create" | "edit">("create")
+  const [selectedId, setSelectedId] = useState<string | null>(null)
+
+  const [formCode, setFormCode] = useState("")
+  const [formName, setFormName] = useState("")
+  const [formModule, setFormModule] = useState("")
+  const [formDescription, setFormDescription] = useState("")
+
+  const permissionsQuery = usePermissionsQuery()
+  const modulesQuery = usePermissionModulesQuery()
+  const createMutation = useCreatePermissionMutation()
+  const updateMutation = useUpdatePermissionMutation()
+  const deleteMutation = useDeletePermissionMutation()
+
+  const permissions = Array.isArray(permissionsQuery.data)
+    ? permissionsQuery.data
+    : permissionsQuery.data?.data ?? []
+
+  const modules = Array.isArray(modulesQuery.data)
+    ? modulesQuery.data
+    : modulesQuery.data?.data ?? []
+
+  const openCreate = () => {
+    setModalMode("create")
+    setSelectedId(null)
+    setFormCode("")
+    setFormName("")
+    setFormModule("")
+    setFormDescription("")
+    setModalOpen(true)
+  }
+
+  const openEdit = (item: unknown) => {
+    const p = item as Record<string, unknown>
+    setModalMode("edit")
+    setSelectedId((p.id as string) ?? null)
+    setFormCode((p.code as string) ?? "")
+    setFormName((p.name as string) ?? "")
+    setFormModule((p.module as string) ?? "")
+    setFormDescription((p.description as string) ?? "")
+    setModalOpen(true)
+  }
+
+  const handleSave = async () => {
+    try {
+      if (modalMode === "create") {
+        await createMutation.mutateAsync({ code: formCode, name: formName, module: formModule, description: formDescription })
+        toast.success("Tạo quyền thành công.")
+      } else if (selectedId) {
+        await updateMutation.mutateAsync({ id: selectedId, payload: { name: formName, description: formDescription, module: formModule } })
+        toast.success("Cập nhật quyền thành công.")
+      }
+      setModalOpen(false)
+    } catch (err) {
+      toast.error(getErrorMessage(err, "Thao tác thất bại."))
+    }
+  }
+
+  const handleDelete = async (id: string) => {
+    if (!confirm("Bạn có chắc muốn xóa quyền này?")) return
+    try {
+      await deleteMutation.mutateAsync(id)
+      toast.success("Đã xóa quyền.")
+    } catch (err) {
+      toast.error(getErrorMessage(err, "Xóa thất bại."))
+    }
+  }
+
+  const isMutating = createMutation.isPending || updateMutation.isPending || deleteMutation.isPending
+
+  return (
+    <div className="space-y-5">
+      <div className="flex items-center justify-between">
+        <h1 className="text-2xl font-bold text-neutral-300">Quản lý Quyền hạn</h1>
+        <button
+          onClick={openCreate}
+          className="flex cursor-pointer items-center gap-2 rounded-lg bg-primary px-4 py-2 text-sm font-medium text-white hover:bg-primary-500"
+        >
+          <Plus className="h-4 w-4" /> Tạo quyền
+        </button>
+      </div>
+
+      <div className="flex flex-wrap items-center gap-3">
+        <Input placeholder="Tìm theo tên hoặc code..." className="w-64" />
+      </div>
+
+      {modules.length > 0 && (
+        <div className="flex flex-wrap gap-2">
+          {modules.map((m: unknown) => (
+            <Badge key={String(m)} variant="outline" className="bg-white">
+              {String(m)}
+            </Badge>
+          ))}
+        </div>
+      )}
+
+      <div className="rounded-xl border border-neutral-100 bg-white overflow-hidden">
+        <div className="overflow-x-auto">
+          <table className="w-full min-w-[600px] text-sm">
+            <thead className="bg-primary">
+              <tr>
+                <th className="px-4 py-3 text-left font-medium text-white/80">Code</th>
+                <th className="px-4 py-3 text-left font-medium text-white/80">Tên</th>
+                <th className="px-4 py-3 text-left font-medium text-white/80">Module</th>
+                <th className="px-4 py-3 text-left font-medium text-white/80">Mô tả</th>
+                <th className="px-4 py-3 text-right font-medium text-white/80"></th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-primary/15">
+              {permissionsQuery.isPending && (
+                <tr>
+                  <td colSpan={5} className="px-4 py-8 text-center text-neutral-200">
+                    <Loader className="mx-auto h-5 w-5 animate-spin text-primary" />
+                    <p className="mt-2 text-sm">Đang tải...</p>
+                  </td>
+                </tr>
+              )}
+              {!permissionsQuery.isPending && permissions.length === 0 && (
+                <tr>
+                  <td colSpan={5} className="px-4 py-8 text-center text-neutral-200">
+                    Không có quyền nào.
+                  </td>
+                </tr>
+              )}
+              {permissions.map((item: unknown) => {
+                const p = item as Record<string, unknown>
+                return (
+                  <tr key={String(p.id ?? p.code)} className="hover:bg-neutral-50 transition-colors">
+                    <td className="px-4 py-3 font-mono text-xs text-neutral-300">{String(p.code ?? "—")}</td>
+                    <td className="px-4 py-3 text-neutral-300">{String(p.name ?? "—")}</td>
+                    <td className="px-4 py-3">
+                      <Badge variant="outline" className="bg-purple-50 text-purple-700">
+                        {String(p.module ?? "—")}
+                      </Badge>
+                    </td>
+                    <td className="px-4 py-3 text-neutral-200">{String(p.description ?? "—")}</td>
+                    <td className="px-4 py-3 text-right">
+                      <div className="flex items-center justify-end gap-2">
+                        <button
+                          onClick={() => openEdit(item)}
+                          className="inline-flex h-8 w-8 cursor-pointer items-center justify-center rounded-md border border-neutral-100 bg-white text-neutral-300 transition-colors hover:bg-neutral-50 hover:text-primary"
+                        >
+                          <Pencil className="h-4 w-4" />
+                        </button>
+                        <button
+                          onClick={() => handleDelete(String(p.id))}
+                          className="inline-flex h-8 w-8 cursor-pointer items-center justify-center rounded-md border border-neutral-100 bg-white text-neutral-300 transition-colors hover:bg-red-50 hover:text-red-600"
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                )
+              })}
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <Dialog open={modalOpen} onOpenChange={setModalOpen}>
+        <DialogContent className="max-w-lg">
+          <DialogHeader>
+            <DialogTitle className="text-black">
+              {modalMode === "create" ? "Tạo quyền mới" : "Cập nhật quyền"}
+            </DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4 py-2">
+            <div className="space-y-1">
+              <Label className="text-neutral-300">Code</Label>
+              <Input
+                value={formCode}
+                onChange={(e) => setFormCode(e.target.value)}
+                disabled={modalMode === "edit"}
+                placeholder="users:create"
+                className="text-neutral-300"
+              />
+            </div>
+            <div className="space-y-1">
+              <Label className="text-neutral-300">Tên</Label>
+              <Input
+                value={formName}
+                onChange={(e) => setFormName(e.target.value)}
+                placeholder="Tạo tài khoản"
+                className="text-neutral-300"
+              />
+            </div>
+            <div className="space-y-1">
+              <Label className="text-neutral-300">Module</Label>
+              <Input
+                value={formModule}
+                onChange={(e) => setFormModule(e.target.value)}
+                placeholder="users"
+                className="text-neutral-300"
+              />
+            </div>
+            <div className="space-y-1">
+              <Label className="text-neutral-300">Mô tả</Label>
+              <Input
+                value={formDescription}
+                onChange={(e) => setFormDescription(e.target.value)}
+                placeholder="Cho phép tạo tài khoản mới"
+                className="text-neutral-300"
+              />
+            </div>
+            <div className="flex justify-end gap-2 pt-2">
+              <Button variant="outline" onClick={() => setModalOpen(false)}>
+                Hủy
+              </Button>
+              <Button onClick={handleSave} disabled={isMutating}>
+                {isMutating ? <Loader className="mr-1 h-4 w-4 animate-spin" /> : null}
+                {modalMode === "create" ? "Tạo" : "Lưu"}
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+    </div>
+  )
+}
+
+```
+
+---
+
+## File: `app\(app)\admin\roles\page.tsx`
+
+```tsx
+"use client"
+// ADMIN ROUTE: Quản lý vai trò (roles) và phân quyền — chỉ admin
+
+import { useState, useEffect } from "react"
+import { Loader, Pencil, Plus, Shield, Trash2, Check, X } from "lucide-react"
+import { toast } from "sonner"
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog"
+import { Input } from "@/components/ui/input"
+import { Label } from "@/components/ui/label"
+import { Button } from "@/components/ui/button"
+import { Badge } from "@/components/ui/badge"
+import { getErrorMessage } from "@/lib/get-error-message"
+import {
+  useRolesQuery,
+  useRoleQuery,
+  useCreateRoleMutation,
+  useUpdateRoleMutation,
+  useDeleteRoleMutation,
+  useRolePermissionsQuery,
+  useUpdateRolePermissionsMutation,
+} from "@/hooks/use-roles-queries"
+import {
+  usePermissionsQuery,
+} from "@/hooks/use-permissions-queries"
+
+export default function AdminRolesPage() {
+  const [modalOpen, setModalOpen] = useState(false)
+  const [modalMode, setModalMode] = useState<"create" | "edit">("create")
+  const [selectedId, setSelectedId] = useState<string | null>(null)
+
+  const [formCode, setFormCode] = useState("")
+  const [formName, setFormName] = useState("")
+  const [formDescription, setFormDescription] = useState("")
+
+  const [permissionsModalOpen, setPermissionsModalOpen] = useState(false)
+  const [selectedRoleForPermissions, setSelectedRoleForPermissions] = useState<string | null>(null)
+  const [selectedPermissionIds, setSelectedPermissionIds] = useState<string[]>([])
+
+  const rolesQuery = useRolesQuery()
+  const createMutation = useCreateRoleMutation()
+  const updateMutation = useUpdateRoleMutation()
+  const deleteMutation = useDeleteRoleMutation()
+
+  const permissionsQuery = usePermissionsQuery()
+  const rolePermissionsQuery = useRolePermissionsQuery(selectedRoleForPermissions)
+  const updateRolePermissionsMutation = useUpdateRolePermissionsMutation()
+
+  const roles = Array.isArray(rolesQuery.data)
+    ? rolesQuery.data
+    : rolesQuery.data?.data ?? []
+
+  const allPermissions = Array.isArray(permissionsQuery.data)
+    ? permissionsQuery.data
+    : permissionsQuery.data?.data ?? []
+
+  const currentRolePermissions = Array.isArray(rolePermissionsQuery.data)
+    ? rolePermissionsQuery.data
+    : rolePermissionsQuery.data?.data ?? []
+
+  const openCreate = () => {
+    setModalMode("create")
+    setSelectedId(null)
+    setFormCode("")
+    setFormName("")
+    setFormDescription("")
+    setModalOpen(true)
+  }
+
+  const openEdit = (item: unknown) => {
+    const r = item as Record<string, unknown>
+    setModalMode("edit")
+    setSelectedId((r.id as string) ?? null)
+    setFormCode((r.code as string) ?? "")
+    setFormName((r.name as string) ?? "")
+    setFormDescription((r.description as string) ?? "")
+    setModalOpen(true)
+  }
+
+  const openPermissions = (roleId: string) => {
+    setSelectedRoleForPermissions(roleId)
+    setSelectedPermissionIds([])
+    setPermissionsModalOpen(true)
+  }
+
+  useEffect(() => {
+    if (rolePermissionsQuery.data && selectedRoleForPermissions) {
+      const raw = rolePermissionsQuery.data
+      let perms: unknown[] = []
+      if (Array.isArray(raw)) {
+        perms = raw
+      } else if (raw && typeof raw === "object") {
+        const d = raw as Record<string, unknown>
+        if (Array.isArray(d.data)) perms = d.data
+      }
+      const currentIds = perms
+        .map((p: unknown) => (p as Record<string, unknown>).id as string)
+        .filter(Boolean)
+      setSelectedPermissionIds(currentIds)
+    }
+  }, [rolePermissionsQuery.data, selectedRoleForPermissions])
+
+  const handleSave = async () => {
+    try {
+      if (modalMode === "create") {
+        await createMutation.mutateAsync({ code: formCode, name: formName, description: formDescription })
+        toast.success("Tạo vai trò thành công.")
+      } else if (selectedId) {
+        await updateMutation.mutateAsync({ id: selectedId, payload: { name: formName, description: formDescription } })
+        toast.success("Cập nhật vai trò thành công.")
+      }
+      setModalOpen(false)
+    } catch (err) {
+      toast.error(getErrorMessage(err, "Thao tác thất bại."))
+    }
+  }
+
+  const handleDelete = async (id: string) => {
+    if (!confirm("Bạn có chắc muốn xóa vai trò này?")) return
+    try {
+      await deleteMutation.mutateAsync(id)
+      toast.success("Đã xóa vai trò.")
+    } catch (err) {
+      toast.error(getErrorMessage(err, "Xóa thất bại."))
+    }
+  }
+
+  const handleSavePermissions = async () => {
+    if (!selectedRoleForPermissions) return
+    try {
+      await updateRolePermissionsMutation.mutateAsync({
+        id: selectedRoleForPermissions,
+        payload: { permissionIds: selectedPermissionIds },
+      })
+      toast.success("Cập nhật quyền cho vai trò thành công.")
+      setPermissionsModalOpen(false)
+    } catch (err) {
+      toast.error(getErrorMessage(err, "Cập nhật quyền thất bại."))
+    }
+  }
+
+  const togglePermission = (permissionId: string) => {
+    setSelectedPermissionIds((prev) =>
+      prev.includes(permissionId)
+        ? prev.filter((id) => id !== permissionId)
+        : [...prev, permissionId]
+    )
+  }
+
+  const isMutating = createMutation.isPending || updateMutation.isPending || deleteMutation.isPending
+
+  return (
+    <div className="space-y-5">
+      <div className="flex items-center justify-between">
+        <h1 className="text-2xl font-bold text-neutral-300">Quản lý Vai trò</h1>
+        <button
+          onClick={openCreate}
+          className="flex cursor-pointer items-center gap-2 rounded-lg bg-primary px-4 py-2 text-sm font-medium text-white hover:bg-primary-500"
+        >
+          <Plus className="h-4 w-4" /> Tạo vai trò
+        </button>
+      </div>
+
+      <div className="rounded-xl border border-neutral-100 bg-white overflow-hidden">
+        <div className="overflow-x-auto">
+          <table className="w-full min-w-[600px] text-sm">
+            <thead className="bg-primary">
+              <tr>
+                <th className="px-4 py-3 text-left font-medium text-white/80">Code</th>
+                <th className="px-4 py-3 text-left font-medium text-white/80">Tên</th>
+                <th className="px-4 py-3 text-left font-medium text-white/80">Mô tả</th>
+                <th className="px-4 py-3 text-left font-medium text-white/80">Quyền</th>
+                <th className="px-4 py-3 text-right font-medium text-white/80"></th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-primary/15">
+              {rolesQuery.isPending && (
+                <tr>
+                  <td colSpan={5} className="px-4 py-8 text-center text-neutral-200">
+                    <Loader className="mx-auto h-5 w-5 animate-spin text-primary" />
+                    <p className="mt-2 text-sm">Đang tải...</p>
+                  </td>
+                </tr>
+              )}
+              {!rolesQuery.isPending && roles.length === 0 && (
+                <tr>
+                  <td colSpan={5} className="px-4 py-8 text-center text-neutral-200">
+                    Không có vai trò nào.
+                  </td>
+                </tr>
+              )}
+              {roles.map((item: unknown) => {
+                const r = item as Record<string, unknown>
+                return (
+                  <tr key={String(r.id ?? r.code)} className="hover:bg-neutral-50 transition-colors">
+                    <td className="px-4 py-3 font-mono text-xs text-neutral-300">{String(r.code ?? "—")}</td>
+                    <td className="px-4 py-3 text-neutral-300">{String(r.name ?? "—")}</td>
+                    <td className="px-4 py-3 text-neutral-200">{String(r.description ?? "—")}</td>
+                    <td className="px-4 py-3">
+                      <div className="flex flex-wrap gap-1">
+                        <Badge variant="outline" className="bg-blue-50 text-blue-700 text-[10px]">
+                          Click icon Shield để gán quyền
+                        </Badge>
+                      </div>
+                    </td>
+                    <td className="px-4 py-3 text-right">
+                      <div className="flex items-center justify-end gap-2">
+                        <button
+                          onClick={() => openEdit(item)}
+                          className="inline-flex h-8 w-8 cursor-pointer items-center justify-center rounded-md border border-neutral-100 bg-white text-neutral-300 transition-colors hover:bg-neutral-50 hover:text-primary"
+                        >
+                          <Pencil className="h-4 w-4" />
+                        </button>
+                        <button
+                          onClick={() => openPermissions(String(r.id))}
+                          className="inline-flex h-8 w-8 cursor-pointer items-center justify-center rounded-md border border-neutral-100 bg-white text-neutral-300 transition-colors hover:bg-neutral-50 hover:text-primary"
+                        >
+                          <Shield className="h-4 w-4" />
+                        </button>
+                        <button
+                          onClick={() => handleDelete(String(r.id))}
+                          className="inline-flex h-8 w-8 cursor-pointer items-center justify-center rounded-md border border-neutral-100 bg-white text-neutral-300 transition-colors hover:bg-red-50 hover:text-red-600"
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                )
+              })}
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      {/* Create / Edit Role Modal */}
+      <Dialog open={modalOpen} onOpenChange={setModalOpen}>
+        <DialogContent className="max-w-lg">
+          <DialogHeader>
+            <DialogTitle className="text-black">
+              {modalMode === "create" ? "Tạo vai trò mới" : "Cập nhật vai trò"}
+            </DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4 py-2">
+            <div className="space-y-1">
+              <Label className="text-neutral-300">Code</Label>
+              <Input
+                value={formCode}
+                onChange={(e) => setFormCode(e.target.value)}
+                disabled={modalMode === "edit"}
+                placeholder="admin"
+                className="text-neutral-300"
+              />
+            </div>
+            <div className="space-y-1">
+              <Label className="text-neutral-300">Tên</Label>
+              <Input
+                value={formName}
+                onChange={(e) => setFormName(e.target.value)}
+                placeholder="Quản trị viên"
+                className="text-neutral-300"
+              />
+            </div>
+            <div className="space-y-1">
+              <Label className="text-neutral-300">Mô tả</Label>
+              <Input
+                value={formDescription}
+                onChange={(e) => setFormDescription(e.target.value)}
+                placeholder="Toàn quyền quản trị hệ thống"
+                className="text-neutral-300"
+              />
+            </div>
+            <div className="flex justify-end gap-2 pt-2">
+              <Button variant="outline" onClick={() => setModalOpen(false)}>
+                Hủy
+              </Button>
+              <Button onClick={handleSave} disabled={isMutating}>
+                {isMutating ? <Loader className="mr-1 h-4 w-4 animate-spin" /> : null}
+                {modalMode === "create" ? "Tạo" : "Lưu"}
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Permissions Assignment Modal */}
+      <Dialog open={permissionsModalOpen} onOpenChange={setPermissionsModalOpen}>
+        <DialogContent className="max-w-lg max-h-[80vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle className="text-black">Gán quyền cho vai trò</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-3 py-2">
+            {allPermissions.map((item: unknown) => {
+              const p = item as Record<string, unknown>
+              const pid = String(p.id)
+              const checked = selectedPermissionIds.includes(pid)
+              return (
+                <div
+                  key={pid}
+                  onClick={() => togglePermission(pid)}
+                  className={`flex cursor-pointer items-center gap-3 rounded-lg border p-3 transition-colors ${
+                    checked ? "border-primary bg-primary-50" : "border-neutral-100 hover:bg-neutral-50"
+                  }`}
+                >
+                  <div className={`flex h-5 w-5 items-center justify-center rounded border ${
+                    checked ? "border-primary bg-primary text-white" : "border-neutral-300"
+                  }`}>
+                    {checked && <Check className="h-3 w-3" />}
+                  </div>
+                  <div className="flex-1">
+                    <p className="text-sm font-medium text-neutral-300">{String(p.name)}</p>
+                    <p className="text-xs text-neutral-200">{String(p.code)} · {String(p.module)}</p>
+                  </div>
+                </div>
+              )
+            })}
+            <div className="flex justify-end gap-2 pt-2">
+              <Button variant="outline" onClick={() => setPermissionsModalOpen(false)}>
+                Hủy
+              </Button>
+              <Button
+                onClick={handleSavePermissions}
+                disabled={updateRolePermissionsMutation.isPending}
+              >
+                {updateRolePermissionsMutation.isPending ? (
+                  <Loader className="mr-1 h-4 w-4 animate-spin" />
+                ) : null}
+                Lưu
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+    </div>
+  )
+}
+
+```
+
+---
+
 ## File: `app\(app)\admin\settings\page.tsx`
 
 ```tsx
 "use client"
+// ADMIN ROUTE: Cấu hình hệ thống (Gmail sync, AI prompt, thông báo) — chỉ admin
 
 import { Suspense, useMemo, useState } from "react"
 import { useSearchParams } from "next/navigation"
-import { AlertTriangle, CheckCircle, Cpu, Mail, RefreshCw } from "lucide-react"
+import {
+  AlertTriangle,
+  BarChart3,
+  CheckCircle,
+  Cpu,
+  Mail,
+  RefreshCw,
+  Users,
+} from "lucide-react"
 import { getErrorMessage } from "@/lib/get-error-message"
 import {
+  useAiOpenaiUsageUsersCurrentMonthQuery,
+  useAiOpenaiUsageUsersQuery,
   useMailAccountsQuery,
   useOAuthUrlMutation,
   useSyncStatusQuery,
+  useTriggerSyncDirectMutation,
   useTriggerSyncMutation,
 } from "@/hooks/use-mail-queries"
+
+type UsageRecord = Record<string, unknown>
+type UsageSummary = {
+  totalRequests: number
+  totalTokens: number
+  totalCost: number
+  activeUsers: number
+}
+
+const numberOf = (value: unknown): number => {
+  if (typeof value === "number" && Number.isFinite(value)) return value
+  if (typeof value === "string") {
+    const parsed = Number(value)
+    return Number.isFinite(parsed) ? parsed : 0
+  }
+  return 0
+}
+
+const readNumber = (record: UsageRecord, keys: string[]) => {
+  for (const key of keys) {
+    if (key in record) return numberOf(record[key])
+  }
+  return 0
+}
+
+const getUsageItems = (value: unknown): UsageRecord[] => {
+  if (Array.isArray(value)) {
+    return value.filter((item) => item && typeof item === "object") as UsageRecord[]
+  }
+  if (!value || typeof value !== "object") return []
+
+  const record = value as UsageRecord
+  const nestedCandidates = [record.items, record.data, record.results, record.users]
+
+  for (const candidate of nestedCandidates) {
+    if (Array.isArray(candidate)) {
+      return candidate.filter((item) => item && typeof item === "object") as UsageRecord[]
+    }
+  }
+
+  return [record]
+}
+
+const buildUsageSummary = (value: unknown): UsageSummary => {
+  const items = getUsageItems(value)
+  if (items.length === 0) {
+    return {
+      totalRequests: 0,
+      totalTokens: 0,
+      totalCost: 0,
+      activeUsers: 0,
+    }
+  }
+
+  const first = items[0]
+  const directTotalRequests = readNumber(first, [
+    "totalRequests",
+    "totalCalls",
+    "requestCount",
+    "totalRequestCount",
+  ])
+  const directTotalTokens = readNumber(first, [
+    "totalTokens",
+    "tokenCount",
+    "totalTokenCount",
+  ])
+  const directTotalCost = readNumber(first, [
+    "totalCost",
+    "costEstimate",
+    "cost",
+    "amount",
+  ])
+  const directActiveUsers = readNumber(first, [
+    "activeUsers",
+    "userCount",
+    "totalUsers",
+  ])
+
+  if (
+    items.length === 1 &&
+    (directTotalRequests > 0 ||
+      directTotalTokens > 0 ||
+      directTotalCost > 0 ||
+      directActiveUsers > 0)
+  ) {
+    return {
+      totalRequests: directTotalRequests,
+      totalTokens: directTotalTokens,
+      totalCost: directTotalCost,
+      activeUsers: directActiveUsers,
+    }
+  }
+
+  const userIds = new Set<string>()
+  const summary = items.reduce<Pick<UsageSummary, "totalRequests" | "totalTokens" | "totalCost">>(
+    (accumulator, item) => {
+      const inputTokens = readNumber(item, ["inputTokenCount", "inputTokens"])
+      const outputTokens = readNumber(item, ["outputTokenCount", "outputTokens"])
+      const tokens =
+        readNumber(item, ["totalTokens", "tokenCount", "totalTokenCount"]) ||
+        inputTokens + outputTokens
+      accumulator.totalRequests += readNumber(item, [
+        "totalRequests",
+        "requestCount",
+        "calls",
+        "totalCalls",
+      ])
+      accumulator.totalTokens += tokens
+      accumulator.totalCost += readNumber(item, [
+        "totalCost",
+        "costEstimate",
+        "cost",
+        "amount",
+      ])
+
+      const userIdValue =
+        item.userId ?? item.id ?? item.accountId ?? item.email ?? item.userEmail ?? item.username
+      if (typeof userIdValue === "string" && userIdValue.trim()) {
+        userIds.add(userIdValue)
+      }
+
+      return accumulator
+    },
+    { totalRequests: 0, totalTokens: 0, totalCost: 0 }
+  )
+
+  return {
+    ...summary,
+    activeUsers: userIds.size,
+  }
+}
 
 function SettingsContent() {
   const [aiPrompt, setAiPrompt] = useState(
@@ -299,15 +4638,33 @@ function SettingsContent() {
   const [actionError, setActionError] = useState<string | null>(null)
   const searchParams = useSearchParams()
 
-  const { data: accounts = [], isPending: loadingAccounts, error: accountsError } = useMailAccountsQuery()
+  const {
+    data: accounts = [],
+    isPending: loadingAccounts,
+    error: accountsError,
+  } = useMailAccountsQuery()
   const oauthMutation = useOAuthUrlMutation()
   const activeAccount = useMemo(() => accounts[0] ?? null, [accounts])
   const syncStatusQuery = useSyncStatusQuery(activeAccount?.id ?? null)
   const triggerSyncMutation = useTriggerSyncMutation(activeAccount?.id ?? null)
+  const triggerSyncDirectMutation = useTriggerSyncDirectMutation(activeAccount?.id ?? null)
+  const aiUsersCurrentMonthQuery = useAiOpenaiUsageUsersCurrentMonthQuery()
+  const aiUsersQuery = useAiOpenaiUsageUsersQuery()
 
   const syncStatus = syncStatusQuery.data?.status
   const currentlySyncing =
-    String(syncStatus || "").toLowerCase() === "syncing" || triggerSyncMutation.isPending
+    String(syncStatus || "").toLowerCase() === "syncing" ||
+    triggerSyncMutation.isPending ||
+    triggerSyncDirectMutation.isPending
+
+  const monthUsageSummary = useMemo(
+    () => buildUsageSummary(aiUsersCurrentMonthQuery.data),
+    [aiUsersCurrentMonthQuery.data]
+  )
+  const totalUsageSummary = useMemo(
+    () => buildUsageSummary(aiUsersQuery.data),
+    [aiUsersQuery.data]
+  )
 
   const handleConnectGmail = async () => {
     try {
@@ -344,6 +4701,17 @@ function SettingsContent() {
     }
   }
 
+  const handleSyncDirect = async () => {
+    try {
+      setActionError(null)
+      setActionMessage(null)
+      await triggerSyncDirectMutation.mutateAsync()
+      setActionMessage("Đã chạy đồng bộ trực tiếp thành công.")
+    } catch (error) {
+      setActionError(getErrorMessage(error, "Không thể chạy đồng bộ trực tiếp."))
+    }
+  }
+
   const handleSavePrompt = () => {
     setSaved(true)
     setTimeout(() => setSaved(false), 2000)
@@ -353,7 +4721,10 @@ function SettingsContent() {
     <div className="space-y-6">
       <h1 className="text-2xl font-bold text-blue-900">Cấu hình Hệ thống</h1>
 
-      <div id="tour-settings-gmail" className="rounded-xl border border-blue-200 bg-white p-6 space-y-4 shadow-sm">
+      <div
+        id="tour-settings-gmail"
+        className="rounded-xl border border-blue-200 bg-white p-6 space-y-4 shadow-sm"
+      >
         <div className="flex items-center gap-2">
           <Mail className="h-5 w-5 text-blue-600" />
           <h2 className="text-lg font-semibold text-blue-900">Tài khoản Gmail</h2>
@@ -398,14 +4769,26 @@ function SettingsContent() {
                 {syncStatusQuery.data?.totalMessages ?? 0}
               </p>
             </div>
-            <button
-              onClick={handleSync}
-              disabled={currentlySyncing}
-              className="flex items-center gap-2 rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-50"
-            >
-              <RefreshCw className={cn("h-4 w-4", currentlySyncing && "animate-spin")} />
-              {currentlySyncing ? "Đang đồng bộ..." : "Đồng bộ ngay"}
-            </button>
+            <div className="flex flex-wrap items-center gap-2">
+              <button
+                onClick={handleSync}
+                disabled={currentlySyncing}
+                className="flex items-center gap-2 rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-50"
+              >
+                <RefreshCw className={cn("h-4 w-4", currentlySyncing && "animate-spin")} />
+                {currentlySyncing ? "Đang đồng bộ..." : "Đồng bộ ngay"}
+              </button>
+              <button
+                onClick={handleSyncDirect}
+                disabled={currentlySyncing}
+                className="flex items-center gap-2 rounded-lg border border-blue-200 px-4 py-2 text-sm font-medium text-blue-700 hover:bg-blue-50 disabled:opacity-50"
+              >
+                <RefreshCw
+                  className={cn("h-4 w-4", triggerSyncDirectMutation.isPending && "animate-spin")}
+                />
+                {triggerSyncDirectMutation.isPending ? "Đang sync direct..." : "Sync direct"}
+              </button>
+            </div>
           </div>
         ) : (
           <button
@@ -419,14 +4802,19 @@ function SettingsContent() {
         )}
       </div>
 
-      <div id="tour-settings-ai" className="rounded-xl border border-blue-200 bg-white p-6 space-y-4 shadow-sm">
+      <div
+        id="tour-settings-ai"
+        className="rounded-xl border border-blue-200 bg-white p-6 space-y-4 shadow-sm"
+      >
         <div className="flex items-center gap-2">
           <Cpu className="h-5 w-5 text-purple-600" />
           <h2 className="text-lg font-semibold text-blue-900">AI / Rule Engine</h2>
         </div>
 
         <div>
-          <label className="mb-1 block text-sm font-medium text-blue-700">Prompt bóc tách mặc định</label>
+          <label className="mb-1 block text-sm font-medium text-blue-700">
+            Prompt bóc tách mặc định
+          </label>
           <textarea
             value={aiPrompt}
             onChange={(event) => setAiPrompt(event.target.value)}
@@ -456,6 +4844,63 @@ function SettingsContent() {
           {saved ? <CheckCircle className="h-4 w-4" /> : "Lưu cấu hình"}
           {saved && " Đã lưu"}
         </button>
+
+        <div className="rounded-lg border border-blue-200 bg-blue-50/40 p-4 space-y-3">
+          <div className="flex items-center gap-2">
+            <BarChart3 className="h-4 w-4 text-blue-600" />
+            <p className="text-sm font-semibold text-blue-900">OpenAI Usage</p>
+          </div>
+
+          {(aiUsersCurrentMonthQuery.isPending || aiUsersQuery.isPending) && (
+            <p className="text-sm text-blue-700">Đang tải usage...</p>
+          )}
+
+          {(aiUsersCurrentMonthQuery.error || aiUsersQuery.error) && (
+            <p className="text-sm text-red-700">
+              {getErrorMessage(
+                aiUsersCurrentMonthQuery.error || aiUsersQuery.error,
+                "Không tải được OpenAI usage."
+              )}
+            </p>
+          )}
+
+          {!aiUsersCurrentMonthQuery.isPending &&
+            !aiUsersQuery.isPending &&
+            !aiUsersCurrentMonthQuery.error &&
+            !aiUsersQuery.error && (
+              <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
+                <div className="rounded-lg border border-blue-100 bg-white p-3">
+                  <p className="text-xs text-blue-600">Requests tháng này</p>
+                  <p className="text-lg font-semibold text-blue-900">
+                    {monthUsageSummary.totalRequests.toLocaleString("vi-VN")}
+                  </p>
+                </div>
+                <div className="rounded-lg border border-blue-100 bg-white p-3">
+                  <p className="text-xs text-blue-600">Tokens tháng này</p>
+                  <p className="text-lg font-semibold text-blue-900">
+                    {monthUsageSummary.totalTokens.toLocaleString("vi-VN")}
+                  </p>
+                </div>
+                <div className="rounded-lg border border-blue-100 bg-white p-3">
+                  <p className="text-xs text-blue-600">Cost tháng này (USD)</p>
+                  <p className="text-lg font-semibold text-blue-900">
+                    {monthUsageSummary.totalCost.toLocaleString("en-US", {
+                      maximumFractionDigits: 4,
+                    })}
+                  </p>
+                </div>
+                <div className="rounded-lg border border-blue-100 bg-white p-3">
+                  <div className="flex items-center gap-1 text-xs text-blue-600">
+                    <Users className="h-3 w-3" />
+                    User có usage (all-time)
+                  </div>
+                  <p className="text-lg font-semibold text-blue-900">
+                    {totalUsageSummary.activeUsers.toLocaleString("vi-VN")}
+                  </p>
+                </div>
+              </div>
+            )}
+        </div>
       </div>
     </div>
   )
@@ -481,6 +4926,7 @@ function cn(...classes: (string | false | undefined)[]) {
 
 ```tsx
 "use client"
+// ADMIN ROUTE: Quản lý template nhận diện và bóc tách email — chỉ admin
 
 import { useMemo, useState } from "react"
 import Link from "next/link"
@@ -506,6 +4952,20 @@ type TemplateFormState = {
   isActive: boolean
 }
 
+type TemplateItem = {
+  id?: string | null
+  templateCode?: string | null
+  templateName?: string | null
+  description?: string | null
+  subjectPattern?: string | null
+  bodyPattern?: string | null
+  expectedFields?: Record<string, string> | null
+  documentTypes?: string[] | null
+  isActive?: boolean | null
+  createdAt?: string | null
+  updatedAt?: string | null
+}
+
 const emptyForm: TemplateFormState = {
   templateCode: "",
   templateName: "",
@@ -527,7 +4987,7 @@ export default function AdminTemplatesPage() {
   const [message, setMessage] = useState<string | null>(null)
   const updateTemplateMutation = useUpdateEmailTemplateMutation(editingTemplateId)
 
-  const templates = templatesQuery.data ?? []
+  const templates: TemplateItem[] = (templatesQuery.data ?? []) as TemplateItem[]
   const isSaving = createTemplateMutation.isPending || updateTemplateMutation.isPending
 
   const sortedTemplates = useMemo(
@@ -785,9 +5245,11 @@ export default function AdminTemplatesPage() {
 
 ```tsx
 "use client"
+// ADMIN ROUTE: Quản lý tài khoản người dùng — chỉ admin
 
 import { useState } from "react"
 import {
+  BarChart3,
   CheckCircle,
   Eye,
   EyeOff,
@@ -795,10 +5257,8 @@ import {
   Loader,
   Pencil,
   Plus,
-  RefreshCw,
   Shield,
   Trash2,
-  UserCheck,
   XCircle,
 } from "lucide-react"
 import dayjs from "dayjs"
@@ -815,6 +5275,10 @@ import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { getErrorMessage } from "@/lib/get-error-message"
 import {
+  useAiOpenaiUsageUserCurrentMonthQuery,
+  useAiOpenaiUsageUserQuery,
+} from "@/hooks/use-mail-queries"
+import {
   useUsersQuery,
   useCreateUserMutation,
   useUpdateUserMutation,
@@ -823,10 +5287,161 @@ import {
   useDeleteUserMutation,
   useRestoreUserMutation,
   useResetUserPasswordMutation,
+  useUserPermissionsQuery,
   type UserDto,
 } from "@/hooks/use-user-queries"
 
 const ALL_ROLES = ["admin", "user", "viewer", "editor"]
+type UsageRecord = Record<string, unknown>
+type UsageSummary = {
+  totalRequests: number
+  totalTokens: number
+  totalCost: number
+}
+
+const numberOf = (value: unknown): number => {
+  if (typeof value === "number" && Number.isFinite(value)) return value
+  if (typeof value === "string") {
+    const parsed = Number(value)
+    return Number.isFinite(parsed) ? parsed : 0
+  }
+  return 0
+}
+
+const readNumber = (record: UsageRecord, keys: string[]) => {
+  for (const key of keys) {
+    if (key in record) return numberOf(record[key])
+  }
+  return 0
+}
+
+const getUsageItems = (value: unknown): UsageRecord[] => {
+  if (Array.isArray(value)) {
+    return value.filter((item) => item && typeof item === "object") as UsageRecord[]
+  }
+  if (!value || typeof value !== "object") return []
+
+  const record = value as UsageRecord
+  const nestedCandidates = [record.items, record.data, record.results, record.users]
+  for (const candidate of nestedCandidates) {
+    if (Array.isArray(candidate)) {
+      return candidate.filter((item) => item && typeof item === "object") as UsageRecord[]
+    }
+  }
+  return [record]
+}
+
+const buildUsageSummary = (value: unknown): UsageSummary => {
+  const items = getUsageItems(value)
+  if (items.length === 0) {
+    return { totalRequests: 0, totalTokens: 0, totalCost: 0 }
+  }
+
+  const first = items[0]
+  const directTotalRequests = readNumber(first, [
+    "totalRequests",
+    "totalCalls",
+    "requestCount",
+    "totalRequestCount",
+  ])
+  const directTotalTokens = readNumber(first, [
+    "totalTokens",
+    "tokenCount",
+    "totalTokenCount",
+  ])
+  const directTotalCost = readNumber(first, ["totalCost", "costEstimate", "cost", "amount"])
+
+  if (
+    items.length === 1 &&
+    (directTotalRequests > 0 || directTotalTokens > 0 || directTotalCost > 0)
+  ) {
+    return {
+      totalRequests: directTotalRequests,
+      totalTokens: directTotalTokens,
+      totalCost: directTotalCost,
+    }
+  }
+
+  return items.reduce<UsageSummary>(
+    (accumulator, item) => {
+      const inputTokens = readNumber(item, ["inputTokenCount", "inputTokens"])
+      const outputTokens = readNumber(item, ["outputTokenCount", "outputTokens"])
+      const tokens =
+        readNumber(item, ["totalTokens", "tokenCount", "totalTokenCount"]) ||
+        inputTokens + outputTokens
+
+      accumulator.totalRequests += readNumber(item, [
+        "totalRequests",
+        "requestCount",
+        "calls",
+        "totalCalls",
+      ])
+      accumulator.totalTokens += tokens
+      accumulator.totalCost += readNumber(item, [
+        "totalCost",
+        "costEstimate",
+        "cost",
+        "amount",
+      ])
+      return accumulator
+    },
+    { totalRequests: 0, totalTokens: 0, totalCost: 0 }
+  )
+}
+
+type PermissionItem = {
+  id?: string
+  code?: string
+  name?: string
+  module?: string
+}
+
+function UserPermissionsSection({ userId }: { userId: string }) {
+  const permissionsQuery = useUserPermissionsQuery(userId)
+
+  const permissions: PermissionItem[] = (() => {
+    const raw = permissionsQuery.data
+    if (Array.isArray(raw)) return raw as PermissionItem[]
+    if (raw && typeof raw === "object" && "data" in raw) {
+      const d = raw as Record<string, unknown>
+      if (Array.isArray(d.data)) return d.data as PermissionItem[]
+    }
+    return []
+  })()
+
+  const grouped = permissions.reduce<Record<string, PermissionItem[]>>((acc, item) => {
+    const mod = item.module ?? "khác"
+    if (!acc[mod]) acc[mod] = []
+    acc[mod].push(item)
+    return acc
+  }, {})
+
+  return (
+    <div className="space-y-2 rounded-lg border border-neutral-100 bg-neutral-50 p-3">
+      <Label className="text-neutral-300">Quyền hạn</Label>
+      {permissionsQuery.isPending && (
+        <p className="text-xs text-neutral-200">Đang tải...</p>
+      )}
+      {!permissionsQuery.isPending && permissions.length === 0 && (
+        <p className="text-xs text-neutral-200">Không có quyền nào.</p>
+      )}
+      <div className="space-y-2">
+        {Object.entries(grouped).map(([module, items]) => (
+          <div key={module}>
+            <p className="text-[10px] font-semibold uppercase tracking-wide text-neutral-400">{module}</p>
+            <div className="flex flex-wrap gap-1 mt-1">
+              {items.map((item, i) => (
+                <Badge key={i} variant="outline" className="bg-white text-[10px] text-neutral-600">
+                  {item.code ?? "—"}
+                </Badge>
+              ))}
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
+  )
+}
 
 export default function AdminUsersPage() {
   const [page, setPage] = useState(1)
@@ -838,6 +5453,8 @@ export default function AdminUsersPage() {
   const [modalOpen, setModalOpen] = useState(false)
   const [modalMode, setModalMode] = useState<"create" | "edit">("create")
   const [selectedUser, setSelectedUser] = useState<UserDto | null>(null)
+  const [usageModalOpen, setUsageModalOpen] = useState(false)
+  const [selectedUsageUser, setSelectedUsageUser] = useState<UserDto | null>(null)
 
   const [resetPasswordOpen, setResetPasswordOpen] = useState(false)
   const [resetPasswordUser, setResetPasswordUser] = useState<UserDto | null>(null)
@@ -878,10 +5495,16 @@ export default function AdminUsersPage() {
   const deleteMutation = useDeleteUserMutation()
   const restoreMutation = useRestoreUserMutation()
   const resetPasswordMutation = useResetUserPasswordMutation()
+  const userUsageCurrentMonthQuery = useAiOpenaiUsageUserCurrentMonthQuery(
+    selectedUsageUser?.id ?? null
+  )
+  const userUsageAllTimeQuery = useAiOpenaiUsageUserQuery(selectedUsageUser?.id ?? null)
 
   const listData = usersQuery.data
   const users = listData?.data ?? []
   const pagination = listData?.meta?.pagination
+  const monthUsageSummary = buildUsageSummary(userUsageCurrentMonthQuery.data)
+  const allTimeUsageSummary = buildUsageSummary(userUsageAllTimeQuery.data)
 
   const openCreate = () => {
     setModalMode("create")
@@ -973,6 +5596,11 @@ export default function AdminUsersPage() {
     setResetPasswordOpen(true)
   }
 
+  const openUsageModal = (user: UserDto) => {
+    setSelectedUsageUser(user)
+    setUsageModalOpen(true)
+  }
+
   const handleResetPassword = async () => {
     if (!resetPasswordUser || !newPassword) return
     try {
@@ -1027,7 +5655,8 @@ export default function AdminUsersPage() {
         <select
           value={statusFilter}
           onChange={(e) => {
-            setStatusFilter(e.target.value as any)
+            const nextValue = e.target.value as "all" | "active" | "inactive"
+            setStatusFilter(nextValue)
             setPage(1)
           }}
           className="h-10 rounded-lg border border-neutral-100 bg-white px-3 text-sm text-neutral-300 focus:border-primary focus:outline-none"
@@ -1135,6 +5764,13 @@ export default function AdminUsersPage() {
                         className="inline-flex h-8 w-8 cursor-pointer items-center justify-center rounded-md border border-neutral-100 bg-white text-neutral-300 transition-colors hover:bg-neutral-50 hover:text-primary"
                       >
                         {user.isActive ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                      </button>
+                      <button
+                        onClick={() => openUsageModal(user)}
+                        title="AI usage"
+                        className="inline-flex h-8 w-8 cursor-pointer items-center justify-center rounded-md border border-neutral-100 bg-white text-neutral-300 transition-colors hover:bg-neutral-50 hover:text-primary"
+                      >
+                        <BarChart3 className="h-4 w-4" />
                       </button>
                       <button
                         onClick={() => openResetPassword(user)}
@@ -1257,6 +5893,9 @@ export default function AdminUsersPage() {
               />
               <Label className="mb-0 text-neutral-300">Kích hoạt tài khoản</Label>
             </div>
+            {modalMode === "edit" && selectedUser && (
+              <UserPermissionsSection userId={selectedUser.id} />
+            )}
             <div className="flex justify-end gap-2 pt-2">
               <Button variant="outline" onClick={() => setModalOpen(false)}>
                 Hủy
@@ -1266,6 +5905,69 @@ export default function AdminUsersPage() {
                 {modalMode === "create" ? "Tạo" : "Lưu"}
               </Button>
             </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* AI Usage Modal */}
+      <Dialog open={usageModalOpen} onOpenChange={setUsageModalOpen}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle className="text-black">AI usage theo user</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-3 py-2">
+            <p className="text-sm text-neutral-200">
+              Tai khoan: <strong className="text-neutral-300">{selectedUsageUser?.email}</strong>
+            </p>
+
+            {(userUsageCurrentMonthQuery.isPending || userUsageAllTimeQuery.isPending) && (
+              <div className="rounded-lg border border-neutral-100 p-3 text-sm text-neutral-200">
+                Dang tai usage...
+              </div>
+            )}
+
+            {(userUsageCurrentMonthQuery.error || userUsageAllTimeQuery.error) && (
+              <div className="rounded-lg border border-red-100 bg-red-50 p-3 text-sm text-red-700">
+                {getErrorMessage(
+                  userUsageCurrentMonthQuery.error || userUsageAllTimeQuery.error,
+                  "Khong tai duoc usage cua user."
+                )}
+              </div>
+            )}
+
+            {!userUsageCurrentMonthQuery.isPending &&
+              !userUsageAllTimeQuery.isPending &&
+              !userUsageCurrentMonthQuery.error &&
+              !userUsageAllTimeQuery.error && (
+                <div className="grid grid-cols-1 gap-3">
+                  <div className="rounded-lg border border-neutral-100 bg-white p-3">
+                    <p className="text-xs text-neutral-200">Requests thang nay</p>
+                    <p className="text-lg font-semibold text-neutral-300">
+                      {monthUsageSummary.totalRequests.toLocaleString("vi-VN")}
+                    </p>
+                  </div>
+                  <div className="rounded-lg border border-neutral-100 bg-white p-3">
+                    <p className="text-xs text-neutral-200">Tokens thang nay</p>
+                    <p className="text-lg font-semibold text-neutral-300">
+                      {monthUsageSummary.totalTokens.toLocaleString("vi-VN")}
+                    </p>
+                  </div>
+                  <div className="rounded-lg border border-neutral-100 bg-white p-3">
+                    <p className="text-xs text-neutral-200">Cost thang nay (USD)</p>
+                    <p className="text-lg font-semibold text-neutral-300">
+                      {monthUsageSummary.totalCost.toLocaleString("en-US", {
+                        maximumFractionDigits: 4,
+                      })}
+                    </p>
+                  </div>
+                  <div className="rounded-lg border border-neutral-100 bg-white p-3">
+                    <p className="text-xs text-neutral-200">Tong requests (all-time)</p>
+                    <p className="text-lg font-semibold text-neutral-300">
+                      {allTimeUsageSummary.totalRequests.toLocaleString("vi-VN")}
+                    </p>
+                  </div>
+                </div>
+              )}
           </div>
         </DialogContent>
       </Dialog>
@@ -1352,6 +6054,7 @@ export default function AdminUsersPage() {
 
 ```tsx
 "use client"
+// USER ROUTE: Xem kết quả AI xử lý email (phân loại, trích xuất) — user
 
 import { useState } from "react"
 import Link from "next/link"
@@ -1689,103 +6392,129 @@ export default function AnalysisResultsPage() {
 
 ```tsx
 "use client"
+// ROUTE: Danh sách email — dùng chung cho mọi user (gán theo /my API)
 
-import { useEffect, useMemo, useState } from "react"
+import { useMemo, useState } from "react"
 import Link from "next/link"
 import {
-  AlertCircle,
-  ArrowDown,
-  ArrowUp,
-  ArrowUpDown,
-  ChevronLeft,
-  ChevronRight,
-  Clock,
-  Filter,
   Loader,
   Mail,
   Paperclip,
   Search,
+  Clock,
+  CheckCircle2,
+  AlertCircle,
 } from "lucide-react"
 import dayjs from "dayjs"
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { getErrorMessage } from "@/lib/get-error-message"
-import { useMailAccountsQuery, useMailMessagesQuery } from "@/hooks/use-mail-queries"
+import { useMailAssignmentsMyQuery, useConfirmMailAssignmentMutation } from "@/hooks/use-mail-assignments-queries"
+import { toast } from "sonner"
 
 const ITEMS_PER_PAGE = 10
 
+type MailAttachment = {
+  id?: string | null
+  fileName?: string | null
+  contentType?: string | null
+  fileSize?: number | null
+}
+
+type MailItem = {
+  id?: string | null
+  subject?: string | null
+  fromEmail?: string | null
+  fromName?: string | null
+  receivedAt?: string | null
+  attachments?: MailAttachment[] | null
+}
+
+type AssignmentItem = {
+  id?: string | null
+  mailConnectorMessageId?: string | null
+  assignedAt?: string | null
+  status?: string | null
+  confirmedAt?: string | null
+  completedAt?: string | null
+  notes?: string | null
+  mail?: MailItem | null
+}
+
+function statusBadge(status: string) {
+  const map: Record<string, { label: string; className: string; icon: React.ReactNode }> = {
+    assigned: {
+      label: "Đã giao",
+      className: "bg-blue-50 text-blue-700",
+      icon: <Mail className="h-3 w-3" />,
+    },
+    confirmed: {
+      label: "Đã xác nhận",
+      className: "bg-amber-50 text-amber-700",
+      icon: <CheckCircle2 className="h-3 w-3" />,
+    },
+    completed: {
+      label: "Hoàn thành",
+      className: "bg-green-50 text-green-700",
+      icon: <CheckCircle2 className="h-3 w-3" />,
+    },
+    needSupplement: {
+      label: "Cần bổ sung",
+      className: "bg-red-50 text-red-700",
+      icon: <AlertCircle className="h-3 w-3" />,
+    },
+    extracted: {
+      label: "Đã bóc tách",
+      className: "bg-purple-50 text-purple-700",
+      icon: <Paperclip className="h-3 w-3" />,
+    },
+    exported: {
+      label: "Đã xuất",
+      className: "bg-neutral-100 text-neutral-600",
+      icon: <Clock className="h-3 w-3" />,
+    },
+  }
+  const normalized = status?.toLowerCase() ?? ""
+  const match = Object.entries(map).find(([key]) => normalized.includes(key))
+  return match?.[1] ?? { label: status || "—", className: "bg-neutral-100 text-neutral-600", icon: null }
+}
+
 export default function EmailsPage() {
   const [search, setSearch] = useState("")
-  const [statusFilter, setStatusFilter] = useState("all")
-  const [senderFilter, setSenderFilter] = useState("all")
   const [page, setPage] = useState(1)
-  const [sortField, setSortField] = useState("sentAt")
-  const [sortOrder, setSortOrder] = useState<"asc" | "desc">("desc")
 
-  const { data: accounts = [], isPending: accountsPending } = useMailAccountsQuery()
-  const [activeAccountId, setActiveAccountId] = useState<string | undefined>(undefined)
+  const assignmentsQuery = useMailAssignmentsMyQuery()
+  const confirmMutation = useConfirmMailAssignmentMutation()
 
-  useEffect(() => {
-    if (accounts.length > 0 && !activeAccountId) {
-      setActiveAccountId(accounts[0].id)
+  const assignmentsRaw = assignmentsQuery.data
+  const assignments: AssignmentItem[] = useMemo(() => {
+    if (Array.isArray(assignmentsRaw)) return assignmentsRaw as AssignmentItem[]
+    if (assignmentsRaw && typeof assignmentsRaw === "object" && "data" in (assignmentsRaw as Record<string, unknown>)) {
+      const d = assignmentsRaw as unknown as Record<string, unknown>
+      if (Array.isArray(d.data)) return d.data as AssignmentItem[]
     }
-  }, [accounts, activeAccountId])
+    return []
+  }, [assignmentsRaw])
 
-  const processStatusFilter =
-    statusFilter !== "all" && statusFilter !== "hasAttachment" ? statusFilter : undefined
-
-  const mailQuery = useMailMessagesQuery({
-    accountId: activeAccountId,
-    page,
-    pageSize: ITEMS_PER_PAGE,
-    hasAttachment: statusFilter === "hasAttachment" ? true : undefined,
-    processStatus: processStatusFilter,
-    sortField,
-    sortOrder,
-  })
-
-  const pagedEmails = mailQuery.data?.data ?? []
-  const pagination = mailQuery.data?.meta?.pagination
-  const totalPages = Math.max(1, pagination?.totalPages ?? 1)
-  const totalItems = pagination?.totalItems ?? pagedEmails.length
-
-  useEffect(() => {
-    if (page > totalPages) {
-      setPage(totalPages)
-    }
-  }, [page, totalPages])
-
-  const allSenders = useMemo(
-    () => [...new Set(pagedEmails.map((email) => email.fromName).filter(Boolean) as string[])].sort(),
-    [pagedEmails]
-  )
-
-  const visibleEmails = useMemo(() => {
-    return pagedEmails.filter((email) => {
-      const subject = email.subject || ""
-      const senderEmail = email.fromEmail || ""
-      const senderName = email.fromName || ""
-
-      const keyword = search.toLowerCase()
-      const matchSearch =
-        subject.toLowerCase().includes(keyword) ||
-        senderEmail.toLowerCase().includes(keyword) ||
-        senderName.toLowerCase().includes(keyword)
-
-      if (!matchSearch) return false
-      if (senderFilter !== "all" && senderName !== senderFilter) {
-        return false
-      }
-      return true
+  const filtered = useMemo(() => {
+    const keyword = search.toLowerCase().trim()
+    if (!keyword) return assignments
+    return assignments.filter((a) => {
+      const subject = String(a.mail?.subject ?? "").toLowerCase()
+      const fromEmail = String(a.mail?.fromEmail ?? "").toLowerCase()
+      const fromName = String(a.mail?.fromName ?? "").toLowerCase()
+      const status = String(a.status ?? "").toLowerCase()
+      return (
+        subject.includes(keyword) ||
+        fromEmail.includes(keyword) ||
+        fromName.includes(keyword) ||
+        status.includes(keyword)
+      )
     })
-  }, [pagedEmails, search, senderFilter])
+  }, [assignments, search])
 
-  const visiblePageNumbers = useMemo(() => {
-    if (totalPages <= 7) return Array.from({ length: totalPages }, (_, index) => index + 1)
-    const pages = new Set([1, totalPages, page - 1, page, page + 1])
-    return Array.from(pages)
-      .filter((pageNumber) => pageNumber >= 1 && pageNumber <= totalPages)
-      .sort((firstPage, secondPage) => firstPage - secondPage)
-  }, [page, totalPages])
+  const totalPages = Math.max(1, Math.ceil(filtered.length / ITEMS_PER_PAGE))
+  const paged = filtered.slice((page - 1) * ITEMS_PER_PAGE, page * ITEMS_PER_PAGE)
+
+  const isLoading = assignmentsQuery.isPending
 
   return (
     <div className="space-y-4">
@@ -1793,286 +6522,175 @@ export default function EmailsPage() {
         <h1 className="text-2xl font-bold text-neutral-300">Danh sách Email</h1>
       </div>
 
-      {mailQuery.error && (
+      {assignmentsQuery.error && (
         <div className="rounded-lg bg-red-50 p-3 text-sm text-red-700">
-          {getErrorMessage(mailQuery.error, "Không tải được danh sách email.")}
-        </div>
-      )}
-
-      {!accountsPending && !activeAccountId && (
-        <div className="rounded-lg bg-amber-50 p-3 text-sm text-amber-700">
-          Chưa có mail account khả dụng. Kết nối account trước để tải email.
+          {getErrorMessage(assignmentsQuery.error, "Không tải được danh sách.")}
         </div>
       )}
 
       <div className="flex flex-wrap items-center gap-3">
-        <div id="tour-emails-search" className="relative min-w-[200px] flex-1">
+        <div className="relative min-w-[200px] flex-1">
           <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-primary-100" />
           <input
             type="text"
-            placeholder="Tìm kiếm email, người gửi..."
+            placeholder="Tìm kiếm tiêu đề, người gửi, trạng thái..."
             value={search}
-            onChange={(event) => setSearch(event.target.value)}
+            onChange={(e) => { setSearch(e.target.value); setPage(1) }}
             className="w-full rounded-lg border border-neutral-100 bg-white py-2 pl-9 pr-4 text-sm text-neutral-800 outline-none transition-colors focus:border-primary focus:ring-1 focus:ring-primary/20"
           />
         </div>
-
-        <div id="tour-emails-filter" className="flex w-full flex-wrap items-center gap-2 lg:w-auto lg:flex-nowrap">
-          <Select
-            value={activeAccountId || ""}
-            onValueChange={(value: string) => {
-              setActiveAccountId(value)
-              setPage(1)
-            }}
-          >
-            <SelectTrigger className="h-9 w-full sm:w-[220px] text-neutral-800">
-              <SelectValue placeholder="Chọn tài khoản" />
-            </SelectTrigger>
-            <SelectContent>
-              {accounts.map((account) => (
-                <SelectItem key={account.id} value={account.id || ""}>
-                  {account.emailAddress || account.id}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-
-          <Filter className="h-4 w-4 text-neutral-200" />
-          <Select
-            value={statusFilter}
-            onValueChange={(value: string) => {
-              setStatusFilter(value)
-              setPage(1)
-            }}
-          >
-            <SelectTrigger className="h-9 w-full sm:w-[170px] text-neutral-800">
-              <SelectValue placeholder="Trạng thái" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">Tất cả trạng thái</SelectItem>
-              <SelectItem value="unprocessed">Chưa xử lý</SelectItem>
-              <SelectItem value="processing">Đang xử lý</SelectItem>
-              <SelectItem value="processed">Đã xử lý</SelectItem>
-              <SelectItem value="hasAttachment">Có đính kèm</SelectItem>
-            </SelectContent>
-          </Select>
-
-          <Select
-            value={senderFilter}
-            onValueChange={(value: string) => {
-              setSenderFilter(value)
-              setPage(1)
-            }}
-          >
-            <SelectTrigger className="h-9 w-full sm:w-[180px] text-neutral-800">
-              <SelectValue placeholder="Người gửi" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">Tất cả người gửi</SelectItem>
-              {allSenders.map((senderName) => (
-                <SelectItem key={senderName} value={senderName}>
-                  {senderName}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-
-          <button
-            onClick={() => {
-              setSortOrder((prev) => (prev === "desc" ? "asc" : "desc"))
-              setPage(1)
-            }}
-            title={`Sắp xếp: ${sortOrder === "desc" ? "mới nhất trước" : "cũ nhất trước"}`}
-            className="inline-flex h-9 cursor-pointer items-center gap-1 rounded-lg border border-neutral-100 bg-white px-3 text-sm text-neutral-300 transition-colors hover:bg-neutral-50"
-          >
-            {sortOrder === "desc" ? <ArrowDown className="h-4 w-4" /> : <ArrowUp className="h-4 w-4" />}
-            <span className="hidden sm:inline">{sortOrder === "desc" ? "Mới nhất" : "Cũ nhất"}</span>
-          </button>
-        </div>
       </div>
 
-      <div id="tour-emails-table" className="overflow-hidden rounded-xl border border-neutral-100 bg-white">
-        <div className="hidden overflow-x-auto md:block">
-          <table className="w-full min-w-[880px] text-sm">
-            <thead className="bg-primary">
-              <tr>
-                <th className="px-4 py-3 text-left font-medium text-white/80">Tiêu đề</th>
-                <th className="px-4 py-3 text-left font-medium text-white/80">Người gửi</th>
-                <th className="px-4 py-3 text-left font-medium text-white/80">Nhận lúc</th>
-                <th className="px-4 py-3 text-left font-medium text-white/80">Trạng thái</th>
-                <th className="px-4 py-3 text-left font-medium text-white/80">Đính kèm</th>
-                <th className="px-4 py-3 text-right font-medium text-white/80"></th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-primary/15">
-              {(accountsPending || mailQuery.isPending) && (
-                <tr>
-                  <td colSpan={6} className="px-4 py-8 text-center text-neutral-200">
-                    Đang tải email...
-                  </td>
-                </tr>
-              )}
-
-              {!accountsPending && !mailQuery.isPending && visibleEmails.length === 0 && (
-                <tr>
-                  <td colSpan={6} className="px-4 py-8 text-center text-neutral-200">
-                    Không tìm thấy email nào
-                  </td>
-                </tr>
-              )}
-
-              {visibleEmails.map((email) => {
-                const status = email.processStatus
-                const needsAttention = status === "unprocessed" || status === "processing"
-                return (
-                  <tr
-                    key={email.id}
-                    className={`cursor-pointer transition-colors hover:bg-neutral-50 ${
-                      needsAttention ? "border-l-2 border-l-primary bg-primary-50/30" : ""
-                    }`}
-                  >
-                    <td className="px-4 py-3">
-                      <div className="flex items-center gap-2">
-                        <Mail className={`h-4 w-4 ${needsAttention ? "text-primary" : "text-neutral-200"}`} />
-                        <span className="font-medium text-neutral-300">{email.subject || "(Không có tiêu đề)"}</span>
-                      </div>
-                    </td>
-                    <td className="px-4 py-3 text-neutral-200">{email.fromName || email.fromEmail || "—"}</td>
-                    <td className="px-4 py-3 whitespace-nowrap text-neutral-200">
-                      {email.receivedAt ? dayjs(email.receivedAt).format("DD/MM/YYYY HH:mm") : "—"}
-                    </td>
-                    <td className="px-4 py-3">
-                      {status === "unprocessed" ? (
-                        <span className="inline-flex items-center gap-1 whitespace-nowrap rounded-full bg-amber-50 px-2 py-0.5 text-xs font-medium text-amber-700">
-                          <Clock className="h-3 w-3" /> Chờ xử lý
-                        </span>
-                      ) : status === "processing" ? (
-                        <span className="inline-flex items-center gap-1 whitespace-nowrap rounded-full bg-primary-50 px-2 py-0.5 text-xs font-medium text-primary">
-                          <Loader className="h-3 w-3" /> Đang xử lý
-                        </span>
-                      ) : (
-                        <span className="inline-flex items-center gap-1 whitespace-nowrap rounded-full bg-green-50 px-2 py-0.5 text-xs font-medium text-green-700">
-                          <AlertCircle className="h-3 w-3" /> Đã xử lý
-                        </span>
-                      )}
-                    </td>
-                    <td className="px-4 py-3 text-center whitespace-nowrap">
-                      {email.hasAttachments ? (
-                        <Paperclip className="mx-auto h-4 w-4 text-primary" />
-                      ) : (
-                        <span className="text-neutral-100">—</span>
-                      )}
-                    </td>
-                    <td className="px-4 py-3 text-right">
-                      <Link
-                        href={`/emails/${email.id}`}
-                        className="inline-flex cursor-pointer items-center rounded-md bg-primary-50 px-2.5 py-1 text-xs font-medium text-primary transition-colors hover:bg-primary hover:text-white"
-                      >
-                        Xử lý
-                      </Link>
-                    </td>
+      {isLoading ? (
+        <div className="flex items-center gap-2 py-8 text-sm text-neutral-400">
+          <Loader className="h-4 w-4 animate-spin" /> Đang tải...
+        </div>
+      ) : filtered.length === 0 ? (
+        <div className="rounded-xl border border-neutral-100 bg-white p-6 text-center text-sm text-neutral-400">
+          <Mail className="mx-auto mb-2 h-8 w-8 text-neutral-200" />
+          <p>Chưa có email nào được giao cho bạn.</p>
+        </div>
+      ) : (
+        <>
+          <div className="rounded-xl border border-neutral-100 bg-white overflow-hidden">
+            <div className="overflow-x-auto">
+              <table className="w-full min-w-[800px] text-sm">
+                <thead className="bg-primary text-white">
+                  <tr>
+                    <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide">Tiêu đề</th>
+                    <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide">Người gửi</th>
+                    <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide">Trạng thái</th>
+                    <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide">Nhận lúc</th>
+                    <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide">Ngày giao</th>
+                    <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide">Xác nhận lúc</th>
+                    <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide">Hoàn thành lúc</th>
+                    <th className="px-4 py-3 text-right text-xs font-semibold uppercase tracking-wide"></th>
                   </tr>
-                )
-              })}
-            </tbody>
-          </table>
-        </div>
-
-        <div className="divide-y divide-primary/15 md:hidden">
-          {(accountsPending || mailQuery.isPending) && (
-            <div className="px-4 py-8 text-center text-sm text-neutral-200">Đang tải email...</div>
-          )}
-
-          {!accountsPending && !mailQuery.isPending && visibleEmails.length === 0 && (
-            <div className="px-4 py-8 text-center text-sm text-neutral-200">Không tìm thấy email nào</div>
-          )}
-
-          {visibleEmails.map((email) => {
-            const status = email.processStatus
-            const needsAttention = status === "unprocessed" || status === "processing"
-            return (
-              <div key={email.id} className={`space-y-2 p-4 ${needsAttention ? "bg-primary-50/30" : ""}`}>
-                <div className="flex items-start justify-between gap-3">
-                  <p className="wrap-break-word text-sm font-medium text-neutral-300">
-                    {email.subject || "(Không có tiêu đề)"}
-                  </p>
-                  {email.hasAttachments ? <Paperclip className="h-4 w-4 shrink-0 text-primary" /> : null}
-                </div>
-                <p className="text-xs text-neutral-200">{email.fromName || email.fromEmail || "—"}</p>
-                <p className="text-xs text-neutral-200">
-                  {email.receivedAt ? dayjs(email.receivedAt).format("DD/MM/YYYY HH:mm") : "—"}
-                </p>
-                <div className="flex items-center justify-between gap-2">
-                  <div>
-                    {status === "unprocessed" ? (
-                      <span className="inline-flex items-center gap-1 rounded-full bg-amber-50 px-2 py-0.5 text-xs font-medium text-amber-700">
-                        <Clock className="h-3 w-3" /> Chờ xử lý
-                      </span>
-                    ) : status === "processing" ? (
-                      <span className="inline-flex items-center gap-1 rounded-full bg-primary-50 px-2 py-0.5 text-xs font-medium text-primary">
-                        <Loader className="h-3 w-3" /> Đang xử lý
-                      </span>
-                    ) : (
-                      <span className="inline-flex items-center gap-1 rounded-full bg-green-50 px-2 py-0.5 text-xs font-medium text-green-700">
-                        <AlertCircle className="h-3 w-3" /> Đã xử lý
-                      </span>
-                    )}
-                  </div>
-                  <Link
-                    href={`/emails/${email.id}`}
-                    className="inline-flex cursor-pointer items-center rounded-md bg-primary-50 px-2.5 py-1 text-xs font-medium text-primary transition-colors hover:bg-primary hover:text-white"
-                  >
-                    Xử lý
-                  </Link>
-                </div>
-              </div>
-            )
-          })}
-        </div>
-
-        <div className="flex flex-col gap-3 border-t border-neutral-100 px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
-          <p className="text-xs text-neutral-200 sm:text-sm">
-            Trang <span className="font-medium text-neutral-300">{page}</span> /{" "}
-            <span className="font-medium text-neutral-300">{totalPages}</span> · Tổng{" "}
-            <span className="font-medium text-neutral-300">{totalItems}</span> email
-          </p>
-          <div className="flex flex-wrap items-center gap-1">
-            <button
-              onClick={() => setPage((previousPage) => Math.max(1, previousPage - 1))}
-              disabled={!activeAccountId || page === 1}
-              className="inline-flex h-8 w-8 cursor-pointer items-center justify-center rounded-md border border-neutral-100 bg-white text-neutral-300 transition-colors hover:bg-neutral-50 disabled:cursor-not-allowed disabled:opacity-40"
-            >
-              <ChevronLeft className="h-4 w-4" />
-            </button>
-            {visiblePageNumbers.map((pageNumber, index) => {
-              const previousPageNumber = visiblePageNumbers[index - 1]
-              const shouldShowGap = previousPageNumber && pageNumber - previousPageNumber > 1
-              return (
-                <div key={pageNumber} className="flex items-center gap-1">
-                  {shouldShowGap ? <span className="px-1 text-neutral-200">…</span> : null}
-                  <button
-                    onClick={() => setPage(pageNumber)}
-                    className={`inline-flex h-8 min-w-8 cursor-pointer items-center justify-center rounded-md px-2 text-sm font-medium transition-colors ${
-                      pageNumber === page
-                        ? "bg-primary text-white"
-                        : "border border-neutral-100 bg-white text-neutral-300 hover:bg-neutral-50"
-                    }`}
-                  >
-                    {pageNumber}
-                  </button>
-                </div>
-              )
-            })}
-            <button
-              onClick={() => setPage((previousPage) => Math.min(totalPages, previousPage + 1))}
-              disabled={!activeAccountId || page === totalPages}
-              className="inline-flex h-8 w-8 cursor-pointer items-center justify-center rounded-md border border-neutral-100 bg-white text-neutral-300 transition-colors hover:bg-neutral-50 disabled:cursor-not-allowed disabled:opacity-40"
-            >
-              <ChevronRight className="h-4 w-4" />
-            </button>
+                </thead>
+                <tbody className="divide-y divide-neutral-100">
+                  {paged.map((item) => {
+                    const messageId = String(item.mailConnectorMessageId ?? "")
+                    const badge = statusBadge(item.status ?? "")
+                    const hasAttachments = (item.mail?.attachments?.length ?? 0) > 0
+                    return (
+                      <tr key={item.id || messageId} className="hover:bg-neutral-50">
+                        <td className="px-4 py-3">
+                          <div className="flex items-center gap-2">
+                            <Mail className="h-4 w-4 shrink-0 text-neutral-300" />
+                            <span className="max-w-[200px] truncate font-medium text-neutral-700">
+                              {item.mail?.subject ?? "(Không tiêu đề)"}
+                            </span>
+                            {hasAttachments && (
+                              <Paperclip className="h-3 w-3 text-neutral-300" />
+                            )}
+                          </div>
+                        </td>
+                        <td className="px-4 py-3 text-neutral-500">
+                          {item.mail?.fromName || item.mail?.fromEmail || "—"}
+                        </td>
+                        <td className="px-4 py-3">
+                          <span className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-medium ${badge.className}`}>
+                            {badge.icon}
+                            {badge.label}
+                          </span>
+                        </td>
+                        <td className="px-4 py-3 text-neutral-500 text-xs">
+                          {item.mail?.receivedAt
+                            ? dayjs(String(item.mail.receivedAt)).format("DD/MM/YYYY HH:mm")
+                            : "—"}
+                        </td>
+                        <td className="px-4 py-3 text-neutral-500 text-xs">
+                          {item.assignedAt
+                            ? dayjs(String(item.assignedAt)).format("DD/MM/YYYY HH:mm")
+                            : "—"}
+                        </td>
+                        <td className="px-4 py-3 text-neutral-500 text-xs">
+                          {item.confirmedAt
+                            ? dayjs(String(item.confirmedAt)).format("DD/MM/YYYY HH:mm")
+                            : "—"}
+                        </td>
+                        <td className="px-4 py-3 text-neutral-500 text-xs">
+                          {item.completedAt
+                            ? dayjs(String(item.completedAt)).format("DD/MM/YYYY HH:mm")
+                            : "—"}
+                        </td>
+                        <td className="px-4 py-3 text-right">
+                          {(() => {
+                            const statusLower = item.status?.toLowerCase() ?? ""
+                            const canConfirm = statusLower === "assigned"
+                            const canProcess = ["confirmed", "needSupplement", "extracted", "exported"].includes(statusLower)
+                            const isCompleted = statusLower === "completed"
+                            return (
+                              <div className="flex items-center justify-end gap-1">
+                                {canConfirm && messageId && (
+                                  <button
+                                    onClick={() => {
+                                      confirmMutation.mutate(
+                                        { messageId, payload: {} },
+                                        {
+                                          onSuccess: () => toast.success("Đã xác nhận nhận mail."),
+                                          onError: (err) => toast.error("Xác nhận thất bại: " + String(err)),
+                                        }
+                                      )
+                                    }}
+                                    disabled={confirmMutation.isPending}
+                                    className="inline-flex items-center gap-1 rounded-md border border-amber-200 bg-amber-50 px-2 py-1 text-xs font-medium text-amber-700 hover:bg-amber-100 disabled:opacity-50"
+                                  >
+                                    Xác nhận
+                                  </button>
+                                )}
+                                {canProcess && messageId && (
+                                  <Link
+                                    href={`/emails/${messageId}`}
+                                    className="inline-flex items-center gap-1 rounded-md bg-primary px-2.5 py-1 text-xs font-medium text-white hover:bg-primary-500"
+                                  >
+                                    Xử lý
+                                  </Link>
+                                )}
+                                {isCompleted && (
+                                  <span className="inline-flex items-center gap-1 rounded-full bg-green-50 px-2 py-1 text-[11px] font-medium text-green-700">
+                                    <CheckCircle2 className="h-3 w-3" />
+                                    Hoàn thành
+                                  </span>
+                                )}
+                                {!messageId && <span className="text-neutral-400">—</span>}
+                              </div>
+                            )
+                          })()}
+                        </td>
+                      </tr>
+                    )
+                  })}
+                </tbody>
+              </table>
+            </div>
           </div>
-        </div>
-      </div>
+
+          {totalPages > 1 && (
+            <div className="flex items-center justify-between border-t border-neutral-100 px-4 py-3">
+              <p className="text-xs text-neutral-200">
+                Trang {page} / {totalPages} ({filtered.length} bản ghi)
+              </p>
+              <div className="flex gap-2">
+                <button
+                  onClick={() => setPage((p) => Math.max(1, p - 1))}
+                  disabled={page <= 1}
+                  className="rounded-lg border border-neutral-100 px-3 py-1.5 text-xs font-medium text-neutral-300 hover:bg-neutral-50 disabled:opacity-50 cursor-pointer disabled:cursor-not-allowed"
+                >
+                  Trước
+                </button>
+                <button
+                  onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
+                  disabled={page >= totalPages}
+                  className="rounded-lg border border-neutral-100 px-3 py-1.5 text-xs font-medium text-neutral-300 hover:bg-neutral-50 disabled:opacity-50 cursor-pointer disabled:cursor-not-allowed"
+                >
+                  Sau
+                </button>
+              </div>
+            </div>
+          )}
+        </>
+      )}
     </div>
   )
 }
@@ -2120,8 +6738,14 @@ export default function ExtractPage() {
     setFields(extractedFields)
   }, [analysisQuery.data?.extractedFields])
 
-  const missingFields = useMemo(() => analysisQuery.data?.missingFields ?? [], [analysisQuery.data?.missingFields])
-  const warnings = useMemo(() => analysisQuery.data?.warnings ?? [], [analysisQuery.data?.warnings])
+  const missingFields = useMemo<string[]>(
+    () => (analysisQuery.data?.missingFields ?? []) as string[],
+    [analysisQuery.data?.missingFields]
+  )
+  const warnings = useMemo<string[]>(
+    () => (analysisQuery.data?.warnings ?? []) as string[],
+    [analysisQuery.data?.warnings]
+  )
 
   const handleFieldChange = (key: string, value: string) => {
     setFields((previousState) => ({ ...previousState, [key]: value }))
@@ -2333,39 +6957,174 @@ export default function ExtractPage() {
 ```tsx
 "use client"
 
-import { useMemo, useState } from "react"
-import mammoth from "mammoth"
+import { useEffect, useMemo, useRef, useState } from "react"
 import Link from "next/link"
-import { useParams, useRouter } from "next/navigation"
-import { ArrowLeft, Paperclip, Send } from "lucide-react"
+import { useParams } from "next/navigation"
+import { ArrowLeft, Bot, Paperclip, Send, User, X, Play, Sparkles, Tag, FileSearch } from "lucide-react"
 import dayjs from "dayjs"
+import { toast } from "sonner"
 import { getErrorMessage } from "@/lib/get-error-message"
+import { usePermission } from "@/hooks/use-permission"
+import { useAuthStore, getTenantIdFromToken } from "@/lib/stores/auth-store"
+import {
+  useMailAssignmentStatusQuery,
+  useAssignMailMutation,
+  useReassignMailMutation,
+  useConfirmMailAssignmentMutation,
+  useCompleteMailAssignmentMutation,
+} from "@/hooks/use-mail-assignments-queries"
+import { useUsersQuery } from "@/hooks/use-user-queries"
 import { MAIL_CONNECTOR_AXIOS } from "@/lib/orval/mail-connector-mutator"
-// API_BASE must match lib/api.ts
-const API_BASE = process.env.NEXT_PUBLIC_API_URL || "https://vietprodev.duckdns.org/gateway/logistics/api/v1"
 import { FileAttachmentItem } from "@/components/file-attachment-item"
 import { AttachmentViewerModal } from "@/components/attachment-viewer-modal"
 import { FileViewerModal } from "@/components/ui/file-viewer-modal"
-import { ExtractionResultModal } from "@/components/extraction-result-modal"
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog"
+import { Button } from "@/components/ui/button"
+import {
+  ExtractionResultModal,
+  type ExtractionPreviewSources,
+} from "@/components/extraction-result-modal"
+import {
+  TemplateResultModal,
+  type ExtractionPreviewSources as TemplatePreviewSources,
+} from "@/components/template-result-modal"
 import {
   useAttachmentContentQuery,
   useAttachmentExtractTextQuery,
   useDownloadAttachmentMutation,
+  useEmailTemplatesQuery,
+  useCreateEmailTemplateMutation,
   useMailMessageQuery,
-  useProcessDocumentsMutation,
+  useTriggerPipelineMutation,
+  useNormalizeMailMutation,
+  useClassifyMailMutation,
+  useExtractMailMutation,
 } from "@/hooks/use-mail-queries"
 import { getLogisticsPlatformAPI } from "@/lib/generated/mail-connector/endpoints"
+import {
+  useGetAiChatConversationByEntityQuery,
+  useCreateAiChatConversationMutation,
+  useLinkAiChatEntityMutation,
+  useGetAiChatMessagesQuery,
+  useLinkAiChatAttachmentMutation,
+  useSendAiChatMessageMutation,
+  type AiChatMessage,
+} from "@/hooks/use-ai-chat-queries"
 
 const mailApi = getLogisticsPlatformAPI()
+const API_BASE =
+  process.env.NEXT_PUBLIC_API_URL || "https://vietprodev.duckdns.org/gateway/logistics/api/v1"
+
+function readString(value: unknown): string | undefined {
+  if (typeof value !== "string") return undefined
+  const trimmed = value.trim()
+  return trimmed ? trimmed : undefined
+}
+
+function resolvePresignedPreview(response: unknown): ExtractionPreviewSources | null {
+  const asRecord = (value: unknown): Record<string, unknown> | null =>
+    value && typeof value === "object" ? (value as Record<string, unknown>) : null
+
+  const root = asRecord(response)
+  const level1 = asRecord(root?.data)
+  const level2 = asRecord(level1?.data)
+  const candidates = [root, level1, level2].filter(Boolean) as Record<string, unknown>[]
+
+  for (const candidate of candidates) {
+    const url = readString(candidate.url)
+    const googleViewerUrl = readString(candidate.googleViewerUrl)
+    const officeViewerUrl = readString(candidate.officeViewerUrl)
+    const proxyUrl = readString(candidate.proxyUrl)
+    const expiresAt = readString(candidate.expiresAt)
+
+    if (url || googleViewerUrl || officeViewerUrl || proxyUrl) {
+      return { url, googleViewerUrl, officeViewerUrl, proxyUrl, expiresAt }
+    }
+  }
+
+  return null
+}
+
+type TemplateItem = {
+  id?: string | null
+  templateCode?: string | null
+  templateName?: string | null
+  description?: string | null
+  expectedFields?: Record<string, string> | null
+  isActive?: boolean | null
+}
+
+type ChatMessage = {
+  id: string
+  role: "user" | "assistant"
+  content: string
+  displayContent?: string
+  result?: string | null
+  isLoading?: boolean
+  inputTokens?: number | null
+  outputTokens?: number | null
+  totalTokens?: number | null
+  finishReason?: string | null
+}
 
 export default function EmailDetailPage() {
-  const router = useRouter()
   const params = useParams<{ id: string }>()
   const messageId = params.id
 
   const messageQuery = useMailMessageQuery(messageId)
-  const processDocumentsMutation = useProcessDocumentsMutation()
+  const templatesQuery = useEmailTemplatesQuery()
   const downloadAttachmentMutation = useDownloadAttachmentMutation(messageId)
+  const triggerPipelineMutation = useTriggerPipelineMutation()
+  const normalizeMailMutation = useNormalizeMailMutation()
+  const classifyMailMutation = useClassifyMailMutation()
+  const extractMailMutation = useExtractMailMutation()
+
+  // AI Chat hooks
+  const conversationByEntityQuery = useGetAiChatConversationByEntityQuery(
+    messageId ? { entityType: "mail_message", entityId: messageId } : null
+  )
+  const createConversationMutation = useCreateAiChatConversationMutation()
+  const linkEntityMutation = useLinkAiChatEntityMutation()
+  const linkAttachmentMutation = useLinkAiChatAttachmentMutation()
+  const sendMessageMutation = useSendAiChatMessageMutation()
+  const messagesQuery = useGetAiChatMessagesQuery(
+    conversationByEntityQuery.data?.id ?? null
+  )
+
+  const { has: canProcessMailPermission } = usePermission("mail.process")
+  const currentUser = useAuthStore((s) => s.user)
+  const isAdmin = useAuthStore((s) => s.isAdmin)()
+
+  const assignmentStatusQuery = useMailAssignmentStatusQuery(messageId)
+  const assignMutation = useAssignMailMutation()
+  const reassignMutation = useReassignMailMutation()
+  const confirmMutation = useConfirmMailAssignmentMutation()
+  const completeMutation = useCompleteMailAssignmentMutation()
+
+  const assignmentData = assignmentStatusQuery.data as Record<string, unknown> | undefined
+  const assignedToUserId = assignmentData?.assignedToUserId as string | undefined
+  const assignmentStatus = assignmentData?.status as string | undefined
+  const isAssignedToMe = assignedToUserId === currentUser?.userId
+  const canProcessMail = canProcessMailPermission && (isAdmin || isAssignedToMe)
+
+  const [reassignModalOpen, setReassignModalOpen] = useState(false)
+  const [selectedReassignUserId, setSelectedReassignUserId] = useState("")
+
+  const usersQuery = useUsersQuery({ page: 1, pageSize: 100 })
+  const userList = (() => {
+    const raw = usersQuery.data
+    if (Array.isArray(raw)) return raw
+    if (raw && typeof raw === "object" && "data" in raw) {
+      const d = raw as unknown as Record<string, unknown>
+      if (Array.isArray(d.data)) return d.data
+    }
+    return []
+  })()
 
   const [contentMode, setContentMode] = useState<"auto" | "text" | "html">("auto")
   const [selectedAttachmentId, setSelectedAttachmentId] = useState<string | null>(null)
@@ -2376,19 +7135,61 @@ export default function EmailDetailPage() {
   const [fileViewerUrl, setFileViewerUrl] = useState("")
   const [fileViewerName, setFileViewerName] = useState("")
   const [fileViewerType, setFileViewerType] = useState("")
+  const [fileViewerAttachmentId, setFileViewerAttachmentId] = useState<string | undefined>(undefined)
 
   const [extractionResultOpen, setExtractionResultOpen] = useState(false)
   const [extractionResult, setExtractionResult] = useState<string | null>(null)
-  const [extractionPreviewUrl, setExtractionPreviewUrl] = useState<string | null>(null)
+  const [extractionPreview, setExtractionPreview] = useState<ExtractionPreviewSources | null>(null)
   const [extractionFileName, setExtractionFileName] = useState<string | null>(null)
+  const [templateResultOpen, setTemplateResultOpen] = useState(false)
+  const [templateExtractedData, setTemplateExtractedData] = useState<Record<string, string>>({})
+
+  const [aiMode, setAiMode] = useState<"chat" | "template">("chat")
+  const [selectedTemplateId, setSelectedTemplateId] = useState("")
+  const [promptError, setPromptError] = useState<string | null>(null)
+  const [showCreateTemplate, setShowCreateTemplate] = useState(false)
+  const [newTemplateCode, setNewTemplateCode] = useState("")
+  const [newTemplateName, setNewTemplateName] = useState("")
+  const [newTemplateFields, setNewTemplateFields] = useState("{}")
+  const createTemplateMutation = useCreateEmailTemplateMutation()
+
+  const [processedHtml, setProcessedHtml] = useState("")
+  const [chatMessages, setChatMessages] = useState<ChatMessage[]>([])
+  const [chatInput, setChatInput] = useState("")
+  const chatEndRef = useRef<HTMLDivElement>(null)
+  const chatLoading = sendMessageMutation.isPending || linkAttachmentMutation.isPending
+
+  const tenantId = useMemo(() => getTenantIdFromToken(), [])
+
+  const templates = useMemo(
+    () =>
+      ((templatesQuery.data ?? []) as TemplateItem[]).filter((template) =>
+        template.isActive === undefined || template.isActive === null
+          ? true
+          : Boolean(template.isActive)
+      ),
+    [templatesQuery.data]
+  )
+
+  const selectedTemplate = useMemo(
+    () => templates.find((template) => template.id === selectedTemplateId) ?? null,
+    [templates, selectedTemplateId]
+  )
 
   const emailData = messageQuery.data
-  const attachments: {
-    id: string
-    fileName: string
-    contentType?: string
-    fileSize?: number
-  }[] = emailData?.attachments ?? []
+  const attachments = useMemo(
+    () =>
+      (emailData?.attachments ?? []) as Array<{
+        id: string
+        fileName: string
+        contentType?: string
+        fileSize?: number
+        previewUrl?: string
+        contentId?: string
+      }>,
+    [emailData?.attachments]
+  )
+
   const bodyText = emailData?.bodyText || ""
   const bodyHtml = emailData?.bodyHtml || ""
 
@@ -2404,98 +7205,290 @@ export default function EmailDetailPage() {
     return looksLikeHtml ? trimmed : ""
   }, [bodyHtml, bodyText])
 
-  const attachmentExtractTextQuery = useAttachmentExtractTextQuery(
-    messageId,
-    attachmentViewMode === "extract" ? selectedAttachmentId : null
-  )
-  const attachmentContentQuery = useAttachmentContentQuery(
-    messageId,
-    attachmentViewMode === "content" ? selectedAttachmentId : null
-  )
+  useEffect(() => {
+    const processInlineImages = async () => {
+      if (!htmlContent || !/cid:/i.test(htmlContent)) {
+        setProcessedHtml(htmlContent)
+        return
+      }
 
-  const handleSendToAI = async () => {
-    if (selectedForAI.size === 0) {
-      alert("Vui lòng chọn ít nhất một file đính kèm để gửi AI bóc tách.")
-      return
-    }
+      let processed = htmlContent
+      const cidRegex = /cid:([a-zA-Z0-9_-]+)/gi
+      const cids = new Set<string>()
+      let match: RegExpExecArray | null
 
-    try {
-      // Fetch content for all selected attachments using authenticated axios
-      const files = await Promise.all(
-        Array.from(selectedForAI).map(async (attachmentId) => {
-          const attachment = attachments.find((a) => a.id === attachmentId)
-          if (!attachment) throw new Error(`Attachment ${attachmentId} not found`)
+      while ((match = cidRegex.exec(htmlContent)) !== null) {
+        cids.add(match[1])
+      }
 
-          // Get attachment content using authenticated axios instance
+      for (const cid of cids) {
+        const attachment = attachments.find(
+          (a) =>
+            a.contentId === cid ||
+            a.contentId === `<${cid}>` ||
+            a.fileName.includes(cid) ||
+            (a.fileName.startsWith("image") && cid.includes("ii_"))
+        )
+
+        if (!attachment) continue
+
+        try {
           const response = await MAIL_CONNECTOR_AXIOS.get(
-            `/api/v1/mail-messages/${messageId}/attachments/${attachmentId}/content`
+            `/api/v1/mail-messages/${messageId}/attachments/${attachment.id}/content`
           )
 
-          // Extract content from response - handle various response formats
           const responseData = response.data
           let content = ""
-          if (typeof responseData === 'string') {
+          if (typeof responseData === "string") {
             content = responseData
           } else if (responseData?.data?.content) {
             content = responseData.data.content
           } else if (responseData?.content) {
             content = responseData.content
-          } else if (responseData?.text) {
-            content = responseData.text
           }
 
-          // Extract text from DOCX if needed before sending to AI
-          let aiContent = content
-          const mimeType = attachment.contentType || "application/octet-stream"
-          if (mimeType.includes("wordprocessingml") && content) {
-            try {
-              const byteCharacters = atob(content)
-              const byteNumbers = new Array(byteCharacters.length)
-              for (let i = 0; i < byteCharacters.length; i++) {
-                byteNumbers[i] = byteCharacters.charCodeAt(i)
-              }
-              const byteArray = new Uint8Array(byteNumbers)
-              const arrayBuffer = byteArray.buffer
-              const extractResult = await mammoth.extractRawText({ arrayBuffer })
-              aiContent = extractResult.value
-            } catch (e) {
-              console.error("Error extracting text from DOCX:", e)
-            }
+          if (content && attachment.contentType?.startsWith("image/")) {
+            const dataUrl = `data:${attachment.contentType};base64,${content}`
+            processed = processed.replace(new RegExp(`cid:${cid}`, "gi"), dataUrl)
           }
+        } catch (error) {
+          console.error(`Failed to fetch content for CID ${cid}:`, error)
+        }
+      }
 
-          return {
-            fileName: attachment.fileName,
-            content: aiContent,
-            type: "text",
-            mimeType: mimeType,
-          }
+      setProcessedHtml(processed)
+    }
+
+    void processInlineImages()
+  }, [htmlContent, attachments, messageId])
+
+  // Conversation initialization: find existing or create new
+  const [conversationId, setConversationId] = useState<string | null>(null)
+  const hasAttemptedCreate = useRef(false)
+
+  useEffect(() => {
+    if (conversationByEntityQuery.data?.id) {
+      setConversationId(conversationByEntityQuery.data.id)
+      return
+    }
+    if (conversationByEntityQuery.isLoading) return
+
+    if (!hasAttemptedCreate.current && messageId && currentUser?.userId) {
+      hasAttemptedCreate.current = true
+      createConversationMutation.mutate(
+        {
+          title: emailData?.subject || `Email ${messageId}`,
+          createdBy: currentUser.userId,
+          idempotencyKey: `email:${messageId}`,
+          ...(tenantId ? { tenantId } : {}),
+        },
+        {
+          onSuccess: (newConv) => {
+            const newId = newConv.id
+            setConversationId(newId)
+            linkEntityMutation.mutate({
+              conversationId: newId,
+              payload: { entityType: "mail_message", entityId: messageId },
+            })
+          },
+        }
+      )
+    }
+  }, [
+    conversationByEntityQuery.data,
+    conversationByEntityQuery.isLoading,
+    messageId,
+    currentUser?.userId,
+    emailData?.subject,
+    createConversationMutation,
+    linkEntityMutation,
+  ])
+
+  function parseAiDisplayContent(raw: string): { display: string; result: string | null } {
+    try {
+      const parsed = JSON.parse(raw) as Record<string, unknown>
+      if (parsed.fields && Array.isArray(parsed.fields)) {
+        const lines = (parsed.fields as Array<{ name?: string; value?: string }>)
+          .map((f) => `${f.name ?? ""}: ${f.value ?? ""}`)
+        const summary = typeof parsed.summary === "string" ? parsed.summary : ""
+        return {
+          display: [...lines, summary].filter(Boolean).join("\n"),
+          result: JSON.stringify(parsed),
+        }
+      }
+      if (typeof parsed.summary === "string") {
+        return { display: parsed.summary, result: JSON.stringify(parsed) }
+      }
+      return { display: JSON.stringify(parsed, null, 2), result: JSON.stringify(parsed) }
+    } catch {
+      return { display: raw, result: null }
+    }
+  }
+
+  // Sync BE messages to local chat state
+  useEffect(() => {
+    if (!messagesQuery.data) return
+    const mapped: ChatMessage[] = messagesQuery.data.map((msg: AiChatMessage) => {
+      let displayContent = msg.content
+      let result: string | null = null
+      if (msg.role === "assistant") {
+        const parsed = parseAiDisplayContent(msg.content)
+        displayContent = parsed.display
+        if (aiMode === "template") {
+          result = parsed.result
+        }
+      }
+      return {
+        id: msg.id,
+        role: msg.role as "user" | "assistant",
+        content: msg.content,
+        displayContent,
+        result,
+        isLoading: false,
+        inputTokens: msg.inputTokens,
+        outputTokens: msg.outputTokens,
+        totalTokens: msg.totalTokens,
+        finishReason: msg.finishReason,
+      }
+    })
+    setChatMessages(mapped)
+  }, [messagesQuery.data, aiMode])
+
+  useEffect(() => {
+    chatEndRef.current?.scrollIntoView({ behavior: "smooth" })
+  }, [chatMessages])
+
+  const attachmentExtractTextQuery = useAttachmentExtractTextQuery(
+    messageId,
+    attachmentViewMode === "extract" ? selectedAttachmentId : null
+  )
+
+  const attachmentContentQuery = useAttachmentContentQuery(
+    messageId,
+    attachmentViewMode === "content" ? selectedAttachmentId : null
+  )
+
+  const sendChatMessage = async (messageText?: string) => {
+    const text = (messageText ?? chatInput).trim()
+    if (!text) return
+
+    if (selectedForAI.size === 0) {
+      setPromptError("Vui lòng chọn ít nhất một file đính kèm trước khi chat.")
+      return
+    }
+
+    if (aiMode === "template" && !selectedTemplate) {
+      setPromptError("Vui lòng chọn template để bóc tách.")
+      return
+    }
+
+    if (!conversationId) {
+      setPromptError("Chưa có conversation. Vui lòng thử lại.")
+      return
+    }
+
+    setPromptError(null)
+    setChatInput("")
+
+    // Optimistically add user message
+    const userMsg: ChatMessage = {
+      id: crypto.randomUUID(),
+      role: "user",
+      content: text,
+    }
+    setChatMessages((prev) => [...prev, userMsg])
+
+    try {
+      setExtractionPreview(null)
+
+      // Link attachments to conversation
+      const linkedAttachments = await Promise.all(
+        Array.from(selectedForAI).map(async (attachmentId) => {
+          const attachment = attachments.find((a) => a.id === attachmentId)
+          if (!attachment) throw new Error(`Attachment ${attachmentId} not found`)
+
+          const linked = await linkAttachmentMutation.mutateAsync({
+            conversationId,
+            payload: {
+              source: "mailconnector",
+              messageId,
+              attachmentId,
+              fileName: attachment.fileName,
+              contentType: attachment.contentType,
+              fileSize: attachment.fileSize,
+              ...(tenantId ? { tenantId } : {}),
+              createdBy: currentUser?.userId || "",
+            },
+          })
+          return linked.id
         })
       )
 
-      // Send to document processor
-      const result = await processDocumentsMutation.mutateAsync(files)
+      // Send message — assistant response will sync via messagesQuery refetch
+      await sendMessageMutation.mutateAsync({
+        conversationId,
+        payload: {
+          message: text,
+          selectedAttachmentIds: linkedAttachments.filter(Boolean),
+          provider: "openai",
+          model: "deepseek/deepseek-v4-flash-20260423",
+          responseFormat: aiMode === "template" ? "json" : "text",
+          templateType: aiMode === "template" ? (selectedTemplate?.templateCode ?? null) : null,
+          ...(tenantId ? { tenantId } : {}),
+          createdBy: currentUser?.userId || "",
+        },
+      })
 
-      // Get presigned URL for preview
-      const firstAttachmentId = Array.from(selectedForAI)[0]
-      const firstAttachment = attachments.find((a) => a.id === firstAttachmentId)
-      if (firstAttachment) {
-        const presignedResponse = await mailApi.getApiV1MailMessagesMessageIdAttachmentsAttachmentIdPresignedUrl(
-          messageId,
-          firstAttachmentId,
-          { expiryMinutes: 30 }
-        )
-        const presignedData = (presignedResponse as unknown as { data?: { data?: { url?: string } } }).data
-        const presignedUrl = presignedData?.data?.url || ""
-        setExtractionPreviewUrl(presignedUrl)
-        setExtractionFileName(firstAttachment.fileName)
+      // For template mode, set preview from first selected attachment
+      if (aiMode === "template") {
+        const firstAttachmentId = Array.from(selectedForAI)[0]
+        const firstAttachment = attachments.find((a) => a.id === firstAttachmentId)
+
+        if (firstAttachment) {
+          const presignedResponse =
+            await mailApi.getApiV1MailMessagesMessageIdAttachmentsAttachmentIdPresignedUrl(
+              messageId,
+              firstAttachmentId,
+              { expiryMinutes: 30 }
+            )
+          setExtractionPreview(resolvePresignedPreview(presignedResponse))
+          setExtractionFileName(firstAttachment.fileName)
+        }
       }
-
-      // Open modal with result
-      setExtractionResult(result?.result || null)
-      setExtractionResultOpen(true)
     } catch (error) {
-      alert(getErrorMessage(error, "Gửi AI bóc tách thất bại."))
+      setChatMessages((prev) => [
+        ...prev,
+        {
+          id: crypto.randomUUID(),
+          role: "assistant",
+          content: getErrorMessage(error, "Gửi AI thất bại."),
+        },
+      ])
     }
+  }
+
+  const openExtractionDetail = (result: string) => {
+    if (aiMode === "template") {
+      try {
+        const parsed = JSON.parse(result) as Record<string, unknown>
+        const flat: Record<string, string> = {}
+        for (const [key, value] of Object.entries(parsed)) {
+          flat[key] = value === null || value === undefined ? "" : String(value)
+        }
+        setTemplateExtractedData(flat)
+        setTemplateResultOpen(true)
+      } catch {
+        setExtractionResult(result)
+        setExtractionResultOpen(true)
+      }
+    } else {
+      setExtractionResult(result)
+      setExtractionResultOpen(true)
+    }
+  }
+
+  const handleTemplateDataChange = (data: Record<string, string>) => {
+    setTemplateExtractedData(data)
   }
 
   const handleShowAttachmentExtractText = (attachmentId: string | undefined) => {
@@ -2504,16 +7497,86 @@ export default function EmailDetailPage() {
     setSelectedAttachmentId(attachmentId)
   }
 
-  const handleShowAttachmentContent = (attachmentId: string | undefined, fileName?: string, contentType?: string) => {
+  const handleShowAttachmentContent = async (
+    attachmentId: string | undefined,
+    fileName?: string,
+    contentType?: string
+  ) => {
     if (!attachmentId) return
-    const url = `${API_BASE}/mail-messages/${messageId}/attachments/${attachmentId}/download`
-    setFileViewerUrl(url)
-    setFileViewerName(fileName || "")
-    setFileViewerType(contentType || "")
-    setFileViewerOpen(true)
+
+    const isOfficeFile =
+      contentType?.toLowerCase().includes("word") ||
+      contentType?.toLowerCase().includes("excel") ||
+      contentType?.toLowerCase().includes("powerpoint") ||
+      contentType?.toLowerCase().includes("document") ||
+      contentType?.toLowerCase().includes("sheet") ||
+      contentType?.toLowerCase().includes("presentation")
+
+    if (isOfficeFile) {
+      try {
+        const response = await MAIL_CONNECTOR_AXIOS.get(
+          `/api/v1/mail-messages/${messageId}/attachments/${attachmentId}/presigned-url`
+        )
+        const data =
+          response.data && typeof response.data === "object"
+            ? (response.data as Record<string, unknown>)
+            : null
+        const nestedData =
+          data?.data && typeof data.data === "object"
+            ? (data.data as Record<string, unknown>)
+            : null
+        const nestedUrl = nestedData?.url
+        const rootUrl = data?.url
+        const presignedUrl =
+          typeof nestedUrl === "string"
+            ? nestedUrl
+            : typeof rootUrl === "string"
+              ? rootUrl
+              : null
+        if (presignedUrl) {
+          const googleDocsUrl = `https://docs.google.com/viewer?url=${encodeURIComponent(presignedUrl)}&embedded=true`
+          setFileViewerUrl(googleDocsUrl)
+          setFileViewerName(fileName || "")
+          setFileViewerType(contentType || "")
+          setFileViewerAttachmentId(attachmentId)
+          setFileViewerOpen(true)
+          return
+        }
+      } catch {
+        console.log("Presigned URL failed for Office file, showing download message")
+      }
+
+      setFileViewerUrl("")
+      setFileViewerName(fileName || "")
+      setFileViewerType(contentType || "")
+      setFileViewerAttachmentId(attachmentId)
+      setFileViewerOpen(true)
+      return
+    }
+
+    try {
+      const downloadResponse = await MAIL_CONNECTOR_AXIOS.get(
+        `/api/v1/mail-messages/${messageId}/attachments/${attachmentId}/download`,
+        { responseType: "blob" }
+      )
+      const blob = new Blob([downloadResponse.data], {
+        type: contentType || "application/octet-stream",
+      })
+      const objectUrl = URL.createObjectURL(blob)
+      setFileViewerUrl(objectUrl)
+      setFileViewerName(fileName || "")
+      setFileViewerType(contentType || "")
+      setFileViewerAttachmentId(attachmentId)
+      setFileViewerOpen(true)
+    } catch (error) {
+      alert(getErrorMessage(error, "Không thể xem trước tệp."))
+    }
   }
 
-  const handleDownloadAttachment = async (attachmentId: string | undefined, fileName?: string | null) => {
+  const handleDownloadAttachment = async (
+    attachmentId: string | undefined,
+    fileName?: string | null
+  ) => {
     if (!attachmentId) return
     try {
       await downloadAttachmentMutation.mutateAsync({ attachmentId, fileName })
@@ -2523,16 +7586,24 @@ export default function EmailDetailPage() {
   }
 
   if (messageQuery.isPending) {
-    return <div className="text-sm text-neutral-200">Đang tải chi tiết email...</div>
+    return (
+      <div className="rounded-2xl border border-neutral-100 bg-white p-6 text-sm text-neutral-400">
+        Đang tải chi tiết email...
+      </div>
+    )
   }
 
   if (messageQuery.error || !messageQuery.data) {
     return (
-      <div className="space-y-3">
-        <Link href="/emails" className="flex cursor-pointer items-center gap-1 text-sm text-neutral-200 hover:text-neutral-300">
-          <ArrowLeft className="h-4 w-4" /> Quay lại
+      <div className="space-y-4">
+        <Link
+          href="/emails"
+          className="inline-flex items-center gap-2 text-sm font-medium text-neutral-500 hover:text-neutral-700"
+        >
+          <ArrowLeft className="h-4 w-4" />
+          Quay lại danh sách
         </Link>
-        <div className="rounded-lg bg-red-50 p-3 text-sm text-red-700">
+        <div className="rounded-2xl border border-red-100 bg-red-50 p-4 text-sm text-red-700">
           {getErrorMessage(messageQuery.error, "Không tải được chi tiết email.")}
         </div>
       </div>
@@ -2542,70 +7613,209 @@ export default function EmailDetailPage() {
   const shouldShowHtml = contentMode === "html" || (contentMode === "auto" && Boolean(htmlContent))
 
   return (
-    <div className="space-y-4">
-      <div className="flex items-center gap-2">
-        <Link href="/emails" className="flex cursor-pointer items-center gap-1 text-sm text-neutral-200 hover:text-neutral-300">
-          <ArrowLeft className="h-4 w-4" /> Quay lại
-        </Link>
-      </div>
-
-      <div className="flex gap-4">
-        {/* Left — 70% Nội dung */}
-        <div className="w-[70%] space-y-4 rounded-xl border border-neutral-100 bg-white p-6">
-          <div id="tour-email-header" className="flex items-start justify-between gap-4">
-            <div className="min-w-0">
-              <h1 className="text-xl font-bold text-neutral-300">{emailData?.subject || "(Không có tiêu đề)"}</h1>
-              <p className="mt-1 text-sm text-neutral-200">
-                Từ: {emailData?.fromName || "N/A"} ({emailData?.fromEmail || "N/A"})
-              </p>
-              <p className="text-sm text-neutral-200">
-                Nhận lúc: {emailData?.receivedAt ? dayjs(emailData.receivedAt).format("DD/MM/YYYY HH:mm") : "—"}
-              </p>
-            </div>
-            <div className="flex gap-2">
-              <Link
-                href={`/emails/${messageId}/extract`}
-                className="flex cursor-pointer items-center gap-2 rounded-lg border border-neutral-100 px-4 py-2 text-sm font-medium text-neutral-200 hover:bg-neutral-50"
-              >
-                Trích xuất
-              </Link>
-              <button
-                id="tour-email-ai-btn"
-                onClick={handleSendToAI}
-                disabled={processDocumentsMutation.isPending}
-                className="flex cursor-pointer items-center gap-2 rounded-lg bg-primary px-4 py-2 text-sm font-medium text-white hover:bg-primary-500 disabled:opacity-50 disabled:cursor-not-allowed"
-              >
-                <Send className="h-4 w-4" />
-                {processDocumentsMutation.isPending ? "Đang xử lý..." : `Gửi AI bóc tách${selectedForAI.size > 0 ? ` (${selectedForAI.size})` : ""}`}
-              </button>
+    <div className="flex h-[calc(100dvh-120px)] min-h-0 flex-col gap-4 overflow-hidden">
+      <section className="rounded-2xl border border-neutral-100 bg-white p-4 shadow-sm">
+        <div className="flex flex-wrap items-start gap-3">
+          <div className="space-y-1.5">
+            <Link
+              href="/emails"
+              className="inline-flex items-center gap-2 text-xs font-medium uppercase tracking-wide text-neutral-500 hover:text-neutral-700"
+            >
+              <ArrowLeft className="h-3.5 w-3.5" />
+              Quay lại danh sách
+            </Link>
+            <h1 className="max-w-4xl text-lg font-semibold text-neutral-900 md:text-xl">
+              {emailData?.subject || "(Không tiêu đề)"}
+            </h1>
+            <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-neutral-500">
+              <span>{emailData?.fromName || emailData?.fromEmail || "N/A"}</span>
+              <span className="hidden sm:inline">|</span>
+              <span>
+                {emailData?.receivedAt
+                  ? dayjs(emailData.receivedAt).format("DD/MM/YYYY HH:mm")
+                  : "--"}
+              </span>
+              {assignmentStatusQuery.isPending && (
+                <span className="text-neutral-300">...</span>
+              )}
+              {assignedToUserId && !assignmentStatusQuery.isPending && (
+                <>
+                  <span className="hidden sm:inline">|</span>
+                  <span className="inline-flex items-center gap-1 rounded-full bg-blue-50 px-2 py-0.5 text-[10px] font-medium text-blue-700">
+                    Đang xử lý
+                  </span>
+                </>
+              )}
+              {!assignedToUserId && !assignmentStatusQuery.isPending && (
+                <>
+                  <span className="hidden sm:inline">|</span>
+                  <span className="inline-flex items-center gap-1 rounded-full bg-neutral-100 px-2 py-0.5 text-[10px] font-medium text-neutral-500">
+                    Chưa phân công
+                  </span>
+                </>
+              )}
+              {isAssignedToMe && assignmentStatus === "assigned" && (
+                <button
+                  onClick={() => confirmMutation.mutate({ messageId, payload: {} })}
+                  disabled={confirmMutation.isPending}
+                  className="inline-flex items-center gap-1 rounded-full bg-blue-50 px-2 py-0.5 text-[10px] font-medium text-blue-700 hover:bg-blue-100 disabled:opacity-50"
+                >
+                  {confirmMutation.isPending ? "..." : "Xác nhận"}
+                </button>
+              )}
+              {isAssignedToMe && assignmentStatus === "confirmed" && (
+                <button
+                  onClick={() => completeMutation.mutate({ messageId, payload: {} })}
+                  disabled={completeMutation.isPending}
+                  className="inline-flex items-center gap-1 rounded-full bg-green-50 px-2 py-0.5 text-[10px] font-medium text-green-700 hover:bg-green-100 disabled:opacity-50"
+                >
+                  {completeMutation.isPending ? "..." : "Hoàn thành"}
+                </button>
+              )}
+              {isAdmin && (
+                <button
+                  onClick={() => {
+                    setSelectedReassignUserId(assignedToUserId ?? "")
+                    setReassignModalOpen(true)
+                  }}
+                  className="inline-flex items-center gap-1 rounded-full bg-amber-50 px-2 py-0.5 text-[10px] font-medium text-amber-700 hover:bg-amber-100"
+                >
+                  Giao việc
+                </button>
+              )}
+              {!isAssignedToMe && !assignedToUserId && !isAdmin && (
+                <button
+                  onClick={() => assignMutation.mutate({ messageId })}
+                  disabled={assignMutation.isPending}
+                  className="inline-flex items-center gap-1 rounded-full bg-primary-50 px-2 py-0.5 text-[10px] font-medium text-primary hover:bg-primary-100 disabled:opacity-50"
+                >
+                  {assignMutation.isPending ? "..." : "Nhận xử lý"}
+                </button>
+              )}
             </div>
           </div>
 
-          <div id="tour-email-body" className="rounded-lg border border-neutral-100 bg-neutral-50 p-4">
-            <div className="mb-2 flex items-center justify-between">
-              <h3 className="text-sm font-medium text-neutral-200">Nội dung email</h3>
+          <div className="ml-auto flex items-center gap-2">
+            {canProcessMail && (
+              <>
+                <button
+                  onClick={() => triggerPipelineMutation.mutate(messageId)}
+                  disabled={triggerPipelineMutation.isPending}
+                  className="inline-flex items-center gap-1 rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-1.5 text-xs font-semibold text-emerald-700 hover:bg-emerald-100 disabled:opacity-50"
+                >
+                  <Play className="h-3 w-3" />
+                  {triggerPipelineMutation.isPending ? "..." : "Pipeline"}
+                </button>
+                <button
+                  onClick={() => normalizeMailMutation.mutate(messageId)}
+                  disabled={normalizeMailMutation.isPending}
+                  className="inline-flex items-center gap-1 rounded-lg border border-blue-200 bg-blue-50 px-3 py-1.5 text-xs font-semibold text-blue-700 hover:bg-blue-100 disabled:opacity-50"
+                >
+                  <Sparkles className="h-3 w-3" />
+                  {normalizeMailMutation.isPending ? "..." : "Normalize"}
+                </button>
+                <button
+                  onClick={() => classifyMailMutation.mutate(messageId)}
+                  disabled={classifyMailMutation.isPending}
+                  className="inline-flex items-center gap-1 rounded-lg border border-purple-200 bg-purple-50 px-3 py-1.5 text-xs font-semibold text-purple-700 hover:bg-purple-100 disabled:opacity-50"
+                >
+                  <Tag className="h-3 w-3" />
+                  {classifyMailMutation.isPending ? "..." : "Classify"}
+                </button>
+                <button
+                  onClick={() => extractMailMutation.mutate(messageId)}
+                  disabled={extractMailMutation.isPending}
+                  className="inline-flex items-center gap-1 rounded-lg border border-amber-200 bg-amber-50 px-3 py-1.5 text-xs font-semibold text-amber-700 hover:bg-amber-100 disabled:opacity-50"
+                >
+                  <FileSearch className="h-3 w-3" />
+                  {extractMailMutation.isPending ? "..." : "Extract"}
+                </button>
+              </>
+            )}
+            <Link
+              href={`/emails/${messageId}/extract`}
+              className="inline-flex items-center rounded-lg border border-primary/20 bg-primary/5 px-3 py-1.5 text-xs font-semibold text-primary hover:bg-primary/10"
+            >
+              Trích xuất
+            </Link>
+          </div>
+        </div>
+      </section>
+
+      <div className="grid min-h-0 flex-1 grid-cols-1 grid-rows-3 gap-4 overflow-hidden xl:grid-cols-[260px_minmax(0,1fr)_360px] xl:grid-rows-1">
+        <aside className="flex min-h-0 flex-col rounded-2xl border border-neutral-100 bg-white p-3 shadow-sm">
+          <div className="mb-3 flex items-center justify-between">
+            <h2 className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wide text-neutral-500">
+              <Paperclip className="h-3.5 w-3.5" />
+              Tệp đính kèm
+            </h2>
+            <span className="rounded-full bg-neutral-100 px-2 py-0.5 text-[10px] font-medium text-neutral-600">
+              {attachments.length}
+            </span>
+          </div>
+
+          {attachments.length === 0 ? (
+            <p className="rounded-lg border border-dashed border-neutral-200 bg-neutral-50 p-3 text-xs text-neutral-500">
+              Không có tệp đính kèm.
+            </p>
+          ) : (
+            <div className="min-h-0 flex-1 space-y-2 overflow-y-auto pr-1">
+              {attachments.map((attachment) => (
+                <FileAttachmentItem
+                  key={attachment.id}
+                  id={attachment.id}
+                  fileName={attachment.fileName}
+                  fileType={attachment.contentType?.split("/").pop() || "unknown"}
+                  fileSize={attachment.fileSize ? `${(attachment.fileSize / 1024).toFixed(1)} KB` : "N/A"}
+                  isChecked={selectedForAI.has(attachment.id)}
+                  onCheckChange={(checked) => {
+                    const next = new Set(selectedForAI)
+                    if (checked) next.add(attachment.id)
+                    else next.delete(attachment.id)
+                    setSelectedForAI(next)
+                  }}
+                  onViewExtract={() => handleShowAttachmentExtractText(attachment.id)}
+                  onViewContent={() =>
+                    handleShowAttachmentContent(
+                      attachment.id,
+                      attachment.fileName,
+                      attachment.contentType
+                    )
+                  }
+                  onDownload={() => handleDownloadAttachment(attachment.id, attachment.fileName)}
+                  status="completed"
+                />
+              ))}
+            </div>
+          )}
+        </aside>
+
+        <section className="flex min-h-0 flex-col rounded-2xl border border-neutral-100 bg-white p-4 shadow-sm">
+          <div id="tour-email-body" className="flex min-h-0 flex-1 flex-col gap-3">
+            <div className="flex items-center justify-between gap-3">
+              <h2 className="text-sm font-semibold text-neutral-800">Nội dung email</h2>
               {htmlContent && (
-                <div className="flex items-center gap-1 rounded-md border border-neutral-100 bg-white p-1 text-xs">
+                <div className="inline-flex items-center rounded-lg border border-neutral-200 bg-neutral-50 p-1 text-[11px]">
                   <button
                     onClick={() => setContentMode("auto")}
-                    className={`cursor-pointer rounded px-2 py-1 ${
-                      contentMode === "auto" ? "bg-primary text-white" : "text-neutral-300 hover:bg-neutral-50"
+                    className={`rounded px-2.5 py-1 font-medium transition ${
+                      contentMode === "auto" ? "bg-primary text-white" : "text-neutral-600 hover:bg-neutral-100"
                     }`}
                   >
                     Auto
                   </button>
                   <button
                     onClick={() => setContentMode("text")}
-                    className={`cursor-pointer rounded px-2 py-1 ${
-                      contentMode === "text" ? "bg-primary text-white" : "text-neutral-300 hover:bg-neutral-50"
+                    className={`rounded px-2.5 py-1 font-medium transition ${
+                      contentMode === "text" ? "bg-primary text-white" : "text-neutral-600 hover:bg-neutral-100"
                     }`}
                   >
                     Text
                   </button>
                   <button
                     onClick={() => setContentMode("html")}
-                    className={`cursor-pointer rounded px-2 py-1 ${
-                      contentMode === "html" ? "bg-primary text-white" : "text-neutral-300 hover:bg-neutral-50"
+                    className={`rounded px-2.5 py-1 font-medium transition ${
+                      contentMode === "html" ? "bg-primary text-white" : "text-neutral-600 hover:bg-neutral-100"
                     }`}
                   >
                     HTML
@@ -2614,81 +7824,435 @@ export default function EmailDetailPage() {
               )}
             </div>
 
-            {shouldShowHtml ? (
-              <iframe
-                title="email-html-content"
-                srcDoc={htmlContent}
-                sandbox="allow-popups allow-popups-to-escape-sandbox"
-                className="h-[720px] w-full rounded border border-neutral-100 bg-white"
-              />
-            ) : (
-              <div className="whitespace-pre-wrap text-sm text-neutral-300">
-                {bodyText || "Không có nội dung text."}
+            <div className="min-h-0 flex-1">
+              {shouldShowHtml ? (
+                <iframe
+                  title="email-html-content"
+                  srcDoc={processedHtml || htmlContent}
+                  sandbox="allow-same-origin allow-scripts allow-popups allow-popups-to-escape-sandbox"
+                  className="h-full w-full rounded-xl border border-neutral-200 bg-white"
+                />
+              ) : (
+                <div className="h-full overflow-y-auto whitespace-pre-wrap rounded-xl border border-neutral-200 bg-neutral-50 p-4 text-sm text-neutral-700">
+                  {bodyText || "Không có nội dung text."}
+                </div>
+              )}
+            </div>
+          </div>
+        </section>
+
+        <section className="flex min-h-0 flex-col overflow-hidden rounded-2xl border border-neutral-200 bg-white shadow-sm">
+          <div className="bg-primary px-3 py-2.5 text-white">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <div className="rounded-md bg-white/15 p-1">
+                  <Bot className="h-3.5 w-3.5" />
+                </div>
+                <div>
+                  <p className="text-xs font-semibold uppercase tracking-wide">Trợ lý AI</p>
+                  <p className="text-[11px] text-white/80">
+                    {selectedForAI.size > 0
+                      ? `${selectedForAI.size} file được chọn`
+                      : "Chưa chọn file"}
+                  </p>
+                </div>
+              </div>
+              <button
+                onClick={() => setChatMessages([])}
+                className="rounded p-1 text-white/80 hover:bg-white/10 hover:text-white"
+                title="Xóa hội thoại"
+              >
+                <X className="h-3.5 w-3.5" />
+              </button>
+            </div>
+          </div>
+
+          <div className="border-b border-neutral-100 px-3 py-2">
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                onClick={() => {
+                  setAiMode("chat")
+                  setPromptError(null)
+                }}
+                className={`rounded-md px-2.5 py-1 text-[11px] font-medium ${
+                  aiMode === "chat" ? "bg-primary text-white" : "text-neutral-600 hover:bg-neutral-100"
+                }`}
+              >
+                Chat
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setAiMode("template")
+                  setPromptError(null)
+                }}
+                className={`rounded-md px-2.5 py-1 text-[11px] font-medium ${
+                  aiMode === "template" ? "bg-primary text-white" : "text-neutral-600 hover:bg-neutral-100"
+                }`}
+                >
+                  Template
+                </button>
+
+              {aiMode === "template" && (
+                <div className="ml-auto flex min-w-0 items-center gap-2">
+                  <select
+                    value={selectedTemplateId}
+                    onChange={(event) => {
+                      setSelectedTemplateId(event.target.value)
+                      setPromptError(null)
+                    }}
+                    disabled={templatesQuery.isPending}
+                    className="max-w-[180px] rounded-md border border-neutral-200 px-2 py-1 text-[11px] text-neutral-700 outline-none focus:border-primary"
+                    title={templates.find((t) => t.id === selectedTemplateId)?.templateName ?? ""}
+                  >
+                    <option value="">-- Chọn template --</option>
+                    {templates.map((template) => (
+                      <option key={template.id || template.templateCode || "unknown"} value={template.id || ""}>
+                        {[template.templateCode, template.templateName].filter(Boolean).join(" - ") || "Template"}
+                      </option>
+                    ))}
+                  </select>
+                  <button
+                    type="button"
+                    onClick={() => setShowCreateTemplate((s) => !s)}
+                    className="shrink-0 rounded-md px-2 py-1 text-[11px] font-medium text-neutral-600 hover:bg-neutral-100"
+                    title="Tạo template mới"
+                  >
+                    +
+                  </button>
+                </div>
+              )}
+            </div>
+
+            {aiMode === "template" && showCreateTemplate && (
+              <div className="border-t border-neutral-100 bg-neutral-50/50 px-3 py-2 space-y-1.5">
+                <p className="text-[11px] font-medium text-neutral-500">Tạo template mới</p>
+                <input
+                  type="text"
+                  placeholder="Mã template"
+                  value={newTemplateCode}
+                  onChange={(e) => setNewTemplateCode(e.target.value)}
+                  className="w-full rounded-md border border-neutral-200 px-2 py-1 text-[11px] text-neutral-800 outline-none focus:border-primary"
+                />
+                <input
+                  type="text"
+                  placeholder="Tên template"
+                  value={newTemplateName}
+                  onChange={(e) => setNewTemplateName(e.target.value)}
+                  className="w-full rounded-md border border-neutral-200 px-2 py-1 text-[11px] text-neutral-800 outline-none focus:border-primary"
+                />
+                <textarea
+                  placeholder='Expected fields JSON, ví dụ {"invoiceNumber":"Mã hóa đơn"}'
+                  value={newTemplateFields}
+                  onChange={(e) => setNewTemplateFields(e.target.value)}
+                  rows={2}
+                  className="w-full rounded-md border border-neutral-200 px-2 py-1 font-mono text-[10px] text-neutral-800 outline-none focus:border-primary"
+                />
+                <div className="flex gap-1.5">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setShowCreateTemplate(false)
+                      setNewTemplateCode("")
+                      setNewTemplateName("")
+                      setNewTemplateFields("{}")
+                    }}
+                    className="rounded-md px-2 py-1 text-[11px] text-neutral-500 hover:bg-neutral-100"
+                  >
+                    Hủy
+                  </button>
+                  <button
+                    type="button"
+                    disabled={createTemplateMutation.isPending || !newTemplateCode.trim() || !newTemplateName.trim()}
+                    onClick={async () => {
+                      try {
+                        let expectedFields: Record<string, string> = {}
+                        try {
+                          expectedFields = JSON.parse(newTemplateFields || "{}")
+                          if (typeof expectedFields !== "object" || Array.isArray(expectedFields)) {
+                            throw new Error("Expected fields phải là object JSON.")
+                          }
+                        } catch {
+                          setPromptError("Expected fields JSON không hợp lệ.")
+                          return
+                        }
+                        const result = await createTemplateMutation.mutateAsync({
+                          templateCode: newTemplateCode.trim(),
+                          templateName: newTemplateName.trim(),
+                          expectedFields,
+                        })
+                        const createdId = (result as { id?: string | null })?.id || null
+                        if (createdId) {
+                          setSelectedTemplateId(createdId)
+                        }
+                        setShowCreateTemplate(false)
+                        setNewTemplateCode("")
+                        setNewTemplateName("")
+                        setNewTemplateFields("{}")
+                        setPromptError(null)
+                        toast.success("Đã tạo template mới.")
+                      } catch (err) {
+                        setPromptError(getErrorMessage(err, "Tạo template thất bại."))
+                      }
+                    }}
+                    className="rounded-md bg-primary px-2.5 py-1 text-[11px] font-medium text-white hover:bg-primary-500 disabled:opacity-40"
+                  >
+                    {createTemplateMutation.isPending ? "Đang tạo..." : "Tạo"}
+                  </button>
+                </div>
               </div>
             )}
           </div>
-        </div>
 
-        {/* Right — 30% File đính kèm */}
-        {attachments.length > 0 && (
-          <div className="w-[30%] min-w-0 overflow-hidden rounded-xl border border-neutral-100 bg-white p-3">
-            <div id="tour-email-attachments">
-              <h3 className="mb-3 flex items-center gap-2 text-sm font-medium text-neutral-200">
-                <Paperclip className="h-4 w-4" /> Tệp đính kèm ({attachments.length})
-              </h3>
-              <div className="grid gap-2 min-w-0">
-                {attachments.map((attachment) => (
-                  <FileAttachmentItem
-                    key={attachment.id}
-                    id={attachment.id}
-                    fileName={attachment.fileName}
-                    fileType={attachment.contentType?.split("/").pop() || "unknown"}
-                    fileSize={attachment.fileSize ? `${(attachment.fileSize / 1024).toFixed(1)} KB` : "N/A"}
-                    isChecked={selectedForAI.has(attachment.id)}
-                    onCheckChange={(checked) => {
-                      const next = new Set(selectedForAI)
-                      if (checked) next.add(attachment.id)
-                      else next.delete(attachment.id)
-                      setSelectedForAI(next)
-                    }}
-                    onViewExtract={() => handleShowAttachmentExtractText(attachment.id)}
-                    onViewContent={() => handleShowAttachmentContent(attachment.id, attachment.fileName, attachment.contentType)}
-                    onDownload={() => handleDownloadAttachment(attachment.id, attachment.fileName)}
-                    status="completed"
-                  />
-                ))}
+          <div className="min-h-0 flex-1 overflow-y-auto bg-neutral-50/70 px-3 py-3 space-y-2">
+            {chatMessages.length === 0 && (
+              <div className="flex h-full min-h-[280px] flex-col items-center justify-center gap-2 text-center">
+                <Bot className="h-8 w-8 text-primary/40" />
+                <p className="text-xs font-medium text-neutral-500">Chưa có hội thoại</p>
+                <p className="max-w-[230px] text-[11px] text-neutral-400">
+                  {selectedForAI.size === 0
+                    ? "Hãy chọn ít nhất một file ở cột bên trái trước khi chat."
+                    : `Đã chọn ${selectedForAI.size} file. Bạn có thể bắt đầu.`}
+                </p>
               </div>
+            )}
 
-              <AttachmentViewerModal
-                open={!!selectedAttachmentId}
-                onOpenChange={(open) => {
-                  if (!open) setSelectedAttachmentId(null)
+            {chatMessages.map((msg) => (
+              <div key={msg.id} className={`flex gap-1.5 ${msg.role === "user" ? "justify-end" : "justify-start"}`}>
+                {msg.role === "assistant" && (
+                  <div className="mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-primary-50">
+                    <Bot className="h-3 w-3 text-primary" />
+                  </div>
+                )}
+
+                <div className={`max-w-[82%] space-y-1 ${msg.role === "user" ? "items-end" : "items-start"}`}>
+                  <div
+                    className={`rounded-xl px-2.5 py-1.5 text-xs leading-relaxed ${
+                      msg.role === "user"
+                        ? "rounded-br-md bg-primary text-white"
+                        : "rounded-bl-md border border-neutral-100 bg-white text-neutral-700"
+                    }`}
+                  >
+                    {msg.isLoading ? (
+                      <div className="flex items-center gap-1 py-0.5">
+                        <span className="h-1.5 w-1.5 animate-bounce rounded-full bg-neutral-300" style={{ animationDelay: "0ms" }} />
+                        <span className="h-1.5 w-1.5 animate-bounce rounded-full bg-neutral-300" style={{ animationDelay: "150ms" }} />
+                        <span className="h-1.5 w-1.5 animate-bounce rounded-full bg-neutral-300" style={{ animationDelay: "300ms" }} />
+                      </div>
+                    ) : (
+                      <pre className="whitespace-pre-wrap font-sans">{msg.displayContent ?? msg.content}</pre>
+                    )}
+                  </div>
+
+                  {msg.role === "assistant" && (msg.totalTokens || msg.inputTokens || msg.outputTokens) && (
+                    <div className="flex items-center gap-2 text-[10px] text-neutral-400">
+                      <span>🪙 {msg.totalTokens ?? 0} tokens</span>
+                      {msg.inputTokens !== null && msg.inputTokens !== undefined && (
+                        <span>in: {msg.inputTokens}</span>
+                      )}
+                      {msg.outputTokens !== null && msg.outputTokens !== undefined && (
+                        <span>out: {msg.outputTokens}</span>
+                      )}
+                      {msg.finishReason && (
+                        <span>· {msg.finishReason}</span>
+                      )}
+                    </div>
+                  )}
+
+                  {msg.result && aiMode === "template" && (
+                    <button
+                      onClick={() => openExtractionDetail(String(msg.result))}
+                      className="inline-flex items-center gap-1 rounded-md border border-primary/20 bg-primary/5 px-2 py-1 text-[11px] font-medium text-primary hover:bg-primary/10"
+                    >
+                      Xem chi tiết
+                    </button>
+                  )}
+                </div>
+
+                {msg.role === "user" && (
+                  <div className="mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-primary/10">
+                    <User className="h-3 w-3 text-primary" />
+                  </div>
+                )}
+              </div>
+            ))}
+
+            {chatLoading && (
+              <div className="flex justify-start gap-1.5">
+                <div className="mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-primary-50">
+                  <Bot className="h-3 w-3 text-primary" />
+                </div>
+                <div className="max-w-[82%]">
+                  <div className="rounded-xl rounded-bl-md border border-neutral-100 bg-white px-2.5 py-1.5 text-xs leading-relaxed text-neutral-700">
+                    <div className="flex items-center gap-1 py-0.5">
+                      <span className="h-1.5 w-1.5 animate-bounce rounded-full bg-neutral-300" style={{ animationDelay: "0ms" }} />
+                      <span className="h-1.5 w-1.5 animate-bounce rounded-full bg-neutral-300" style={{ animationDelay: "150ms" }} />
+                      <span className="h-1.5 w-1.5 animate-bounce rounded-full bg-neutral-300" style={{ animationDelay: "300ms" }} />
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            <div ref={chatEndRef} />
+          </div>
+
+          {promptError && (
+            <p className="border-t border-red-100 bg-red-50 px-3 py-1 text-[11px] text-red-600">{promptError}</p>
+          )}
+
+          <div className="border-t border-neutral-100 bg-white px-3 py-2">
+            <div className="flex items-center gap-1.5">
+              <input
+                type="text"
+                value={chatInput}
+                onChange={(event) => {
+                  setChatInput(event.target.value)
+                  setPromptError(null)
                 }}
-                title={attachmentViewMode === "extract" ? "Text trích xuất từ tệp" : "Nội dung tệp"}
-                isLoading={attachmentExtractTextQuery.isPending || attachmentContentQuery.isPending}
-                error={(attachmentExtractTextQuery.error || attachmentContentQuery.error) as Error | null}
-                content={attachmentViewMode === "extract" ? (attachmentExtractTextQuery.data ?? null) : (attachmentContentQuery.data ?? null)}
+                onKeyDown={(event) => {
+                  if (event.key === "Enter" && !event.shiftKey) {
+                    event.preventDefault()
+                    void sendChatMessage()
+                  }
+                }}
+                disabled={chatLoading}
+                placeholder={aiMode === "chat" ? "Nhập yêu cầu..." : "Enter để bóc template"}
+                className="flex-1 rounded-lg border border-neutral-200 bg-neutral-50 px-3 py-2 text-xs text-neutral-800 outline-none focus:border-primary focus:bg-white disabled:opacity-50"
               />
-
-              <FileViewerModal
-                open={fileViewerOpen}
-                onOpenChange={setFileViewerOpen}
-                fileUrl={fileViewerUrl}
-                fileName={fileViewerName}
-                fileType={fileViewerType}
-              />
-
-              <ExtractionResultModal
-                open={extractionResultOpen}
-                onOpenChange={setExtractionResultOpen}
-                result={extractionResult}
-                previewUrl={extractionPreviewUrl}
-                fileName={extractionFileName}
-              />
+              <button
+                onClick={() => {
+                  void sendChatMessage()
+                }}
+                disabled={chatLoading || !chatInput.trim()}
+                className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-primary text-white hover:bg-primary-500 disabled:cursor-not-allowed disabled:opacity-30"
+              >
+                <Send className="h-3.5 w-3.5" />
+              </button>
             </div>
           </div>
-        )}
+        </section>
       </div>
+
+      <AttachmentViewerModal
+        open={!!selectedAttachmentId}
+        onOpenChange={(open) => {
+          if (!open) setSelectedAttachmentId(null)
+        }}
+        title={attachmentViewMode === "extract" ? "Text trích xuất từ tệp" : "Nội dung tệp"}
+        isLoading={attachmentExtractTextQuery.isPending || attachmentContentQuery.isPending}
+        error={(attachmentExtractTextQuery.error || attachmentContentQuery.error) as Error | null}
+        content={
+          attachmentViewMode === "extract"
+            ? (attachmentExtractTextQuery.data ?? null)
+            : (attachmentContentQuery.data ?? null)
+        }
+      />
+
+      <FileViewerModal
+        open={fileViewerOpen}
+        onOpenChange={setFileViewerOpen}
+        fileUrl={fileViewerUrl}
+        fileName={fileViewerName}
+        fileType={fileViewerType}
+        downloadUrl={
+          fileViewerAttachmentId
+            ? `${API_BASE}/mail-messages/${messageId}/attachments/${fileViewerAttachmentId}/download`
+            : undefined
+        }
+      />
+
+      <ExtractionResultModal
+        open={extractionResultOpen}
+        onOpenChange={setExtractionResultOpen}
+        result={extractionResult}
+        preview={extractionPreview}
+        fileName={extractionFileName}
+      />
+
+      <TemplateResultModal
+        open={templateResultOpen}
+        onOpenChange={setTemplateResultOpen}
+        fields={selectedTemplate?.expectedFields ?? {}}
+        data={templateExtractedData}
+        onDataChange={handleTemplateDataChange}
+        preview={extractionPreview as TemplatePreviewSources | null}
+        fileName={extractionFileName}
+      />
+
+      {/* Admin Reassign Dialog */}
+      <Dialog open={reassignModalOpen} onOpenChange={setReassignModalOpen}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle className="text-black">Giao việc xử lý mail</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-3 py-2">
+            <p className="text-sm text-neutral-300">
+              Chọn người dùng để giao việc xử lý email này.
+            </p>
+            <div className="max-h-[300px] space-y-1 overflow-y-auto">
+              {usersQuery.isPending && (
+                <p className="text-sm text-neutral-200">Đang tải danh sách...</p>
+              )}
+              {userList.map((item: unknown) => {
+                const u = item as Record<string, unknown>
+                const uid = String(u.id ?? "")
+                return (
+                  <button
+                    key={uid}
+                    onClick={() => setSelectedReassignUserId(uid)}
+                    className={`flex w-full items-center gap-3 rounded-lg border px-3 py-2 text-left text-sm transition-colors ${
+                      selectedReassignUserId === uid
+                        ? "border-primary bg-primary-50 text-primary"
+                        : "border-neutral-100 text-neutral-300 hover:bg-neutral-50"
+                    }`}
+                  >
+                    <div className={`flex h-4 w-4 items-center justify-center rounded-full border ${
+                      selectedReassignUserId === uid
+                        ? "border-primary bg-primary"
+                        : "border-neutral-300"
+                    }`}>
+                      {selectedReassignUserId === uid && (
+                        <span className="block h-1.5 w-1.5 rounded-full bg-white" />
+                      )}
+                    </div>
+                    <div className="flex-1">
+                      <p className="font-medium">{String(u.fullName ?? u.email ?? "—")}</p>
+                      <p className="text-xs text-neutral-200">{String(u.email ?? "")}</p>
+                    </div>
+                  </button>
+                )
+              })}
+            </div>
+            <div className="flex justify-end gap-2 pt-2">
+              <Button variant="outline" onClick={() => setReassignModalOpen(false)}>
+                Hủy
+              </Button>
+              <Button
+                onClick={() => {
+                  if (!selectedReassignUserId) return
+                  reassignMutation.mutate(
+                    {
+                      messageId,
+                      payload: { toUserId: selectedReassignUserId },
+                    },
+                    {
+                      onSuccess: () => {
+                        toast.success("Đã giao việc thành công.")
+                        setReassignModalOpen(false)
+                      },
+                    }
+                  )
+                }}
+                disabled={!selectedReassignUserId || reassignMutation.isPending}
+              >
+                {reassignMutation.isPending ? "..." : "Xác nhận giao"}
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }
@@ -2904,10 +8468,13 @@ import {
   ClipboardList,
   Inbox,
   Webhook,
+  ClipboardCheck,
+  Monitor,
 } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { useAuth } from "@/hooks/use-auth"
 import { useAuthStore } from "@/lib/stores/auth-store"
+import { usePermissions } from "@/hooks/use-permission"
 import TourButton from "@/components/tour-button"
 import {
   Breadcrumb,
@@ -2936,24 +8503,8 @@ type NavItem = {
   href: string
   label: string
   icon: LucideIcon
+  permission?: string
 }
-
-const navItems: NavItem[] = [
-  { href: "/", label: "Dashboard", icon: LayoutDashboard },
-  { href: "/mail-accounts", label: "Tài khoản Email", icon: Inbox },
-  { href: "/emails", label: "Email", icon: Mail },
-  { href: "/analysis-results", label: "Kết quả AI", icon: ClipboardList },
-  { href: "/webhooks", label: "Webhooks", icon: Webhook },
-  { href: "/reports", label: "Báo cáo", icon: BarChart3 },
-]
-
-const adminItems: NavItem[] = [
-  { href: "/admin", label: "Admin Tổng", icon: Shield },
-  { href: "/admin/users", label: "Tài khoản", icon: Users },
-  { href: "/admin/settings", label: "Cấu hình", icon: Settings },
-  { href: "/admin/logs", label: "Logs", icon: FileText },
-  { href: "/admin/templates", label: "Templates", icon: FileCode },
-]
 
 const getBreadcrumbItems = (pathname: string) => {
   if (pathname === "/") return [{ label: "Dashboard", href: "/" }]
@@ -2962,9 +8513,9 @@ const getBreadcrumbItems = (pathname: string) => {
     return [{ label: "Kết quả AI", href: "/analysis-results" }]
   }
 
-  if (pathname.startsWith("/webhooks")) {
-    return [{ label: "Webhooks", href: "/webhooks" }]
-  }
+  // if (pathname.startsWith("/webhooks")) {
+  //   return [{ label: "Webhooks", href: "/webhooks" }]
+  // }
 
   if (pathname.startsWith("/mail-accounts")) {
     return [{ label: "Tài khoản Email", href: "/mail-accounts" }]
@@ -3033,7 +8584,30 @@ const getBreadcrumbItems = (pathname: string) => {
         { label: "Templates", href: "#" },
       ]
     }
-
+    if (pathname.includes("/permissions")) {
+      return [
+        { label: "Quản trị", href: "#" },
+        { label: "Quyền hạn", href: "#" },
+      ]
+    }
+    if (pathname.includes("/roles")) {
+      return [
+        { label: "Quản trị", href: "#" },
+        { label: "Vai trò", href: "#" },
+      ]
+    }
+    if (pathname.includes("/assignments")) {
+      return [
+        { label: "Quản trị", href: "#" },
+        { label: "Phân công", href: "#" },
+      ]
+    }
+    if (pathname.includes("/ai-usage")) {
+      return [
+        { label: "Quản trị", href: "#" },
+        { label: "AI Usage", href: "#" },
+      ]
+    }
     return [{ label: "Quản trị", href: "#" }]
   }
 
@@ -3056,36 +8630,75 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
   const pathname = usePathname()
   const router = useRouter()
   const [collapsed, setCollapsed] = useState(false)
+  const [hasHydrated, setHasHydrated] = useState(false)
+  const [mounted, setMounted] = useState(false)
   const breadcrumbItems = getBreadcrumbItems(pathname)
   const { logout } = useAuth()
   const authUser = useAuthStore((s) => s.user)
   const isAdmin = useAuthStore((s) => s.isAdmin)()
+  const { codes: apiPermissionCodes } = usePermissions([])
+
+  const userPermissions = apiPermissionCodes.length > 0
+    ? apiPermissionCodes
+    : (authUser?.permissions ?? [])
+
+  const baseNavItems: NavItem[] = [
+    { href: "/", label: "Dashboard", icon: LayoutDashboard },
+    { href: "/mail-accounts", label: "Tài khoản Email", icon: Inbox, permission: "mail.read" },
+    { href: "/analysis-results", label: "Kết quả AI", icon: ClipboardList, permission: "mail.read" },
+    { href: "/templates", label: "Templates", icon: FileCode },
+    { href: "/reports", label: "Báo cáo", icon: BarChart3, permission: "report.view" },
+    { href: "/sessions", label: "Quản lý phiên", icon: Monitor },
+  ]
+
+  const navItems: NavItem[] = [
+    ...baseNavItems.slice(0, 2),
+    { href: "/emails", label: "Email", icon: Mail, permission: "mail.read" },
+    ...baseNavItems.slice(2),
+  ]
+
+  const adminItems: NavItem[] = [
+    { href: "/admin", label: "Admin Tổng", icon: Shield },
+    { href: "/admin/users", label: "Tài khoản", icon: Users },
+    { href: "/admin/permissions", label: "Quyền hạn", icon: Shield },
+    { href: "/admin/roles", label: "Vai trò", icon: User },
+    { href: "/admin/assignments", label: "Phân công", icon: ClipboardCheck },
+    { href: "/admin/ai-usage", label: "AI Usage", icon: BarChart3 },
+    { href: "/admin/settings", label: "Cấu hình", icon: Settings },
+    { href: "/admin/logs", label: "Logs", icon: FileText },
+    { href: "/admin/templates", label: "Templates", icon: FileCode },
+  ]
+
+  useEffect(() => {
+    setMounted(true)
+    setHasHydrated(useAuthStore.persist.hasHydrated())
+    const unsubscribe = useAuthStore.persist.onFinishHydration(() => {
+      setHasHydrated(true)
+    })
+    return unsubscribe
+  }, [])
 
   // Redirect non-admin users away from admin routes
   useEffect(() => {
+    if (!hasHydrated) return
     if (!isAdmin && pathname.startsWith("/admin")) {
-      router.replace("/user")
+      router.replace("/login")
     }
-  }, [isAdmin, pathname, router])
+  }, [hasHydrated, isAdmin, pathname, router])
 
   const handleLogout = () => {
     logout()
   }
 
+  const [navMounted, setNavMounted] = useState(false)
+  useEffect(() => {
+    setNavMounted(true)
+  }, [])
+
   const renderNavItem = (item: NavItem) => {
     const active = pathname === item.href || pathname.startsWith(item.href + "/")
-    const navItem = (
-      <Link
-        key={item.href}
-        href={item.href}
-        className={cn(
-          "group relative flex min-h-11 items-center gap-3 rounded-[10px] border border-transparent px-3 py-2.5 text-sm font-medium transition-all duration-200",
-          collapsed && "justify-center px-0",
-          active
-            ? "z-30 border-white/10 bg-white/10 text-white"
-            : "text-neutral-100 hover:bg-white/10 hover:text-white"
-        )}
-      >
+    const linkContent = (
+      <>
         {active && (
           <span
             aria-hidden
@@ -3095,7 +8708,6 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
             )}
           />
         )}
-
         <item.icon
           className={cn(
             "h-5 w-5 shrink-0",
@@ -3103,8 +8715,31 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
           )}
         />
         {!collapsed && <span>{item.label}</span>}
+      </>
+    )
 
-      </Link>
+    const linkClass = cn(
+      "group relative flex min-h-11 items-center gap-3 rounded-[10px] border border-transparent px-3 py-2.5 text-sm font-medium transition-all duration-200 cursor-pointer",
+      collapsed && "justify-center px-0",
+      active
+        ? "z-30 border-white/10 bg-white/10 text-white"
+        : "text-neutral-100 hover:bg-white/10 hover:text-white"
+    )
+
+    const handleNavClick = (e: React.MouseEvent<HTMLAnchorElement>) => {
+      e.preventDefault()
+      router.push(item.href)
+    }
+
+    const navItem = (
+      <a
+        key={item.href}
+        href={item.href}
+        {...(navMounted ? { onClick: handleNavClick } : {})}
+        className={linkClass}
+      >
+        {linkContent}
+      </a>
     )
 
     if (collapsed) {
@@ -3146,9 +8781,19 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
 
             <ScrollArea className="flex-1">
               <nav className="space-y-1.5 p-3">
-                {navItems.map(renderNavItem)}
+                {navItems.map((item) => {
+                  if (!navMounted) {
+                    return <a key={item.href} href={item.href} className="hidden" />
+                  }
+                  const hidden = isAdmin && item.label === "Email"
+                  const noPermission = item.permission && !userPermissions.includes(item.permission) && !isAdmin
+                  if (hidden || noPermission) {
+                    return <a key={item.href} href={item.href} className="hidden" />
+                  }
+                  return renderNavItem(item)
+                })}
 
-                {isAdmin && (
+                {mounted && hasHydrated && isAdmin && (
                   <>
                     {!collapsed && (
                       <div className="px-3 pt-5 pb-2 text-[11px] font-semibold uppercase tracking-[0.24em] text-neutral-100">
@@ -3168,7 +8813,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
                   <button
                     onClick={() => setCollapsed(!collapsed)}
                     className={cn(
-                      "flex min-h-11 w-full items-center gap-3 rounded-[10px] px-3 py-2.5 text-sm font-medium text-neutral-100 transition-all duration-200 hover:bg-white/10 hover:text-white",
+                      "flex min-h-11 w-full items-center gap-3 rounded-[10px] px-3 py-2.5 text-sm font-medium text-neutral-100 transition-all duration-200 hover:bg-white/10 hover:text-white cursor-pointer",
                       collapsed && "justify-center px-0"
                     )}
                   >
@@ -3181,23 +8826,6 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
                 </TooltipContent>
               </Tooltip>
 
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <button
-                    onClick={handleLogout}
-                    className={cn(
-                      "flex min-h-11 w-full items-center gap-3 rounded-[10px] px-3 py-2.5 text-sm font-medium text-accent transition-all duration-200 hover:bg-accent/10",
-                      collapsed && "justify-center px-0"
-                    )}
-                  >
-                    <LogOut className="h-5 w-5 shrink-0" />
-                    {!collapsed && "Đăng xuất"}
-                  </button>
-                </TooltipTrigger>
-                <TooltipContent side="right">
-                  <p>Đăng xuất</p>
-                </TooltipContent>
-              </Tooltip>
             </div>
           </aside>
 
@@ -3212,7 +8840,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
                         {index === breadcrumbItems.length - 1 ? (
                           <BreadcrumbPage className="text-neutral-300 font-medium">{item.label}</BreadcrumbPage>
                         ) : (
-                          <BreadcrumbLink href={item.href} className="hover:text-neutral-300 transition-colors">{item.label}</BreadcrumbLink>
+                          <BreadcrumbLink href={item.href} className="hover:text-neutral-300 transition-colors cursor-pointer">{item.label}</BreadcrumbLink>
                         )}
                       </BreadcrumbItem>
                     </React.Fragment>
@@ -3223,7 +8851,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
               <div className="flex items-center gap-3">
                 <DropdownMenu>
                   <DropdownMenuTrigger asChild>
-                    <button className="relative rounded-full bg-neutral-50 p-2.5 transition-colors hover:bg-neutral-100">
+                    <button className="relative rounded-full bg-neutral-50 p-2.5 transition-colors hover:bg-neutral-100 cursor-pointer">
                       <Bell className="h-5 w-5 text-neutral-300" />
                       <span className="absolute -top-0.5 -right-0.5 flex h-4 w-4 items-center justify-center rounded-full bg-accent text-[10px] font-bold text-white ring-2 ring-white">
                         3
@@ -3273,7 +8901,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
                       </div>
                     </DropdownMenuItem>
                     <DropdownMenuSeparator />
-                    <DropdownMenuItem className="justify-center text-primary">
+                    <DropdownMenuItem className="justify-center text-primary cursor-pointer">
                       Xem tất cả thông báo
                     </DropdownMenuItem>
                   </DropdownMenuContent>
@@ -3281,7 +8909,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
 
                 <DropdownMenu>
                   <DropdownMenuTrigger asChild>
-                    <button className="flex items-center gap-2.5 rounded-full border border-neutral-100 bg-white px-2 py-1.5 transition-colors hover:bg-neutral-50">
+                    <button className="flex items-center gap-2.5 rounded-full border border-neutral-100 bg-white px-2 py-1.5 transition-colors hover:bg-neutral-50 cursor-pointer">
                       <Avatar className="h-8 w-8">
                         <AvatarFallback className="bg-primary-50 text-primary text-xs font-semibold">
                           {authUser?.fullName
@@ -3310,13 +8938,21 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
                       </Link>
                     </DropdownMenuItem>
                     <DropdownMenuItem asChild>
-                      <Link href="/admin/settings" className="flex cursor-pointer items-center">
-                        <SettingsIcon className="mr-2 h-4 w-4 text-primary" />
-                        <span>Cài đặt</span>
+                      <Link href="/sessions" className="flex cursor-pointer items-center">
+                        <Monitor className="mr-2 h-4 w-4 text-primary" />
+                        <span>Quản lý phiên</span>
                       </Link>
                     </DropdownMenuItem>
+                    {isAdmin && (
+                      <DropdownMenuItem asChild>
+                        <Link href="/admin/settings" className="flex cursor-pointer items-center">
+                          <SettingsIcon className="mr-2 h-4 w-4 text-primary" />
+                          <span>Cài đặt hệ thống</span>
+                        </Link>
+                      </DropdownMenuItem>
+                    )}
                     <DropdownMenuSeparator />
-                    <DropdownMenuItem onClick={handleLogout} className="text-accent">
+                    <DropdownMenuItem onClick={handleLogout} className="text-accent cursor-pointer">
                       <LogOut className="mr-2 h-4 w-4" />
                       <span>Đăng xuất</span>
                     </DropdownMenuItem>
@@ -3356,9 +8992,10 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
 
 ```tsx
 "use client"
+// USER ROUTE: Quản lý tài khoản email — user quản lý kết nối tài khoản mail
 
-import { Suspense, useEffect, useState } from "react"
-import { useRouter, useSearchParams } from "next/navigation"
+import { Suspense, useState } from "react"
+import { useRouter } from "next/navigation"
 import {
   AlertCircle,
   CheckCircle,
@@ -3379,12 +9016,21 @@ import { getErrorMessage } from "@/lib/get-error-message"
 import { toast } from "sonner"
 import {
   useMailAccountsQuery,
-  useConnectAccountMutation,
   useDeleteMailAccountMutation,
   useOAuthUrlMutation,
   useSyncStatusQuery,
   useTriggerSyncMutation,
+  useTriggerSyncDirectMutation,
 } from "@/hooks/use-mail-queries"
+
+type MailAccountItem = {
+  id?: string | null
+  provider?: string | null
+  emailAddress?: string | null
+  displayName?: string | null
+  status?: string | null
+  lastSyncedAt?: string | null
+}
 
 function StatusBadge({ status }: { status?: string }) {
   const normalized = (status || "").toLowerCase()
@@ -3437,50 +9083,21 @@ function StatusBadge({ status }: { status?: string }) {
 
 function MailAccountsContent() {
   const router = useRouter()
-  const searchParams = useSearchParams()
-  const code = searchParams.get("code")
-  const state = searchParams.get("state")
 
-  const { data: accounts = [], isPending: accountsPending } = useMailAccountsQuery()
+  const { data: accountsData = [], isPending: accountsPending } = useMailAccountsQuery()
+  const accounts: MailAccountItem[] = accountsData as MailAccountItem[]
   const oauthMutation = useOAuthUrlMutation()
-  const connectMutation = useConnectAccountMutation()
   const deleteMutation = useDeleteMailAccountMutation()
 
   const [syncingAccountId, setSyncingAccountId] = useState<string | null>(null)
   const triggerSync = useTriggerSyncMutation(syncingAccountId)
+  const triggerSyncDirect = useTriggerSyncDirectMutation(syncingAccountId)
   const syncStatus = useSyncStatusQuery(syncingAccountId)
-
-  // Handle OAuth callback inline
-  useEffect(() => {
-    const oauthError = searchParams.get("error")
-    if (oauthError) {
-      toast.error(`OAuth bị từ chối: ${oauthError}`)
-      router.replace("/mail-accounts")
-      return
-    }
-
-    if (!code) return
-
-    const redirectUri = `${window.location.origin}/mail-accounts`
-    connectMutation.mutate(
-      { authorizationCode: code, redirectUri },
-      {
-        onSuccess: () => {
-          toast.success("Kết nối tài khoản thành công.")
-          router.replace("/mail-accounts")
-        },
-        onError: (err) => {
-          toast.error(getErrorMessage(err, "Kết nối tài khoản thất bại."))
-          router.replace("/mail-accounts")
-        },
-      }
-    )
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [code])
 
   const handleConnect = async () => {
     try {
-      const redirectUri = `${window.location.origin}/mail-accounts`
+      // BE callback - BE sẽ xử lý toàn bộ OAuth
+      const redirectUri = "https://vietprodev.duckdns.org/gateway/mail-connector/oauth/callback"
       const randomState = Math.random().toString(36).substring(2)
       const response = await oauthMutation.mutateAsync({ redirectUri, state: randomState })
       const authUrl = (response as { authUrl?: string })?.authUrl
@@ -3498,6 +9115,14 @@ function MailAccountsContent() {
     setSyncingAccountId(accountId)
     triggerSync.mutate(undefined, {
       onError: (err) => toast.error(getErrorMessage(err, "Kích hoạt đồng bộ thất bại.")),
+    })
+  }
+
+  const handleDirectSync = (accountId: string) => {
+    setSyncingAccountId(accountId)
+    triggerSyncDirect.mutate(undefined, {
+      onSuccess: () => toast.success("Đồng bộ trực tiếp thành công."),
+      onError: (err) => toast.error(getErrorMessage(err, "Đồng bộ trực tiếp thất bại.")),
     })
   }
 
@@ -3620,11 +9245,19 @@ function MailAccountsContent() {
                     <div className="flex items-center justify-end gap-2">
                       <button
                         onClick={() => account.id && handleSync(account.id)}
-                        disabled={triggerSync.isPending || deleteMutation.isPending}
+                        disabled={triggerSync.isPending || triggerSyncDirect.isPending || deleteMutation.isPending}
                         title="Đồng bộ"
                         className="inline-flex h-8 w-8 cursor-pointer items-center justify-center rounded-md border border-neutral-100 bg-white text-neutral-300 transition-colors hover:bg-neutral-50 hover:text-primary disabled:opacity-40 disabled:cursor-not-allowed"
                       >
                         <Play className="h-4 w-4" />
+                      </button>
+                      <button
+                        onClick={() => account.id && handleDirectSync(account.id)}
+                        disabled={triggerSync.isPending || triggerSyncDirect.isPending || deleteMutation.isPending}
+                        title="Đồng bộ trực tiếp"
+                        className="inline-flex h-8 w-8 cursor-pointer items-center justify-center rounded-md border border-neutral-100 bg-white text-neutral-300 transition-colors hover:bg-blue-50 hover:text-blue-600 disabled:opacity-40 disabled:cursor-not-allowed"
+                      >
+                        <RefreshCw className={triggerSyncDirect.isPending ? "h-4 w-4 animate-spin" : "h-4 w-4"} />
                       </button>
                       <button
                         onClick={() => account.id && handleDelete(account.id)}
@@ -4002,6 +9635,7 @@ export default function MailTemplatesPage() {
 
 ```tsx
 "use client"
+// USER ROUTE: Dashboard chính — user/admin đều xem
 
 import { useState } from "react"
 import Link from "next/link"
@@ -4465,10 +10099,12 @@ export default function ImportPage() {
 
 ```tsx
 "use client"
+// USER ROUTE: Xem báo cáo và import dữ liệu — user
 
 import Link from "next/link"
 import { FileSpreadsheet, TrendingUp, Package, DollarSign } from "lucide-react"
 import dayjs from "dayjs"
+import { PermissionGuard } from "@/components/permission-guard"
 
 const reports = [
   { id: "1", invoiceNumber: "INV-001", sender: "ABC Logistics", amount: 12500000, currency: "VND", date: "2026-05-20", status: "completed", importedAt: "2026-05-21T10:00:00Z" },
@@ -4480,18 +10116,21 @@ const totalAmount = reports.reduce((sum, r) => sum + (r.amount || 0), 0)
 
 export default function ReportsPage() {
   return (
-    <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-bold text-neutral-300">Báo cáo Tổng</h1>
-        <Link
-          id="tour-reports-import-btn"
-          href="/reports/import"
-          className="flex items-center gap-2 rounded-lg bg-primary px-4 py-2 text-sm font-medium text-white hover:bg-primary-500"
-        >
-          <FileSpreadsheet className="h-4 w-4" />
-          Import dữ liệu mới
-        </Link>
-      </div>
+    <PermissionGuard permission="report.view">
+      <div className="space-y-6">
+        <div className="flex items-center justify-between">
+          <h1 className="text-2xl font-bold text-neutral-300">Báo cáo Tổng</h1>
+          <PermissionGuard permission="report.export">
+            <Link
+              id="tour-reports-import-btn"
+              href="/reports/import"
+              className="flex items-center gap-2 rounded-lg bg-primary px-4 py-2 text-sm font-medium text-white hover:bg-primary-500"
+            >
+              <FileSpreadsheet className="h-4 w-4" />
+              Import dữ liệu mới
+            </Link>
+          </PermissionGuard>
+        </div>
 
       <div id="tour-reports-stats" className="grid grid-cols-1 gap-4 sm:grid-cols-3">
         <div className="rounded-xl border border-neutral-100 bg-white p-5">
@@ -4564,9 +10203,202 @@ export default function ReportsPage() {
           </tbody>
         </table>
       </div>
+      </div>
+    </PermissionGuard>
+  )
+}
+
+```
+
+---
+
+## File: `app\(app)\sessions\page.tsx`
+
+```tsx
+"use client"
+// ROUTE: Quản lý phiên đăng nhập — xem và hủy phiên của chính mình
+
+import { useState } from "react"
+import {
+  Loader,
+  LogOut,
+  Monitor,
+  Smartphone,
+  Globe,
+  Trash2,
+  AlertTriangle,
+} from "lucide-react"
+import { toast } from "sonner"
+import dayjs from "dayjs"
+import { getErrorMessage } from "@/lib/get-error-message"
+import {
+  useAuthSessionsQuery,
+  useAuthRevokeSessionMutation,
+  useAuthLogoutAllMutation,
+} from "@/hooks/use-auth-queries"
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import { Button } from "@/components/ui/button"
+
+type SessionRecord = Record<string, unknown>
+
+function normalizeSessions(raw: unknown): SessionRecord[] {
+  if (raw && typeof raw === "object") {
+    const d = raw as Record<string, unknown>
+    if (Array.isArray(d.sessions)) return d.sessions as SessionRecord[]
+  }
+  return []
+}
+
+function getDeviceIcon(platform?: string | null) {
+  const p = (platform ?? "").toLowerCase()
+  if (p.includes("mobile") || p.includes("android") || p.includes("ios")) {
+    return <Smartphone className="h-5 w-5 text-neutral-200" />
+  }
+  return <Monitor className="h-5 w-5 text-neutral-200" />
+}
+
+export default function SessionsPage() {
+  const [revokingId, setRevokingId] = useState<string | null>(null)
+
+  const sessionsQuery = useAuthSessionsQuery()
+  const revokeMutation = useAuthRevokeSessionMutation()
+  const logoutAllMutation = useAuthLogoutAllMutation()
+
+  const sessions = normalizeSessions(sessionsQuery.data)
+
+  const handleRevoke = async (id: string) => {
+    setRevokingId(id)
+    try {
+      await revokeMutation.mutateAsync({
+        id,
+        payload: { reason: "User revoked from web UI" },
+      })
+      toast.success("Đã hủy phiên đăng nhập.")
+    } catch (err) {
+      toast.error(getErrorMessage(err, "Hủy phiên thất bại."))
+    } finally {
+      setRevokingId(null)
+    }
+  }
+
+  const handleLogoutAll = async () => {
+    const confirmed = window.confirm("Đăng xuất khỏi tất cả thiết bị?")
+    if (!confirmed) return
+    try {
+      await logoutAllMutation.mutateAsync({ reason: "User logout all from web UI" })
+      toast.success("Đã đăng xuất khỏi tất cả thiết bị.")
+    } catch (err) {
+      toast.error(getErrorMessage(err, "Thao tác thất bại."))
+    }
+  }
+
+  return (
+    <div className="space-y-6">
+      <div className="flex items-center justify-between">
+        <h1 className="text-2xl font-bold text-neutral-300">Quản lý phiên đăng nhập</h1>
+        <Button
+          variant="outline"
+          onClick={handleLogoutAll}
+          disabled={logoutAllMutation.isPending}
+          className="text-accent border-accent/20 hover:bg-accent/5 cursor-pointer"
+        >
+          {logoutAllMutation.isPending ? (
+            <Loader className="mr-2 h-4 w-4 animate-spin" />
+          ) : (
+            <LogOut className="mr-2 h-4 w-4" />
+          )}
+          Đăng xuất tất cả
+        </Button>
+      </div>
+
+      {sessionsQuery.isPending && (
+        <div className="flex items-center gap-2 text-sm text-neutral-200">
+          <Loader className="h-4 w-4 animate-spin" />
+          Đang tải...
+        </div>
+      )}
+
+      {!sessionsQuery.isPending && sessions.length === 0 && (
+        <Card>
+          <CardContent className="py-12 text-center">
+            <AlertTriangle className="mx-auto h-8 w-8 text-neutral-200" />
+            <p className="mt-3 text-sm text-neutral-200">Không có phiên đăng nhập nào.</p>
+          </CardContent>
+        </Card>
+      )}
+
+      <div className="space-y-3">
+        {sessions.map((s) => {
+          const id = String(s.id ?? "")
+          const platform = s.platform as string | null
+          const deviceName = (s.deviceName as string | null) ?? null
+          const ip = (s.ipAddress as string | null) ?? "—"
+          const createdAt = s.createdAtUtc as string | undefined
+          const lastActive = s.lastActivityAtUtc as string | undefined
+          const expiresAt = s.expiresAtUtc as string | undefined
+          const isCurrent = Boolean(s.isCurrent)
+
+          return (
+            <Card
+              key={id}
+              className={`transition-colors ${isCurrent ? "border-primary/30 bg-primary/5" : ""}`}
+            >
+              <CardContent className="flex items-center gap-4 py-4">
+                <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-neutral-50">
+                  {getDeviceIcon(platform)}
+                </div>
+
+                <div className="min-w-0 flex-1">
+                  <div className="flex items-center gap-2">
+                    <p className="text-sm font-medium text-neutral-300">
+                      {deviceName ?? (platform ? platform.charAt(0).toUpperCase() + platform.slice(1) : "Thiết bị")}
+                    </p>
+                    {isCurrent && (
+                      <span className="rounded-full bg-primary/10 px-2 py-0.5 text-[10px] font-medium text-primary">
+                        Hiện tại
+                      </span>
+                    )}
+                  </div>
+                  <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-neutral-200">
+                    <span className="flex items-center gap-1">
+                      <Globe className="h-3 w-3" />
+                      {ip}
+                    </span>
+                    {typeof createdAt === "string" && (
+                      <span>Đăng nhập: {dayjs(createdAt).format("DD/MM/YYYY HH:mm")}</span>
+                    )}
+                    {typeof lastActive === "string" && (
+                      <span>Hoạt động: {dayjs(lastActive).format("DD/MM/YYYY HH:mm")}</span>
+                    )}
+                    {typeof expiresAt === "string" && (
+                      <span>Hết hạn: {dayjs(expiresAt).format("DD/MM/YYYY HH:mm")}</span>
+                    )}
+                  </div>
+                </div>
+
+                {!isCurrent && (
+                  <button
+                    onClick={() => handleRevoke(id)}
+                    disabled={revokingId === id || revokeMutation.isPending}
+                    className="inline-flex shrink-0 items-center gap-1 rounded-lg border border-rose-200 px-3 py-1.5 text-xs font-medium text-rose-600 hover:bg-rose-50 disabled:opacity-50 cursor-pointer disabled:cursor-not-allowed"
+                  >
+                    {revokingId === id ? (
+                      <Loader className="h-3 w-3 animate-spin" />
+                    ) : (
+                      <Trash2 className="h-3 w-3" />
+                    )}
+                    Hủy
+                  </button>
+                )}
+              </CardContent>
+            </Card>
+          )
+        })}
+      </div>
     </div>
   )
 }
+
 
 ```
 
@@ -4587,10 +10419,324 @@ export default function AppTemplate({
 
 ---
 
+## File: `app\(app)\templates\page.tsx`
+
+```tsx
+"use client"
+// User route: Quản lý template nhận diện và bóc tách email
+
+import { useMemo, useState } from "react"
+import { Plus, Save, Trash2 } from "lucide-react"
+import dayjs from "dayjs"
+import { getErrorMessage } from "@/lib/get-error-message"
+import { toast } from "sonner"
+import {
+  useCreateEmailTemplateMutation,
+  useDeleteEmailTemplateMutation,
+  useEmailTemplatesQuery,
+  useUpdateEmailTemplateMutation,
+} from "@/hooks/use-mail-queries"
+
+type TemplateFormState = {
+  templateCode: string
+  templateName: string
+  description: string
+  subjectPattern: string
+  bodyPattern: string
+  expectedFieldsJson: string
+  documentTypesCsv: string
+  isActive: boolean
+}
+
+type TemplateItem = {
+  id?: string | null
+  templateCode?: string | null
+  templateName?: string | null
+  description?: string | null
+  subjectPattern?: string | null
+  bodyPattern?: string | null
+  expectedFields?: Record<string, string> | null
+  documentTypes?: string[] | null
+  isActive?: boolean | null
+  createdAt?: string | null
+  updatedAt?: string | null
+}
+
+const emptyForm: TemplateFormState = {
+  templateCode: "",
+  templateName: "",
+  description: "",
+  subjectPattern: "",
+  bodyPattern: "",
+  expectedFieldsJson: "{}",
+  documentTypesCsv: "",
+  isActive: true,
+}
+
+export default function TemplatesPage() {
+  const templatesQuery = useEmailTemplatesQuery()
+  const createTemplateMutation = useCreateEmailTemplateMutation()
+  const deleteTemplateMutation = useDeleteEmailTemplateMutation()
+
+  const [editingTemplateId, setEditingTemplateId] = useState<string | null>(null)
+  const [formState, setFormState] = useState<TemplateFormState>(emptyForm)
+  const updateTemplateMutation = useUpdateEmailTemplateMutation(editingTemplateId)
+
+  const templates: TemplateItem[] = (templatesQuery.data ?? []) as TemplateItem[]
+  const isSaving = createTemplateMutation.isPending || updateTemplateMutation.isPending
+
+  const sortedTemplates = useMemo(
+    () =>
+      [...templates].sort((first, second) => {
+        const firstTime = new Date(first.updatedAt ?? first.createdAt ?? 0).getTime()
+        const secondTime = new Date(second.updatedAt ?? second.createdAt ?? 0).getTime()
+        return secondTime - firstTime
+      }),
+    [templates]
+  )
+
+  const parseExpectedFields = () => {
+    try {
+      const parsed = JSON.parse(formState.expectedFieldsJson || "{}")
+      if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) {
+        throw new Error("Expected fields phải là object JSON.")
+      }
+      return parsed as Record<string, string>
+    } catch {
+      throw new Error("Expected fields JSON không hợp lệ.")
+    }
+  }
+
+  const resetForm = () => {
+    setEditingTemplateId(null)
+    setFormState(emptyForm)
+  }
+
+  const handleSubmit = async () => {
+    try {
+      const expectedFields = parseExpectedFields()
+      const documentTypes = formState.documentTypesCsv
+        .split(",")
+        .map((item) => item.trim())
+        .filter(Boolean)
+
+      if (editingTemplateId) {
+        await updateTemplateMutation.mutateAsync({
+          templateName: formState.templateName,
+          description: formState.description,
+          subjectPattern: formState.subjectPattern,
+          bodyPattern: formState.bodyPattern,
+          expectedFields,
+          documentTypes,
+          isActive: formState.isActive,
+        })
+        toast.success("Đã cập nhật template.")
+      } else {
+        await createTemplateMutation.mutateAsync({
+          templateCode: formState.templateCode,
+          templateName: formState.templateName,
+          description: formState.description,
+          subjectPattern: formState.subjectPattern,
+          bodyPattern: formState.bodyPattern,
+          expectedFields,
+          documentTypes,
+        })
+        toast.success("Đã tạo template mới.")
+      }
+      resetForm()
+    } catch (error) {
+      toast.error(getErrorMessage(error, "Không lưu được template."))
+    }
+  }
+
+  const handleEdit = (templateId: string) => {
+    const template = templates.find((item) => item.id === templateId)
+    if (!template) return
+    setEditingTemplateId(template.id || null)
+    setFormState({
+      templateCode: template.templateCode || "",
+      templateName: template.templateName || "",
+      description: template.description || "",
+      subjectPattern: template.subjectPattern || "",
+      bodyPattern: template.bodyPattern || "",
+      expectedFieldsJson: JSON.stringify(template.expectedFields ?? {}, null, 2),
+      documentTypesCsv: (template.documentTypes ?? []).join(", "),
+      isActive: Boolean(template.isActive),
+    })
+  }
+
+  const handleDelete = async (templateId: string) => {
+    const confirmed = window.confirm("Xóa template này?")
+    if (!confirmed) return
+    try {
+      await deleteTemplateMutation.mutateAsync(templateId)
+      if (editingTemplateId === templateId) {
+        resetForm()
+      }
+      toast.success("Đã xóa template.")
+    } catch (error) {
+      toast.error(getErrorMessage(error, "Xóa template thất bại."))
+    }
+  }
+
+  return (
+    <div className="space-y-4">
+      <h1 className="text-lg font-semibold text-neutral-300">Quản lý Templates</h1>
+
+      <div className="grid gap-4 lg:grid-cols-[380px_1fr]">
+        <div className="space-y-4 rounded-xl border border-neutral-100 bg-white p-4">
+          <div className="flex items-center justify-between">
+            <h2 className="text-base font-semibold text-neutral-300">
+              {editingTemplateId ? "Cập nhật template" : "Tạo template"}
+            </h2>
+            {editingTemplateId && (
+              <button
+                onClick={resetForm}
+                className="cursor-pointer rounded-md border border-neutral-100 px-2 py-1 text-xs text-neutral-200 hover:bg-neutral-50"
+              >
+                Hủy sửa
+              </button>
+            )}
+          </div>
+
+          <div className="space-y-3">
+            <input
+              type="text"
+              placeholder="Template code"
+              value={formState.templateCode}
+              onChange={(event) => setFormState((state) => ({ ...state, templateCode: event.target.value }))}
+              disabled={Boolean(editingTemplateId)}
+              className="w-full rounded-lg border border-neutral-100 px-3 py-2 text-sm text-neutral-800 outline-none focus:border-primary focus:ring-2 focus:ring-primary/20 disabled:bg-neutral-50"
+            />
+            <input
+              type="text"
+              placeholder="Template name"
+              value={formState.templateName}
+              onChange={(event) => setFormState((state) => ({ ...state, templateName: event.target.value }))}
+              className="w-full rounded-lg border border-neutral-100 px-3 py-2 text-sm text-neutral-800 outline-none focus:border-primary focus:ring-2 focus:ring-primary/20"
+            />
+            <input
+              type="text"
+              placeholder="Subject pattern"
+              value={formState.subjectPattern}
+              onChange={(event) => setFormState((state) => ({ ...state, subjectPattern: event.target.value }))}
+              className="w-full rounded-lg border border-neutral-100 px-3 py-2 text-sm text-neutral-800 outline-none focus:border-primary focus:ring-2 focus:ring-primary/20"
+            />
+            <textarea
+              placeholder="Description"
+              value={formState.description}
+              onChange={(event) => setFormState((state) => ({ ...state, description: event.target.value }))}
+              rows={2}
+              className="w-full rounded-lg border border-neutral-100 px-3 py-2 text-sm text-neutral-800 outline-none focus:border-primary focus:ring-2 focus:ring-primary/20"
+            />
+            <textarea
+              placeholder="Body pattern"
+              value={formState.bodyPattern}
+              onChange={(event) => setFormState((state) => ({ ...state, bodyPattern: event.target.value }))}
+              rows={3}
+              className="w-full rounded-lg border border-neutral-100 px-3 py-2 text-sm text-neutral-800 outline-none focus:border-primary focus:ring-2 focus:ring-primary/20"
+            />
+            <textarea
+              placeholder='Expected fields JSON, ví dụ {"invoiceNumber":"Mã hóa đơn"}'
+              value={formState.expectedFieldsJson}
+              onChange={(event) => setFormState((state) => ({ ...state, expectedFieldsJson: event.target.value }))}
+              rows={5}
+              className="w-full rounded-lg border border-neutral-100 px-3 py-2 font-mono text-xs text-neutral-800 outline-none focus:border-primary focus:ring-2 focus:ring-primary/20"
+            />
+            <input
+              type="text"
+              placeholder="Document types (csv) ví dụ invoice,receipt"
+              value={formState.documentTypesCsv}
+              onChange={(event) => setFormState((state) => ({ ...state, documentTypesCsv: event.target.value }))}
+              className="w-full rounded-lg border border-neutral-100 px-3 py-2 text-sm text-neutral-800 outline-none focus:border-primary focus:ring-2 focus:ring-primary/20"
+            />
+            <label className="flex items-center gap-2 text-sm text-neutral-200">
+              <input
+                type="checkbox"
+                checked={formState.isActive}
+                onChange={(event) => setFormState((state) => ({ ...state, isActive: event.target.checked }))}
+                disabled={!editingTemplateId}
+              />
+              Kích hoạt template
+            </label>
+          </div>
+
+          <button
+            onClick={handleSubmit}
+            disabled={isSaving}
+            className="flex w-full cursor-pointer items-center justify-center gap-2 rounded-lg bg-primary px-4 py-2 text-sm font-medium text-white hover:bg-primary-500 disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            {editingTemplateId ? <Save className="h-4 w-4" /> : <Plus className="h-4 w-4" />}
+            {isSaving ? "Đang lưu..." : editingTemplateId ? "Cập nhật" : "Tạo mới"}
+          </button>
+        </div>
+
+        <div className="space-y-3 rounded-xl border border-neutral-100 bg-white p-4">
+          <h2 className="text-lg font-semibold text-neutral-300">Danh sách template</h2>
+          {templatesQuery.error && (
+            <div className="rounded-lg bg-red-50 p-3 text-sm text-red-700">
+              {getErrorMessage(templatesQuery.error, "Không tải được template.")}
+            </div>
+          )}
+          {templatesQuery.isPending && (
+            <p className="text-sm text-neutral-200">Đang tải template...</p>
+          )}
+          {!templatesQuery.isPending && sortedTemplates.length === 0 && (
+            <p className="text-sm text-neutral-200">Chưa có template nào.</p>
+          )}
+
+          <div className="space-y-2">
+            {sortedTemplates.map((template) => (
+              <div
+                key={template.id}
+                className="flex cursor-pointer flex-wrap items-center justify-between gap-2 rounded-lg border border-neutral-100 p-3 hover:bg-neutral-50"
+              >
+                <div className="min-w-0">
+                  <p className="text-sm font-medium text-neutral-300">
+                    {template.templateCode} - {template.templateName}
+                  </p>
+                  <p className="text-xs text-neutral-200">
+                    Cập nhật:{" "}
+                    {template.updatedAt
+                      ? dayjs(template.updatedAt).format("DD/MM/YYYY HH:mm")
+                      : "N/A"}
+                    {" · "}
+                    {template.isActive ? "Active" : "Inactive"}
+                  </p>
+                </div>
+                <div className="flex items-center gap-2">
+                  <button
+                    onClick={() => handleEdit(template.id || "")}
+                    className="cursor-pointer rounded-md border border-neutral-100 px-2 py-1 text-xs text-neutral-200 hover:bg-neutral-50"
+                  >
+                    Sửa
+                  </button>
+                  <button
+                    onClick={() => handleDelete(template.id || "")}
+                    disabled={deleteTemplateMutation.isPending}
+                    className="inline-flex cursor-pointer items-center gap-1 rounded-md border border-rose-200 px-2 py-1 text-xs text-rose-600 hover:bg-rose-50 disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    <Trash2 className="h-3 w-3" /> Xóa
+                  </button>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+```
+
+---
+
 ## File: `app\(app)\user\page.tsx`
 
 ```tsx
 "use client"
+// USER ROUTE: Hồ sơ cá nhân — user quản lý thông tin và đổi mật khẩu
 
 import { useState } from "react"
 import {
@@ -5058,6 +11204,7 @@ const emptyForm: WebhookFormState = {
   isActive: true,
 }
 
+/*
 export default function WebhooksPage() {
   const webhooksQuery = useWebhookSubscriptionsQuery()
   const createMutation = useCreateWebhookMutation()
@@ -5303,6 +11450,204 @@ export default function WebhooksPage() {
     </div>
   )
 }
+*/
+
+export default function WebhooksPage() {
+  return (
+    <div className="space-y-4">
+      <h1 className="text-2xl font-bold text-neutral-300">Webhook Subscriptions</h1>
+      <p className="text-sm text-neutral-200">Trang này đang được tạm ẩn.</p>
+    </div>
+  )
+}
+
+```
+
+---
+
+## File: `app\forgot-password\page.tsx`
+
+```tsx
+"use client"
+
+import { useState } from "react"
+import { useRouter } from "next/navigation"
+import { Mail, Lock, ArrowLeft, Loader } from "lucide-react"
+import { toast } from "sonner"
+import { getErrorMessage } from "@/lib/get-error-message"
+import {
+  useAuthForgotPasswordSendOtpMutation,
+  useAuthForgotPasswordConfirmResetMutation,
+} from "@/hooks/use-auth-queries"
+
+export default function ForgotPasswordPage() {
+  const router = useRouter()
+  const [step, setStep] = useState<"send" | "confirm">("send")
+  const [email, setEmail] = useState("")
+  const [otp, setOtp] = useState("")
+  const [newPassword, setNewPassword] = useState("")
+  const [confirmPassword, setConfirmPassword] = useState("")
+  const [loading, setLoading] = useState(false)
+
+  const sendOtpMutation = useAuthForgotPasswordSendOtpMutation()
+  const confirmResetMutation = useAuthForgotPasswordConfirmResetMutation()
+
+  const handleSendOtp = async (e: React.FormEvent) => {
+    e.preventDefault()
+    if (!email) return
+    setLoading(true)
+    try {
+      await sendOtpMutation.mutateAsync({
+        email,
+        ipAddress: null,
+        userAgent: null,
+      })
+      toast.success("Đã gửi OTP đến email của bạn.")
+      setStep("confirm")
+    } catch (err) {
+      toast.error(getErrorMessage(err, "Gửi OTP thất bại."))
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const handleConfirmReset = async (e: React.FormEvent) => {
+    e.preventDefault()
+    if (!otp || !newPassword) return
+    if (newPassword !== confirmPassword) {
+      toast.error("Mật khẩu xác nhận không khớp.")
+      return
+    }
+    setLoading(true)
+    try {
+      await confirmResetMutation.mutateAsync({
+        email,
+        token: otp,
+        newPassword,
+      })
+      toast.success("Đặt lại mật khẩu thành công. Vui lòng đăng nhập.")
+      router.push("/login")
+    } catch (err) {
+      toast.error(getErrorMessage(err, "Đặt lại mật khẩu thất bại."))
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  return (
+    <div className="flex min-h-screen items-center justify-center bg-neutral-50 p-4">
+      <div className="w-full max-w-[400px] rounded-2xl bg-white p-8 shadow-xl">
+        <div className="mb-6 flex flex-col items-center text-center">
+          <div className="mb-4 flex h-14 w-14 items-center justify-center rounded-full bg-primary-50">
+            <Lock className="h-7 w-7 text-primary" />
+          </div>
+          <h1 className="text-xl font-bold text-neutral-300">
+            {step === "send" ? "Quên mật khẩu" : "Đặt lại mật khẩu"}
+          </h1>
+          <p className="mt-1 text-sm text-neutral-200">
+            {step === "send"
+              ? "Nhập email để nhận mã OTP"
+              : "Nhập mã OTP và mật khẩu mới"}
+          </p>
+        </div>
+
+        {step === "send" ? (
+          <form onSubmit={handleSendOtp} className="space-y-4">
+            <div>
+              <label className="mb-1.5 block text-sm font-medium text-neutral-300">Email</label>
+              <div className="relative">
+                <Mail className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-neutral-200" />
+                <input
+                  type="email"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  required
+                  className="w-full rounded-lg border border-neutral-100 py-2.5 pl-10 pr-4 text-sm text-neutral-800 outline-none focus:border-primary focus:ring-1 focus:ring-primary/20 bg-white transition-colors placeholder:text-neutral-200"
+                  placeholder="admin@company.com"
+                />
+              </div>
+            </div>
+
+            <button
+              type="submit"
+              disabled={loading}
+              className="flex w-full items-center justify-center gap-2 rounded-lg bg-primary px-4 py-2.5 text-sm font-medium text-white transition-colors hover:bg-primary-500 disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
+            >
+              {loading ? <Loader className="h-4 w-4 animate-spin" /> : "Gửi OTP"}
+            </button>
+
+            <button
+              type="button"
+              onClick={() => router.push("/login")}
+              className="flex w-full items-center justify-center gap-1 text-sm text-neutral-200 hover:text-neutral-300 cursor-pointer"
+            >
+              <ArrowLeft className="h-3.5 w-3.5" />
+              Quay lại đăng nhập
+            </button>
+          </form>
+        ) : (
+          <form onSubmit={handleConfirmReset} className="space-y-4">
+            <div>
+              <label className="mb-1.5 block text-sm font-medium text-neutral-300">Mã OTP</label>
+              <input
+                type="text"
+                value={otp}
+                onChange={(e) => setOtp(e.target.value)}
+                required
+                maxLength={6}
+                className="w-full rounded-lg border border-neutral-100 px-4 py-2.5 text-sm text-neutral-800 outline-none focus:border-primary focus:ring-1 focus:ring-primary/20 bg-white transition-colors placeholder:text-neutral-200 text-center tracking-[0.5em] font-mono"
+                placeholder="123456"
+              />
+            </div>
+
+            <div>
+              <label className="mb-1.5 block text-sm font-medium text-neutral-300">Mật khẩu mới</label>
+              <input
+                type="password"
+                value={newPassword}
+                onChange={(e) => setNewPassword(e.target.value)}
+                required
+                minLength={6}
+                className="w-full rounded-lg border border-neutral-100 px-4 py-2.5 text-sm text-neutral-800 outline-none focus:border-primary focus:ring-1 focus:ring-primary/20 bg-white transition-colors placeholder:text-neutral-200"
+                placeholder="••••••••"
+              />
+            </div>
+
+            <div>
+              <label className="mb-1.5 block text-sm font-medium text-neutral-300">Xác nhận mật khẩu</label>
+              <input
+                type="password"
+                value={confirmPassword}
+                onChange={(e) => setConfirmPassword(e.target.value)}
+                required
+                minLength={6}
+                className="w-full rounded-lg border border-neutral-100 px-4 py-2.5 text-sm text-neutral-800 outline-none focus:border-primary focus:ring-1 focus:ring-primary/20 bg-white transition-colors placeholder:text-neutral-200"
+                placeholder="••••••••"
+              />
+            </div>
+
+            <button
+              type="submit"
+              disabled={loading}
+              className="flex w-full items-center justify-center gap-2 rounded-lg bg-primary px-4 py-2.5 text-sm font-medium text-white transition-colors hover:bg-primary-500 disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
+            >
+              {loading ? <Loader className="h-4 w-4 animate-spin" /> : "Xác nhận"}
+            </button>
+
+            <button
+              type="button"
+              onClick={() => setStep("send")}
+              className="flex w-full items-center justify-center gap-1 text-sm text-neutral-200 hover:text-neutral-300 cursor-pointer"
+            >
+              <ArrowLeft className="h-3.5 w-3.5" />
+              Quay lại
+            </button>
+          </form>
+        )}
+      </div>
+    </div>
+  )
+}
 
 ```
 
@@ -5453,9 +11798,9 @@ import { useState } from "react"
 import { useRouter } from "next/navigation"
 import { Mail, Shield, Clock, BarChart3, User, Lock } from "lucide-react"
 import Image from "next/image"
-import { login } from "@/lib/api"
 import { getErrorMessage } from "@/lib/get-error-message"
 import { useAuthStore } from "@/lib/stores/auth-store"
+import { useAuthLoginMutation } from "@/hooks/use-auth-queries"
 
 export default function LoginPage() {
   const router = useRouter()
@@ -5466,15 +11811,19 @@ export default function LoginPage() {
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
+  const loginMutation = useAuthLoginMutation()
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     setError(null)
     setLoading(true)
     try {
-      const res = await login(email, password)
-      const accessToken = res.data?.accessToken
-      const refreshToken = res.data?.refreshToken
-      const user = res.data?.user
+      const res = await loginMutation.mutateAsync({ email, password })
+      // API response wrapper: { data: { accessToken, user }, meta, errors }
+      const apiData = res?.data ?? res
+      const accessToken = apiData?.accessToken
+      const refreshToken = apiData?.refreshToken
+      const user = apiData?.user
       if (accessToken && user && typeof window !== "undefined") {
         localStorage.setItem("token", accessToken)
         if (refreshToken) localStorage.setItem("refreshToken", refreshToken)
@@ -5612,7 +11961,7 @@ export default function LoginPage() {
                 />
                 Ghi nhớ đăng nhập
               </label>
-              <a href="#" className="text-sm font-medium text-primary hover:text-primary-500">
+              <a href="/forgot-password" className="text-sm font-medium text-primary hover:text-primary-500 cursor-pointer">
                 Quên mật khẩu?
               </a>
             </div>
@@ -5689,10 +12038,10 @@ export default function LoginPage() {
 import { Suspense, useEffect, useMemo, useState } from "react"
 import { useRouter, useSearchParams } from "next/navigation"
 import { Loader2, Mail, XCircle } from "lucide-react"
-import { getMailConnectorAPI } from "@/lib/generated/mail-connector/endpoints"
+import { getLogisticsPlatformAPI } from "@/lib/generated/mail-connector/endpoints"
 import { getErrorMessage } from "@/lib/get-error-message"
 
-const mailApi = getMailConnectorAPI()
+const mailApi = getLogisticsPlatformAPI()
 
 function MailAuthCallbackContent() {
   const router = useRouter()
@@ -5771,6 +12120,84 @@ export default function MailAuthCallbackPage() {
     </Suspense>
   )
 }
+
+```
+
+---
+
+## File: `CHANGELOG-27-05-2026.md`
+
+```md
+# CHANGELOG — 27/05/2026
+
+## Email Detail Page Refactor — Chat-based AI Extraction
+
+### Files Modified
+
+#### `app/(app)/emails/[id]/page.tsx`
+- **Layout**: Chuyển từ 2 cột → **3 cột ngang** (Desktop)
+  - Trái `220px`: File đính kèm
+  - Giữa `flex-1`: Nội dung email
+  - Phải `300px`: AI Chat panel
+  - Mobile: xếp dọc (email → files → chat)
+- **Header**: Gọn thành 1 dòng ngang (subject, from, date, nút Trích xuất)
+- **Chat panel**: Luôn hiển thị trong cột phải, không còn floating
+  - Toggle mode: **Chat** / **Template**
+  - Template chọn inline qua `<select>`
+  - Messages hiển thị với avatar, loading dots, auto-scroll
+  - 2 chế độ phản hồi AI:
+    - **Chat mode**: AI trả lời text tự do trong khung chat
+    - **Template mode**: AI trả về JSON → hiển thị nút "Xem chi tiết" mở modal
+- **Xóa**: Floating chat button (`MessageCircle`, `Minimize2`), `chatOpen` state
+
+#### `components/file-attachment-item.tsx`
+- **Thiết kế lại dạng dọc card** (vertical card)
+  - Top: Checkbox + Icon + Type badge
+  - Middle: Tên file `line-clamp-2` (tối đa 2 dòng)
+  - Bottom: Size + action buttons nhỏ (`Trích`, `Xem`, icon Download)
+- Gọn gàng hơn, phù hợp sidebar hẹp `220px`
+- Bỏ: status badge "Đã xong", `Card` import
+
+#### `app/(app)/layout.tsx`
+- Comment out navigation item "Webhooks" và breadcrumb logic
+
+#### `app/(app)/webhooks/page.tsx`
+- Comment out toàn bộ page content, thay bằng placeholder
+
+### Prompt Engineering
+
+#### `buildChatPrompt` (Chat mode)
+```
+Bạn là hệ thống hỗ trợ bóc tách chứng từ logistics.
+Trả lời trực tiếp bằng văn bản tự nhiên, không bắt buộc JSON.
+```
+
+#### `buildTemplatePrompt` (Template mode)
+```
+Bạn là hệ thống bóc tách chứng từ logistics.
+Trả về DUY NHẤT JSON hợp lệ, không markdown, không giải thích.
+Định dạng bắt buộc: một mảng object (array of objects).
+```
+
+### API Integration
+- Sử dụng `useProcessDocumentsMutation` từ `@/hooks/use-mail-queries`
+- Payload: `{ files: [{fileName, content, type, mimeType}], prompt, model: "gpt-4" }`
+- Kết quả được `extractResultStringFromProcessResponse` xử lý
+
+### Responsive
+- Desktop (`md+`): 3 cột ngang, chiều cao `calc(100dvh - 116px)`, scroll độc lập mỗi cột
+- Mobile: 1 cột, thứ tự email → files → chat
+
+### CSS Fixes
+- `bg-gradient-to-r` → `bg-linear-to-r` (Tailwind v4 syntax)
+- Không dùng `h-screen`, thay bằng `min-h-[100dvh]`
+
+## Các công việc trước đó (26/05)
+- Đổi API endpoint sang Logistics platform
+- Login page gắn API, lưu token
+- Emails list: đổi sortField, fix UI nowrap
+- Email detail: 70/30 layout, chọn file cho AI
+- Token interceptor (request + 401 redirect)
 
 ```
 
@@ -5872,25 +12299,28 @@ export function AttachmentViewerModal({
 ```tsx
 "use client"
 
-import { useState, useEffect } from "react"
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog"
-import { Label } from "@/components/ui/label"
-import { Input } from "@/components/ui/input"
+import { useEffect, useMemo, useState } from "react"
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
+
+type ViewerMode = "auto" | "google" | "office" | "proxy" | "direct"
+
+export type ExtractionPreviewSources = {
+  url?: string | null
+  expiresAt?: string | null
+  googleViewerUrl?: string | null
+  officeViewerUrl?: string | null
+  proxyUrl?: string | null
+}
 
 interface ExtractionResultModalProps {
   open: boolean
   onOpenChange: (open: boolean) => void
   result: string | null
-  previewUrl?: string | null
+  preview?: ExtractionPreviewSources | null
   fileName?: string | null
 }
 
-interface LogisticsData {
+type LogisticsData = {
   stt: number
   maKhachHang: string
   nhanVien: string
@@ -5919,156 +12349,301 @@ interface LogisticsData {
   trangThaiLoHang: string
 }
 
-export function ExtractionResultModal({ open, onOpenChange, result, previewUrl, fileName }: ExtractionResultModalProps) {
-  const [data, setData] = useState<LogisticsData[]>([])
-  const [message, setMessage] = useState<string | null>(null)
+type LogisticsStringKey = Exclude<keyof LogisticsData, "stt">
 
-  // Parse result string into structured data
-  const parseResult = (resultStr: string): LogisticsData[] => {
-    try {
-      // Try to parse as JSON first
-      const parsed = JSON.parse(resultStr)
-      if (Array.isArray(parsed)) {
-        return parsed.map((item, index) => ({
-          stt: index + 1,
-          maKhachHang: item.maKhachHang || item.customerCode || "",
-          nhanVien: item.nhanVien || item.staff || "",
-          khachHang: item.khachHang || item.customer || "",
-          congViec: item.congViec || item.job || "",
-          soToKhai: item.soToKhai || item.declarationNo || "",
-          loaiHinh: item.loaiHinh || item.type || "",
-          ngayToKhai: item.ngayToKhai || item.declarationDate || "",
-          loaiHang: item.loaiHang || item.goodsType || "",
-          luongTk: item.luongTk || item.customsStream || "",
-          haiQuan: item.haiQuan || item.customs || "",
-          co: item.co || item.certificate || "",
-          soInvVat: item.soInvVat || item.invoiceNo || "",
-          soBill: item.soBill || item.billNo || "",
-          soBooking: item.soBooking || item.bookingNo || "",
-          soLuongKien: item.soLuongKien || item.quantityPackages || "",
-          soLuongKg: item.soLuongKg || item.quantityKg || "",
-          soContainer20: item.soContainer20 || item.container20 || "",
-          soContainer40: item.soContainer40 || item.container40 || "",
-          soContainerLcl: item.soContainerLcl || item.containerLcl || "",
-          soContainerTc: item.soContainerTc || item.containerTc || "",
-          thongBaoPhiCsht: item.thongBaoPhiCsht || item.cshtNotice || "",
-          soTienCsht: item.soTienCsht || item.cshtAmount || "",
-          cangXuatNhap: item.cangXuatNhap || item.port || "",
-          ghiChu: item.ghiChu || item.note || "",
-          trangThaiLoHang: item.trangThaiLoHang || item.shipmentStatus || "",
-        }))
-      }
-      return []
-    } catch {
-      // If not JSON, return empty array and set message
-      return []
+type FieldConfig = {
+  key: LogisticsStringKey
+  label: string
+  aliases: string[]
+}
+
+const FIELD_CONFIGS: FieldConfig[] = [
+  { key: "maKhachHang", label: "MÃ KHÁCH HÀNG", aliases: ["maKhachHang", "customerCode"] },
+  { key: "nhanVien", label: "NHÂN VIÊN", aliases: ["nhanVien", "staff"] },
+  { key: "khachHang", label: "KHÁCH HÀNG", aliases: ["khachHang", "customer"] },
+  { key: "congViec", label: "CÔNG VIỆC", aliases: ["congViec", "job"] },
+  { key: "soToKhai", label: "SỐ TỜ KHAI", aliases: ["soToKhai", "declarationNo"] },
+  { key: "loaiHinh", label: "LOẠI HÌNH", aliases: ["loaiHinh", "type"] },
+  { key: "ngayToKhai", label: "NGÀY TỜ KHAI", aliases: ["ngayToKhai", "declarationDate"] },
+  { key: "loaiHang", label: "LOẠI HÀNG", aliases: ["loaiHang", "goodsType"] },
+  { key: "luongTk", label: "LUỒNG TK", aliases: ["luongTk", "customsStream"] },
+  { key: "haiQuan", label: "HẢI QUAN", aliases: ["haiQuan", "customs"] },
+  { key: "co", label: "C/O", aliases: ["co", "certificate"] },
+  { key: "soInvVat", label: "SỐ INV/VAT", aliases: ["soInvVat", "invoiceNo"] },
+  { key: "soBill", label: "SỐ BILL", aliases: ["soBill", "billNo"] },
+  { key: "soBooking", label: "SỐ BOOKING", aliases: ["soBooking", "bookingNo"] },
+  { key: "soLuongKien", label: "SỐ LƯỢNG (KIỆN)", aliases: ["soLuongKien", "quantityPackages"] },
+  { key: "soLuongKg", label: "SỐ LƯỢNG (KG)", aliases: ["soLuongKg", "quantityKg"] },
+  { key: "soContainer20", label: "CONT 20'", aliases: ["soContainer20", "container20"] },
+  { key: "soContainer40", label: "CONT 40'", aliases: ["soContainer40", "container40"] },
+  { key: "soContainerLcl", label: "CONT LCL", aliases: ["soContainerLcl", "containerLcl"] },
+  { key: "soContainerTc", label: "CONT TC", aliases: ["soContainerTc", "containerTc"] },
+  { key: "thongBaoPhiCsht", label: "THÔNG BÁO PHÍ CSHT", aliases: ["thongBaoPhiCsht", "cshtNotice"] },
+  { key: "soTienCsht", label: "SỐ TIỀN CSHT", aliases: ["soTienCsht", "cshtAmount"] },
+  { key: "cangXuatNhap", label: "CẢNG XUẤT - CẢNG NHẬP", aliases: ["cangXuatNhap", "port"] },
+  { key: "ghiChu", label: "GHI CHÚ", aliases: ["ghiChu", "note"] },
+  { key: "trangThaiLoHang", label: "TRẠNG THÁI LÔ HÀNG", aliases: ["trangThaiLoHang", "shipmentStatus"] },
+]
+
+const EMPTY_ROW: LogisticsData = {
+  stt: 1,
+  maKhachHang: "",
+  nhanVien: "",
+  khachHang: "",
+  congViec: "",
+  soToKhai: "",
+  loaiHinh: "",
+  ngayToKhai: "",
+  loaiHang: "",
+  luongTk: "",
+  haiQuan: "",
+  co: "",
+  soInvVat: "",
+  soBill: "",
+  soBooking: "",
+  soLuongKien: "",
+  soLuongKg: "",
+  soContainer20: "",
+  soContainer40: "",
+  soContainerLcl: "",
+  soContainerTc: "",
+  thongBaoPhiCsht: "",
+  soTienCsht: "",
+  cangXuatNhap: "",
+  ghiChu: "",
+  trangThaiLoHang: "",
+}
+
+function pickFirstString(item: Record<string, unknown>, aliases: string[]) {
+  for (const alias of aliases) {
+    const value = item[alias]
+    if (value === null || value === undefined) continue
+    const text = String(value).trim()
+    if (text) return text
+  }
+  return ""
+}
+
+function normalizeLogisticsRow(item: Record<string, unknown>, index: number): LogisticsData {
+  const normalized: LogisticsData = { ...EMPTY_ROW, stt: index + 1 }
+  for (const field of FIELD_CONFIGS) {
+    normalized[field.key] = pickFirstString(item, field.aliases)
+  }
+  const explicitIndex = item.stt ?? item.index ?? item.no
+  if (explicitIndex !== undefined && explicitIndex !== null && String(explicitIndex).trim()) {
+    const parsedIndex = Number(explicitIndex)
+    normalized.stt = Number.isFinite(parsedIndex) ? parsedIndex : index + 1
+  }
+  return normalized
+}
+
+function extractRecords(parsed: unknown): Record<string, unknown>[] {
+  if (Array.isArray(parsed)) {
+    return parsed.filter((entry) => entry && typeof entry === "object") as Record<string, unknown>[]
+  }
+  if (!parsed || typeof parsed !== "object") return []
+
+  const asRecord = parsed as Record<string, unknown>
+  const collectionCandidates = ["data", "items", "records", "results", "rows", "shipments"]
+  for (const key of collectionCandidates) {
+    const value = asRecord[key]
+    if (Array.isArray(value)) {
+      return value.filter((entry) => entry && typeof entry === "object") as Record<string, unknown>[]
     }
   }
+  return [asRecord]
+}
 
-  // Update data when result changes using useEffect
-  useEffect(() => {
-    if (result) {
-      const parsedData = parseResult(result)
-      if (parsedData.length > 0) {
-        setData(parsedData)
-        setMessage(null)
-      } else {
-        setData([])
-        setMessage(result)
-      }
-    } else {
-      setData([])
-      setMessage(null)
+function parseResult(resultStr: string): { rows: LogisticsData[]; rawMessage: string | null } {
+  try {
+    const parsed = JSON.parse(resultStr) as unknown
+    const records = extractRecords(parsed)
+    if (records.length === 0) {
+      return { rows: [], rawMessage: resultStr }
     }
+    return {
+      rows: records.map((record, index) => normalizeLogisticsRow(record, index)),
+      rawMessage: null,
+    }
+  } catch {
+    return { rows: [], rawMessage: resultStr }
+  }
+}
+
+export function ExtractionResultModal({
+  open,
+  onOpenChange,
+  result,
+  preview,
+  fileName,
+}: ExtractionResultModalProps) {
+  const [rows, setRows] = useState<LogisticsData[]>([])
+  const [message, setMessage] = useState<string | null>(null)
+  const [viewerMode, setViewerMode] = useState<ViewerMode>("auto")
+
+  useEffect(() => {
+    if (!result) {
+      setRows([])
+      setMessage(null)
+      return
+    }
+    const parsed = parseResult(result)
+    setRows(parsed.rows)
+    setMessage(parsed.rawMessage)
   }, [result])
+
+  const sources = useMemo(
+    () => ({
+      google: preview?.googleViewerUrl?.trim() || "",
+      office: preview?.officeViewerUrl?.trim() || "",
+      proxy: preview?.proxyUrl?.trim() || "",
+      direct: preview?.url?.trim() || "",
+    }),
+    [preview]
+  )
+
+  const viewerSrc = useMemo(() => {
+    if (viewerMode === "google" && sources.google) return sources.google
+    if (viewerMode === "office" && sources.office) return sources.office
+    if (viewerMode === "proxy" && sources.proxy) return sources.proxy
+    if (viewerMode === "direct" && sources.direct) return sources.direct
+    return sources.google || sources.office || sources.proxy || sources.direct || ""
+  }, [sources, viewerMode])
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-[95vw] h-[95vh] p-0">
-        <DialogHeader className="p-4 border-b">
+      <DialogContent className="h-[94vh] max-w-[96vw] p-0">
+        <DialogHeader className="border-b p-4">
           <DialogTitle className="text-black">Kết quả bóc tách thông tin logistics</DialogTitle>
+          {fileName ? (
+            <p className="text-sm text-neutral-600">
+              Tệp: <span className="font-medium">{fileName}</span>
+            </p>
+          ) : null}
         </DialogHeader>
-        <div className="flex h-[calc(95vh-80px)]">
-          {/* Left column: Extraction results */}
-          <div className="w-1/2 p-4 overflow-y-auto border-r">
-            {data.length > 0 ? (
-              data.map((row) => (
-                <div key={row.stt} className="space-y-3 p-4 border rounded-lg bg-white mb-4">
-                  <h3 className="text-lg font-semibold text-primary">Lô hàng #{row.stt}</h3>
-                  <div className="grid grid-cols-2 gap-4">
-                    {[
-                      { label: "MÃ KHÁCH HÀNG", value: row.maKhachHang },
-                      { label: "NHÂN VIÊN", value: row.nhanVien },
-                      { label: "KHÁCH HÀNG", value: row.khachHang },
-                      { label: "CÔNG VIỆC", value: row.congViec },
-                      { label: "SỐ TỜ KHAI", value: row.soToKhai },
-                      { label: "LOẠI HÌNH", value: row.loaiHinh },
-                      { label: "NGÀY TỜ KHAI", value: row.ngayToKhai },
-                      { label: "LOẠI HÀNG", value: row.loaiHang },
-                      { label: "LUỒNG TK", value: row.luongTk },
-                      { label: "HẢI QUAN", value: row.haiQuan },
-                      { label: "C/O", value: row.co },
-                      { label: "SỐ INV/VAT", value: row.soInvVat },
-                      { label: "SỐ BILL", value: row.soBill },
-                      { label: "SỐ BOOKING", value: row.soBooking },
-                      { label: "SỐ LƯỢNG (KIỆN)", value: row.soLuongKien },
-                      { label: "SỐ LƯỢNG (KG)", value: row.soLuongKg },
-                      { label: "CONT 20'", value: row.soContainer20 },
-                      { label: "CONT 40'", value: row.soContainer40 },
-                      { label: "CONT LCL", value: row.soContainerLcl },
-                      { label: "CONT TC", value: row.soContainerTc },
-                      { label: "THÔNG BÁO PHÍ CSHT", value: row.thongBaoPhiCsht },
-                      { label: "SỐ TIỀN CSHT", value: row.soTienCsht },
-                      { label: "CẢNG XUẤT - CẢNG NHẬP", value: row.cangXuatNhap },
-                      { label: "GHI CHÚ", value: row.ghiChu },
-                      { label: "TRẠNG THÁI LÔ HÀNG", value: row.trangThaiLoHang },
-                    ].map((field, idx) => (
-                      <div key={idx} className="space-y-1">
-                        <Label>{field.label}</Label>
-                        <Input value={field.value} readOnly />
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              ))
+
+        <div className="grid h-[calc(94vh-88px)] grid-cols-1 md:grid-cols-[minmax(460px,45%)_1fr]">
+          <div className="overflow-y-auto border-r p-4">
+            {rows.length > 0 ? (
+              <div className="space-y-4">
+                {rows.map((row) => (
+                  <section key={`${row.stt}-${row.soToKhai}-${row.soBill}`} className="rounded-lg border bg-white">
+                    <div className="border-b bg-neutral-50 px-4 py-2">
+                      <p className="text-sm font-semibold text-primary">Lô hàng #{row.stt}</p>
+                    </div>
+                    <div className="overflow-hidden">
+                      <table className="w-full table-fixed text-sm">
+                        <tbody>
+                          {FIELD_CONFIGS.map((field) => (
+                            <tr key={field.key} className="border-b last:border-b-0">
+                              <th className="w-[46%] bg-neutral-50 px-3 py-2 text-left text-xs font-semibold uppercase tracking-wide text-neutral-500">
+                                {field.label}
+                              </th>
+                              <td className="px-3 py-2 text-neutral-800">
+                                {row[field.key] ? row[field.key] : <span className="text-neutral-400">—</span>}
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  </section>
+                ))}
+              </div>
             ) : message ? (
-              <div className="p-4 border rounded-lg bg-white">
-                <p className="text-black whitespace-pre-wrap">{message}</p>
+              <div className="rounded-lg border bg-white p-4">
+                <p className="mb-2 text-sm font-medium text-neutral-700">Kết quả thô từ AI</p>
+                <pre className="max-h-[68vh] overflow-auto whitespace-pre-wrap text-sm text-neutral-800">{message}</pre>
               </div>
             ) : (
-              <div className="space-y-3 p-4 border rounded-lg bg-white">
-                <h3 className="text-lg font-semibold text-primary">Lô hàng #1</h3>
-                <div className="grid grid-cols-2 gap-4">
-                  {[
-                    "MÃ KHÁCH HÀNG", "NHÂN VIÊN", "KHÁCH HÀNG", "CÔNG VIỆC",
-                    "SỐ TỜ KHAI", "LOẠI HÌNH", "NGÀY TỜ KHAI", "LOẠI HÀNG",
-                    "LUỒNG TK", "HẢI QUAN", "C/O", "SỐ INV/VAT",
-                    "SỐ BILL", "SỐ BOOKING", "SỐ LƯỢNG (KIỆN)", "SỐ LƯỢNG (KG)",
-                    "CONT 20'", "CONT 40'", "CONT LCL", "CONT TC",
-                    "THÔNG BÁO PHÍ CSHT", "SỐ TIỀN CSHT", "CẢNG XUẤT - CẢNG NHẬP",
-                    "GHI CHÚ", "TRẠNG THÁI LÔ HÀNG"
-                  ].map((label, idx) => (
-                    <div key={idx} className="space-y-1">
-                      <Label>{label}</Label>
-                      <Input value="" readOnly placeholder="Chưa có dữ liệu" />
-                    </div>
-                  ))}
+              <section className="rounded-lg border bg-white">
+                <div className="border-b bg-neutral-50 px-4 py-2">
+                  <p className="text-sm font-semibold text-primary">Lô hàng #1</p>
                 </div>
-              </div>
+                <div className="overflow-hidden">
+                  <table className="w-full table-fixed text-sm">
+                    <tbody>
+                      {FIELD_CONFIGS.map((field) => (
+                        <tr key={field.key} className="border-b last:border-b-0">
+                          <th className="w-[46%] bg-neutral-50 px-3 py-2 text-left text-xs font-semibold uppercase tracking-wide text-neutral-500">
+                            {field.label}
+                          </th>
+                          <td className="px-3 py-2 text-neutral-400">Chưa có dữ liệu</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </section>
             )}
           </div>
 
-          {/* Right column: File viewer */}
-          <div className="w-1/2 p-4 overflow-hidden">
-            {previewUrl ? (
-              <iframe
-                src={`https://view.officeapps.live.com/op/embed.aspx?src=${encodeURIComponent(previewUrl)}`}
-                className="w-full h-full border rounded-lg"
-                title={fileName || "File preview"}
-              />
+          <div className="flex min-h-0 flex-col p-4">
+            <div className="mb-3 flex flex-wrap items-center gap-2">
+              <button
+                onClick={() => setViewerMode("auto")}
+                className={`rounded-md border px-2.5 py-1 text-xs font-medium ${viewerMode === "auto" ? "border-primary bg-primary text-white" : "border-neutral-200 text-neutral-700"}`}
+              >
+                Auto
+              </button>
+              {sources.google ? (
+                <button
+                  onClick={() => setViewerMode("google")}
+                  className={`rounded-md border px-2.5 py-1 text-xs font-medium ${viewerMode === "google" ? "border-primary bg-primary text-white" : "border-neutral-200 text-neutral-700"}`}
+                >
+                  Google Viewer
+                </button>
+              ) : null}
+              {sources.office ? (
+                <button
+                  onClick={() => setViewerMode("office")}
+                  className={`rounded-md border px-2.5 py-1 text-xs font-medium ${viewerMode === "office" ? "border-primary bg-primary text-white" : "border-neutral-200 text-neutral-700"}`}
+                >
+                  Office Viewer
+                </button>
+              ) : null}
+              {sources.proxy ? (
+                <button
+                  onClick={() => setViewerMode("proxy")}
+                  className={`rounded-md border px-2.5 py-1 text-xs font-medium ${viewerMode === "proxy" ? "border-primary bg-primary text-white" : "border-neutral-200 text-neutral-700"}`}
+                >
+                  Proxy
+                </button>
+              ) : null}
+              {sources.direct ? (
+                <button
+                  onClick={() => setViewerMode("direct")}
+                  className={`rounded-md border px-2.5 py-1 text-xs font-medium ${viewerMode === "direct" ? "border-primary bg-primary text-white" : "border-neutral-200 text-neutral-700"}`}
+                >
+                  URL gốc
+                </button>
+              ) : null}
+            </div>
+
+            {viewerSrc ? (
+              <>
+                <iframe
+                  src={viewerSrc}
+                  className="min-h-0 w-full flex-1 rounded-lg border"
+                  title={fileName || "File preview"}
+                />
+                <div className="mt-2 flex flex-wrap gap-2 text-xs">
+                  <a
+                    href={viewerSrc}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="rounded-md border border-neutral-200 px-2 py-1 text-neutral-700 hover:bg-neutral-50"
+                  >
+                    Mở tab mới
+                  </a>
+                  {preview?.expiresAt ? (
+                    <span className="self-center text-neutral-500">Hết hạn: {preview.expiresAt}</span>
+                  ) : null}
+                </div>
+              </>
             ) : (
-              <div className="text-center py-8 text-black">
-                Không có file để hiển thị
+              <div className="flex h-full items-center justify-center rounded-lg border bg-neutral-50 text-sm text-neutral-500">
+                Chưa có URL preview từ presign.
               </div>
             )}
           </div>
@@ -6088,8 +12663,7 @@ export function ExtractionResultModal({ open, onOpenChange, result, previewUrl, 
 "use client"
 
 import * as React from "react"
-import { FileText, FileImage, FileSpreadsheet, FileCode, Download, Check, Square, CheckSquare } from "lucide-react"
-import { Card } from "@/components/ui/card"
+import { FileText, FileImage, FileSpreadsheet, FileCode, Download, Eye, Square, CheckSquare } from "lucide-react"
 
 interface FileAttachmentItemProps {
   id: string
@@ -6107,16 +12681,15 @@ interface FileAttachmentItemProps {
 function getFileIcon(fileType: string) {
   const type = fileType.toLowerCase()
   if (type.includes("image") || ["png", "jpg", "jpeg", "gif", "webp"].some((ext) => type.includes(ext)))
-    return <FileImage className="h-4 w-4 text-primary" />
+    return <FileImage className="h-3.5 w-3.5 text-primary" />
   if (type.includes("excel") || type.includes("csv") || type.includes("sheet"))
-    return <FileSpreadsheet className="h-4 w-4 text-primary" />
+    return <FileSpreadsheet className="h-3.5 w-3.5 text-primary" />
   if (type.includes("json") || type.includes("xml") || type.includes("html"))
-    return <FileCode className="h-4 w-4 text-primary" />
-  return <FileText className="h-4 w-4 text-primary" />
+    return <FileCode className="h-3.5 w-3.5 text-primary" />
+  return <FileText className="h-3.5 w-3.5 text-primary" />
 }
 
 export function FileAttachmentItem({
-  id,
   fileName,
   fileType,
   fileSize,
@@ -6125,84 +12698,195 @@ export function FileAttachmentItem({
   onViewExtract,
   onViewContent,
   onDownload,
-  status = "completed",
 }: FileAttachmentItemProps) {
   return (
-    <div className="rounded-xl border border-neutral-100 bg-white p-4 min-w-0 overflow-hidden hover:border-neutral-200 transition-colors">
-      {/* Row 1: checkbox + icon + title + type/size + status */}
-      <div className="flex items-start gap-3 min-w-0 overflow-hidden">
-        {/* Selection */}
+    <div className="group relative flex flex-col gap-2 rounded-xl border border-neutral-100 bg-white p-3 transition-colors hover:border-neutral-200">
+      {/* Top: checkbox + icon + type */}
+      <div className="flex items-start gap-2.5">
         {onCheckChange && (
           <button
             onClick={() => onCheckChange(!isChecked)}
-            className={`flex shrink-0 h-8 w-8 mt-0.5 items-center justify-center rounded-md border transition-colors ${
+            className={`mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded border transition-colors ${
               isChecked
                 ? "border-primary bg-primary text-white"
-                : "border-neutral-100 bg-white text-neutral-200 hover:border-primary/50 hover:text-primary"
+                : "border-neutral-200 bg-white text-neutral-300 hover:border-primary/50"
             }`}
           >
-            {isChecked ? <CheckSquare className="h-4 w-4" /> : <Square className="h-4 w-4" />}
+            {isChecked ? <CheckSquare className="h-3.5 w-3.5" /> : <Square className="h-3.5 w-3.5" />}
           </button>
         )}
-
-        {/* Icon */}
-        <div className="flex h-9 w-9 shrink-0 mt-0.5 items-center justify-center rounded-lg bg-primary-50">
+        <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-primary-50">
           {getFileIcon(fileType)}
         </div>
-
-        {/* Title + meta */}
-        <div className="flex-1 min-w-0 overflow-hidden" style={{ minWidth: 0 }}>
-          <div className="text-sm font-medium text-neutral-300 leading-snug wrap-break-word overflow-hidden max-h-[3.9em]">
-            {fileName}
-          </div>
-          <div className="flex items-center gap-2 mt-1 min-w-0">
-            <span className="inline-flex items-center rounded-full bg-primary-50 px-2 py-0.5 text-[10px] font-medium text-primary uppercase tracking-wide truncate max-w-[100px]">
-              {fileType}
-            </span>
-            <span className="text-[11px] text-neutral-200 shrink-0">{fileSize}</span>
-          </div>
-        </div>
-
-        {/* Status */}
-        {status === "completed" && (
-          <span className="inline-flex items-center gap-1 rounded-full bg-green-50 px-2 py-0.5 text-xs font-medium text-green-700 shrink-0 mt-0.5">
-            <Check className="h-3 w-3" /> Đã xong
-          </span>
-        )}
+        <span className="rounded bg-primary-50 px-1.5 py-0.5 text-[10px] font-medium uppercase tracking-wide text-primary">
+          {fileType}
+        </span>
       </div>
 
-      {/* Row 2: actions */}
-      <div className="flex items-center justify-end gap-2 mt-3 pt-3 border-t border-neutral-100">
-        {onViewExtract && (
-          <button
-            onClick={onViewExtract}
-            className="inline-flex items-center gap-1.5 rounded-md border border-neutral-100 bg-white px-3 py-1.5 text-xs font-medium text-neutral-300 transition-colors hover:bg-neutral-50 hover:text-primary"
-          >
-            <FileText className="h-3.5 w-3.5" />
-            Trích xuất
-          </button>
-        )}
-        {onViewContent && (
-          <button
-            onClick={onViewContent}
-            className="inline-flex items-center gap-1.5 rounded-md border border-neutral-100 bg-white px-3 py-1.5 text-xs font-medium text-neutral-300 transition-colors hover:bg-neutral-50 hover:text-primary"
-          >
-            <FileText className="h-3.5 w-3.5" />
-            Xem nội dung
-          </button>
-        )}
-        {onDownload && (
-          <button
-            onClick={onDownload}
-            className="inline-flex items-center gap-1.5 rounded-md border border-neutral-100 bg-white px-3 py-1.5 text-xs font-medium text-neutral-300 transition-colors hover:bg-neutral-50 hover:text-primary"
-          >
-            <Download className="h-3.5 w-3.5" />
-            Tải xuống
-          </button>
-        )}
+      {/* Name */}
+      <p className="line-clamp-2 text-xs font-medium leading-snug text-neutral-700" title={fileName}>
+        {fileName}
+      </p>
+
+      {/* Bottom: size + actions */}
+      <div className="flex items-center justify-between">
+        <span className="text-[11px] text-neutral-300">{fileSize}</span>
+        <div className="flex items-center gap-1">
+          {onViewExtract && (
+            <button
+              onClick={onViewExtract}
+              className="flex items-center gap-1 rounded-md border border-neutral-100 bg-white px-2 py-1 text-[10px] font-medium text-neutral-400 hover:text-primary hover:border-primary/30 transition-colors"
+            >
+              <FileText className="h-3 w-3" /> Trích
+            </button>
+          )}
+          {onViewContent && (
+            <button
+              onClick={onViewContent}
+              className="flex items-center gap-1 rounded-md border border-neutral-100 bg-white px-2 py-1 text-[10px] font-medium text-neutral-400 hover:text-primary hover:border-primary/30 transition-colors"
+            >
+              <Eye className="h-3 w-3" /> Xem
+            </button>
+          )}
+          {onDownload && (
+            <button
+              onClick={onDownload}
+              className="flex h-6 w-6 items-center justify-center rounded text-neutral-300 hover:text-primary transition-colors"
+            >
+              <Download className="h-3.5 w-3.5" />
+            </button>
+          )}
+        </div>
       </div>
     </div>
   )
+}
+
+```
+
+---
+
+## File: `components\permission-guard.tsx`
+
+```tsx
+"use client"
+
+import { Shield } from "lucide-react"
+import { usePermission, usePermissions } from "@/hooks/use-permission"
+
+interface PermissionGuardProps {
+  permission?: string
+  permissions?: string[]
+  requireAll?: boolean
+  children: React.ReactNode
+  fallback?: React.ReactNode
+}
+
+export function PermissionGuard({
+  permission,
+  permissions,
+  requireAll = true,
+  children,
+  fallback,
+}: PermissionGuardProps) {
+  if (permission) {
+    return (
+      <SinglePermissionGuard
+        permission={permission}
+        children={children}
+        fallback={fallback}
+      />
+    )
+  }
+
+  if (permissions && permissions.length > 0) {
+    return (
+      <MultiPermissionGuard
+        permissions={permissions}
+        requireAll={requireAll}
+        children={children}
+        fallback={fallback}
+      />
+    )
+  }
+
+  return <>{children}</>
+}
+
+function SinglePermissionGuard({
+  permission,
+  children,
+  fallback,
+}: {
+  permission: string
+  children: React.ReactNode
+  fallback?: React.ReactNode
+}) {
+  const { has, isLoading } = usePermission(permission)
+
+  if (isLoading) return null
+
+  if (!has) {
+    return (
+      <>
+        {fallback ?? (
+          <div className="flex flex-col items-center justify-center gap-3 py-12 text-center">
+            <div className="flex h-12 w-12 items-center justify-center rounded-full bg-neutral-100">
+              <Shield className="h-6 w-6 text-neutral-300" />
+            </div>
+            <div>
+              <p className="text-sm font-medium text-neutral-300">Không có quyền truy cập</p>
+              <p className="text-xs text-neutral-200">
+                Bạn cần quyền <code className="rounded bg-neutral-100 px-1 py-0.5 text-[10px]">{permission}</code> để sử dụng tính năng này.
+              </p>
+            </div>
+          </div>
+        )}
+      </>
+    )
+  }
+
+  return <>{children}</>
+}
+
+function MultiPermissionGuard({
+  permissions,
+  requireAll,
+  children,
+  fallback,
+}: {
+  permissions: string[]
+  requireAll: boolean
+  children: React.ReactNode
+  fallback?: React.ReactNode
+}) {
+  const { hasAll, hasAny, isLoading } = usePermissions(permissions)
+
+  const has = requireAll ? hasAll : hasAny
+
+  if (isLoading) return null
+
+  if (!has) {
+    return (
+      <>
+        {fallback ?? (
+          <div className="flex flex-col items-center justify-center gap-3 py-12 text-center">
+            <div className="flex h-12 w-12 items-center justify-center rounded-full bg-neutral-100">
+              <Shield className="h-6 w-6 text-neutral-300" />
+            </div>
+            <div>
+              <p className="text-sm font-medium text-neutral-300">Không có quyền truy cập</p>
+              <p className="text-xs text-neutral-200">
+                Bạn cần quyền phù hợp để sử dụng tính năng này.
+              </p>
+            </div>
+          </div>
+        )}
+      </>
+    )
+  }
+
+  return <>{children}</>
 }
 
 ```
@@ -6245,6 +12929,201 @@ export default function QueryProvider({ children }: QueryProviderProps) {
       {children}
       {process.env.NODE_ENV === "development" ? <ReactQueryDevtools initialIsOpen={false} /> : null}
     </QueryClientProvider>
+  )
+}
+
+```
+
+---
+
+## File: `components\template-result-modal.tsx`
+
+```tsx
+"use client"
+
+import { useMemo, useState } from "react"
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
+
+export type ExtractionPreviewSources = {
+  url?: string | null
+  expiresAt?: string | null
+  googleViewerUrl?: string | null
+  officeViewerUrl?: string | null
+  proxyUrl?: string | null
+}
+
+interface TemplateResultModalProps {
+  open: boolean
+  onOpenChange: (open: boolean) => void
+  fields: Record<string, string>
+  data: Record<string, string>
+  onDataChange: (data: Record<string, string>) => void
+  preview?: ExtractionPreviewSources | null
+  fileName?: string | null
+}
+
+type ViewerMode = "auto" | "google" | "office" | "proxy" | "direct"
+
+export function TemplateResultModal({
+  open,
+  onOpenChange,
+  fields,
+  data,
+  onDataChange,
+  preview,
+  fileName,
+}: TemplateResultModalProps) {
+  const [viewerMode, setViewerMode] = useState<ViewerMode>("auto")
+  const [localData, setLocalData] = useState<Record<string, string>>({})
+
+  // Sync localData when data changes
+  const displayData = { ...data, ...localData }
+
+  const handleChange = (key: string, value: string) => {
+    const next = { ...localData, [key]: value }
+    setLocalData(next)
+    onDataChange({ ...data, ...next })
+  }
+
+  const sources = useMemo(
+    () => ({
+      google: preview?.googleViewerUrl?.trim() || "",
+      office: preview?.officeViewerUrl?.trim() || "",
+      proxy: preview?.proxyUrl?.trim() || "",
+      direct: preview?.url?.trim() || "",
+    }),
+    [preview]
+  )
+
+  const viewerSrc = useMemo(() => {
+    if (viewerMode === "google" && sources.google) return sources.google
+    if (viewerMode === "office" && sources.office) return sources.office
+    if (viewerMode === "proxy" && sources.proxy) return sources.proxy
+    if (viewerMode === "direct" && sources.direct) return sources.direct
+    return sources.google || sources.office || sources.proxy || sources.direct || ""
+  }, [sources, viewerMode])
+
+  const fieldEntries = Object.entries(fields)
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="h-[94vh] max-w-[96vw] p-0">
+        <DialogHeader className="border-b p-4">
+          <DialogTitle className="text-black">Kết quả bóc tách</DialogTitle>
+          {fileName ? (
+            <p className="text-sm text-neutral-600">
+              Tệp: <span className="font-medium">{fileName}</span>
+            </p>
+          ) : null}
+        </DialogHeader>
+
+        <div className="grid h-[calc(94vh-88px)] grid-cols-1 md:grid-cols-[minmax(420px,40%)_1fr]">
+          {/* Left: editable table */}
+          <div className="overflow-y-auto border-r p-4">
+            <div className="mb-2 flex items-center justify-between">
+              <p className="text-sm font-medium text-neutral-700">Thông tin đã bóc tách</p>
+              <p className="text-[11px] text-neutral-400">Click để sửa</p>
+            </div>
+            {fieldEntries.length === 0 ? (
+              <p className="text-sm text-neutral-400">Không có trường nào được định nghĩa trong template.</p>
+            ) : (
+              <div className="overflow-x-auto">
+                <table className="w-full table-fixed text-sm">
+                  <tbody>
+                    {fieldEntries.map(([key, label]) => (
+                      <tr key={key} className="border-b last:border-b-0">
+                        <th className="w-[40%] min-w-[120px] bg-neutral-50 px-2 py-2 text-left text-[11px] font-semibold uppercase tracking-wide text-neutral-500 wrap-break-word whitespace-normal align-top">
+                          {label || key}
+                        </th>
+                        <td className="w-[60%] px-2 py-1 align-top">
+                          <input
+                            type="text"
+                            value={displayData[key] || ""}
+                            onChange={(e) => handleChange(key, e.target.value)}
+                            className="w-full rounded border border-transparent bg-transparent px-1 py-1 text-xs text-neutral-800 outline-none hover:border-neutral-200 focus:border-primary focus:bg-white"
+                          />
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </div>
+
+          {/* Right: file preview */}
+          <div className="flex min-h-0 flex-col p-4">
+            <div className="mb-3 flex flex-wrap items-center gap-2">
+              <button
+                onClick={() => setViewerMode("auto")}
+                className={`rounded-md border px-2.5 py-1 text-xs font-medium ${viewerMode === "auto" ? "border-primary bg-primary text-white" : "border-neutral-200 text-neutral-700"}`}
+              >
+                Auto
+              </button>
+              {sources.google ? (
+                <button
+                  onClick={() => setViewerMode("google")}
+                  className={`rounded-md border px-2.5 py-1 text-xs font-medium ${viewerMode === "google" ? "border-primary bg-primary text-white" : "border-neutral-200 text-neutral-700"}`}
+                >
+                  Google Viewer
+                </button>
+              ) : null}
+              {sources.office ? (
+                <button
+                  onClick={() => setViewerMode("office")}
+                  className={`rounded-md border px-2.5 py-1 text-xs font-medium ${viewerMode === "office" ? "border-primary bg-primary text-white" : "border-neutral-200 text-neutral-700"}`}
+                >
+                  Office Viewer
+                </button>
+              ) : null}
+              {sources.proxy ? (
+                <button
+                  onClick={() => setViewerMode("proxy")}
+                  className={`rounded-md border px-2.5 py-1 text-xs font-medium ${viewerMode === "proxy" ? "border-primary bg-primary text-white" : "border-neutral-200 text-neutral-700"}`}
+                >
+                  Proxy
+                </button>
+              ) : null}
+              {sources.direct ? (
+                <button
+                  onClick={() => setViewerMode("direct")}
+                  className={`rounded-md border px-2.5 py-1 text-xs font-medium ${viewerMode === "direct" ? "border-primary bg-primary text-white" : "border-neutral-200 text-neutral-700"}`}
+                >
+                  URL gốc
+                </button>
+              ) : null}
+            </div>
+
+            {viewerSrc ? (
+              <>
+                <iframe
+                  src={viewerSrc}
+                  className="min-h-0 w-full flex-1 rounded-lg border"
+                  title={fileName || "File preview"}
+                />
+                <div className="mt-2 flex flex-wrap gap-2 text-xs">
+                  <a
+                    href={viewerSrc}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="rounded-md border border-neutral-200 px-2 py-1 text-neutral-700 hover:bg-neutral-50"
+                  >
+                    Mở tab mới
+                  </a>
+                  {preview?.expiresAt ? (
+                    <span className="self-center text-neutral-500">Hết hạn: {preview.expiresAt}</span>
+                  ) : null}
+                </div>
+              </>
+            ) : (
+              <div className="flex h-full items-center justify-center rounded-lg border bg-neutral-50 text-sm text-neutral-500">
+                Chưa có URL preview từ presign.
+              </div>
+            )}
+          </div>
+        </div>
+      </DialogContent>
+    </Dialog>
   )
 }
 
@@ -7068,6 +13947,7 @@ export {
 import * as React from "react"
 import { X, Download, ExternalLink } from "lucide-react"
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
+import { MAIL_CONNECTOR_AXIOS } from "@/lib/orval/mail-connector-mutator"
 
 interface FileViewerModalProps {
   open: boolean
@@ -7075,11 +13955,22 @@ interface FileViewerModalProps {
   fileUrl: string
   fileName?: string
   fileType?: string
+  downloadUrl?: string
 }
 
-export function FileViewerModal({ open, onOpenChange, fileUrl, fileName, fileType }: FileViewerModalProps) {
+export function FileViewerModal({ open, onOpenChange, fileUrl, fileName, fileType, downloadUrl }: FileViewerModalProps) {
   const getFileType = (url: string, type?: string) => {
-    if (type) return type
+    // Prioritize explicit type parameter (for blob URLs)
+    if (type) {
+      const normalizedType = type.toLowerCase()
+      if (normalizedType.includes('pdf')) return 'pdf'
+      if (normalizedType.includes('image')) return 'image'
+      if (normalizedType.includes('word') || normalizedType.includes('document')) return 'word'
+      if (normalizedType.includes('excel') || normalizedType.includes('sheet')) return 'excel'
+      if (normalizedType.includes('powerpoint') || normalizedType.includes('presentation')) return 'powerpoint'
+    }
+    
+    // Fallback to URL-based detection
     const ext = url.split('.').pop()?.toLowerCase()
     if (ext === 'pdf') return 'pdf'
     if (['jpg', 'jpeg', 'png', 'gif', 'webp', 'svg', 'bmp'].includes(ext || '')) return 'image'
@@ -7108,7 +13999,7 @@ export function FileViewerModal({ open, onOpenChange, fileUrl, fileName, fileTyp
         return (
           <iframe
             src={fileUrl}
-            className="w-full h-[85vh] rounded-lg border"
+            className="w-full h-[calc(90vh-120px)] rounded-lg border"
             title={fileName || "PDF Preview"}
           />
         )
@@ -7116,14 +14007,32 @@ export function FileViewerModal({ open, onOpenChange, fileUrl, fileName, fileTyp
       case 'word':
       case 'excel':
       case 'powerpoint':
-        // Sử dụng Office Online Viewer cho Office files
-        const officeViewerUrl = `https://view.officeapps.live.com/op/embed.aspx?src=${encodeURIComponent(fileUrl)}`
+        // Check if URL is Google Docs Viewer URL
+        if (fileUrl.includes('docs.google.com/viewer')) {
+          return (
+            <iframe
+              src={fileUrl}
+              className="w-full h-[calc(90vh-120px)] rounded-lg border"
+              title={fileName || "Office Document Preview"}
+            />
+          )
+        }
+        // Office files require public URLs for external viewers - show download message
         return (
-          <iframe
-            src={officeViewerUrl}
-            className="w-full h-[85vh] rounded-lg border"
-            title={fileName || "Office Document Preview"}
-          />
+          <div className="flex flex-col items-center justify-center h-[calc(90vh-120px)] bg-gray-50 rounded-lg p-8 text-center border border-gray-200">
+            <div className="w-20 h-20 bg-blue-100 rounded-full flex items-center justify-center mb-4">
+              <Download className="h-10 w-10 text-blue-600" />
+            </div>
+            <h3 className="text-lg font-semibold text-gray-900 mb-2">Không thể xem trước file này</h3>
+            <p className="text-gray-600 mb-6 max-w-md">File Office cần URL công khai để xem trước. Vui lòng tải xuống để xem nội dung.</p>
+            <button
+              onClick={handleDownload}
+              className="flex items-center gap-2 px-6 py-2.5 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors font-medium"
+            >
+              <Download className="h-4 w-4" />
+              Tải xuống file
+            </button>
+          </div>
         )
 
       default:
@@ -7145,13 +14054,26 @@ export function FileViewerModal({ open, onOpenChange, fileUrl, fileName, fileTyp
     }
   }
 
-  const handleDownload = () => {
-    const link = document.createElement('a')
-    link.href = fileUrl
-    link.download = fileName || 'download'
-    document.body.appendChild(link)
-    link.click()
-    document.body.removeChild(link)
+  const handleDownload = async () => {
+    if (!downloadUrl) {
+      console.error("No download URL available")
+      return
+    }
+    try {
+      const response = await MAIL_CONNECTOR_AXIOS.get(downloadUrl, { responseType: 'blob' })
+      const blob = response.data as Blob
+      const url = URL.createObjectURL(blob)
+      const link = document.createElement('a')
+      link.href = url
+      link.download = fileName || 'download'
+      document.body.appendChild(link)
+      link.click()
+      document.body.removeChild(link)
+      URL.revokeObjectURL(url)
+    } catch (error) {
+      console.error("Download failed:", error)
+      alert("Tải xuống thất bại. Vui lòng thử lại.")
+    }
   }
 
   return (
@@ -7159,18 +14081,18 @@ export function FileViewerModal({ open, onOpenChange, fileUrl, fileName, fileTyp
       <DialogContent className="max-w-5xl max-h-[90vh]">
         <DialogHeader>
           <div className="flex items-center justify-between">
-            <DialogTitle className="truncate pr-4">{fileName || "Xem file"}</DialogTitle>
+            <DialogTitle className="truncate pr-4 text-gray-900">{fileName || "Xem file"}</DialogTitle>
             <div className="flex items-center gap-2">
               <button
                 onClick={handleDownload}
-                className="flex items-center gap-2 px-3 py-1.5 text-sm rounded-md hover:bg-muted transition-colors"
+                className="flex items-center gap-2 px-3 py-1.5 text-sm text-gray-700 rounded-md hover:bg-gray-100 transition-colors"
               >
                 <Download className="h-4 w-4" />
                 Tải xuống
               </button>
               <button
                 onClick={() => onOpenChange(false)}
-                className="flex items-center gap-2 px-3 py-1.5 text-sm rounded-md hover:bg-muted transition-colors"
+                className="flex items-center gap-2 px-3 py-1.5 text-sm text-gray-700 rounded-md hover:bg-gray-100 transition-colors"
               >
                 <X className="h-4 w-4" />
                 Đóng
@@ -7178,7 +14100,7 @@ export function FileViewerModal({ open, onOpenChange, fileUrl, fileName, fileTyp
             </div>
           </div>
         </DialogHeader>
-        <div className="mt-4">
+        <div className="mt-2">
           {renderContent()}
         </div>
       </DialogContent>
@@ -10483,6 +17405,449 @@ For questions or issues, contact:
 
 ---
 
+## File: `hooks\use-ai-chat-queries.ts`
+
+```ts
+"use client"
+
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
+import { getLogisticsPlatformAPI } from "@/lib/generated/mail-connector/endpoints"
+import type { CreateConversationRequest } from "@/lib/generated/mail-connector/model/createConversationRequest"
+import type { SendMessageRequest } from "@/lib/generated/mail-connector/model/sendMessageRequest"
+import type { LinkAttachmentRequest } from "@/lib/generated/mail-connector/model/linkAttachmentRequest"
+import type { LinkEntityRequest } from "@/lib/generated/mail-connector/model/linkEntityRequest"
+
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+const mailApi: any = getLogisticsPlatformAPI()
+
+export type AiChatMessage = {
+  id: string
+  conversationId?: string
+  role: "user" | "assistant" | "system"
+  content: string
+  contentType?: string | null
+  inputTokens?: number | null
+  outputTokens?: number | null
+  totalTokens?: number | null
+  model?: string | null
+  provider?: string | null
+  finishReason?: string | null
+  createdAt?: string
+}
+
+export type AiChatConversation = {
+  id: string
+  title?: string | null
+  description?: string | null
+  status?: string
+  tenantId?: string
+  organizationId?: string | null
+  createdBy?: string
+  entityType?: string | null
+  entityId?: string | null
+  createdAt?: string
+  updatedAt?: string | null
+}
+
+export type AiChatAttachment = {
+  id: string
+  conversationId: string
+  source: string
+  sourceReference?: string | null
+  fileName: string
+  contentType?: string | null
+  fileSize?: number | null
+  fileHash?: string | null
+  storageBucket?: string | null
+  storagePath?: string | null
+  extractedText?: string | null
+  extractedTextVersion?: number
+  tenantId: string
+  createdBy: string
+  createdAt: string
+  updatedAt?: string | null
+}
+
+export const aiChatQueryKeys = {
+  conversations: ["ai-chat-conversations"] as const,
+  conversationByEntity: (entityType: string, entityId: string) =>
+    ["ai-chat-conversation-by-entity", entityType, entityId] as const,
+  conversation: (id: string) => ["ai-chat-conversation", id] as const,
+  messages: (conversationId: string) => ["ai-chat-messages", conversationId] as const,
+  attachments: (conversationId: string) => ["ai-chat-attachments", conversationId] as const,
+}
+
+// GET /api/v1/ai-chat/conversations/by-entity?entityType=&entityId=
+export function useGetAiChatConversationByEntityQuery(
+  params: { entityType: string; entityId: string } | null
+) {
+  const enabled = Boolean(params)
+  return useQuery<AiChatConversation | null>({
+    queryKey: params
+      ? aiChatQueryKeys.conversationByEntity(params.entityType, params.entityId)
+      : aiChatQueryKeys.conversationByEntity("", ""),
+    enabled,
+    retry: false,
+    queryFn: async () => {
+      if (!params) return null
+      try {
+        const response = await mailApi.getApiV1AiChatConversationsByEntity({
+          entityType: params.entityType,
+          entityId: params.entityId,
+        })
+        const data = response?.data
+        if (data && typeof data === "object") return data as AiChatConversation
+        return null
+      } catch (error: unknown) {
+        const axiosError = error as { response?: { status?: number } }
+        if (axiosError.response?.status === 404) return null
+        throw error
+      }
+    },
+  })
+}
+
+// GET /api/v1/ai-chat/conversations/{id}/messages
+export function useGetAiChatMessagesQuery(conversationId: string | null) {
+  const enabled = Boolean(conversationId)
+  return useQuery<AiChatMessage[]>({
+    queryKey: conversationId
+      ? aiChatQueryKeys.messages(conversationId)
+      : aiChatQueryKeys.messages(""),
+    enabled,
+    queryFn: async () => {
+      if (!conversationId) return []
+      const response = await mailApi.getApiV1AiChatConversationsConversationIdMessages(
+        conversationId
+      )
+      const data = response?.data
+      if (Array.isArray(data)) return data as AiChatMessage[]
+      return []
+    },
+  })
+}
+
+// POST /api/v1/ai-chat/conversations
+export function useCreateAiChatConversationMutation() {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: async (payload: CreateConversationRequest) => {
+      const response = await mailApi.postApiV1AiChatConversations(payload)
+      return (response?.data ?? response) as AiChatConversation
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: aiChatQueryKeys.conversations })
+    },
+  })
+}
+
+// POST /api/v1/ai-chat/conversations/{id}/link-entity
+export function useLinkAiChatEntityMutation() {
+  return useMutation({
+    mutationFn: async ({
+      conversationId,
+      payload,
+    }: {
+      conversationId: string
+      payload: LinkEntityRequest
+    }) => {
+      const response = await mailApi.postApiV1AiChatConversationsIdLinkEntity(
+        conversationId,
+        payload
+      )
+      return (response?.data ?? response) as AiChatConversation
+    },
+  })
+}
+
+// POST /api/v1/ai-chat/conversations/{id}/attachments
+export function useLinkAiChatAttachmentMutation() {
+  return useMutation({
+    mutationFn: async ({
+      conversationId,
+      payload,
+    }: {
+      conversationId: string
+      payload: LinkAttachmentRequest
+    }) => {
+      const response = await mailApi.postApiV1AiChatConversationsConversationIdAttachments(
+        conversationId,
+        payload
+      )
+      return (response?.data ?? response) as AiChatAttachment
+    },
+  })
+}
+
+// POST /api/v1/ai-chat/conversations/{id}/messages
+export function useSendAiChatMessageMutation() {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: async ({
+      conversationId,
+      payload,
+    }: {
+      conversationId: string
+      payload: SendMessageRequest
+    }) => {
+      const response = await mailApi.postApiV1AiChatConversationsConversationIdMessages(
+        conversationId,
+        payload
+      )
+      return response?.data ?? response
+    },
+    onSuccess: (_, variables) => {
+      queryClient.invalidateQueries({
+        queryKey: aiChatQueryKeys.messages(variables.conversationId),
+      })
+    },
+  })
+}
+
+```
+
+---
+
+## File: `hooks\use-attachment-reviews-queries.ts`
+
+```ts
+"use client"
+
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
+import { getLogisticsPlatformAPI } from "@/lib/generated/mail-connector/endpoints"
+import type { ApproveRequest } from "@/lib/generated/mail-connector/model/approveRequest"
+import type { RejectRequest } from "@/lib/generated/mail-connector/model/rejectRequest"
+
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+const mailApi: any = getLogisticsPlatformAPI()
+
+export const attachmentReviewQueryKeys = {
+  my: ["attachment-reviews-my"] as const,
+  byStatus: (status: string) => ["attachment-reviews-by-status", status] as const,
+  byMessage: (messageId: string) => ["attachment-reviews-by-message", messageId] as const,
+  review: (id: string) => ["attachment-review", id] as const,
+}
+
+export function useAttachmentReviewsMyQuery() {
+  return useQuery({
+    queryKey: attachmentReviewQueryKeys.my,
+    queryFn: async () => {
+      const response = await mailApi.getApiAttachmentReviewsMy()
+      return response?.data ?? response
+    },
+  })
+}
+
+export function useAttachmentReviewsByStatusQuery(status: string) {
+  return useQuery({
+    queryKey: attachmentReviewQueryKeys.byStatus(status),
+    queryFn: async () => {
+      const response = await mailApi.getApiAttachmentReviewsByStatusStatus(status)
+      return response?.data ?? response
+    },
+  })
+}
+
+export function useAttachmentReviewsByMessageQuery(messageId: string | null) {
+  return useQuery({
+    queryKey: messageId ? attachmentReviewQueryKeys.byMessage(messageId) : ["attachment-reviews-by-message", "none"],
+    enabled: Boolean(messageId),
+    queryFn: async () => {
+      const response = await mailApi.getApiAttachmentReviewsByMessageMailConnectorMessageId(messageId)
+      return response?.data ?? response
+    },
+  })
+}
+
+export function useAttachmentReviewQuery(id: string | null) {
+  return useQuery({
+    queryKey: id ? attachmentReviewQueryKeys.review(id) : ["attachment-review", "none"],
+    enabled: Boolean(id),
+    queryFn: async () => {
+      const response = await mailApi.getApiAttachmentReviewsMailConnectorAttachmentId(id)
+      return response?.data ?? response
+    },
+  })
+}
+
+export function useApproveAttachmentReviewMutation() {
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: async ({ id, payload }: { id: string; payload: ApproveRequest }) => {
+      const response = await mailApi.putApiAttachmentReviewsMailConnectorAttachmentIdApprove(id, payload)
+      return response?.data ?? response
+    },
+    onSuccess: (_, variables) => {
+      void queryClient.invalidateQueries({ queryKey: attachmentReviewQueryKeys.review(variables.id) })
+      void queryClient.invalidateQueries({ queryKey: ["attachment-reviews-my"] })
+    },
+  })
+}
+
+export function useRejectAttachmentReviewMutation() {
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: async ({ id, payload }: { id: string; payload: RejectRequest }) => {
+      const response = await mailApi.putApiAttachmentReviewsMailConnectorAttachmentIdReject(id, payload)
+      return response?.data ?? response
+    },
+    onSuccess: (_, variables) => {
+      void queryClient.invalidateQueries({ queryKey: attachmentReviewQueryKeys.review(variables.id) })
+      void queryClient.invalidateQueries({ queryKey: ["attachment-reviews-my"] })
+    },
+  })
+}
+
+export function useResetAttachmentReviewMutation() {
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: async (id: string) => {
+      const response = await mailApi.postApiAttachmentReviewsMailConnectorAttachmentIdReset(id)
+      return response?.data ?? response
+    },
+    onSuccess: (_, id) => {
+      void queryClient.invalidateQueries({ queryKey: attachmentReviewQueryKeys.review(id) })
+      void queryClient.invalidateQueries({ queryKey: ["attachment-reviews-my"] })
+    },
+  })
+}
+
+```
+
+---
+
+## File: `hooks\use-auth-queries.ts`
+
+```ts
+"use client"
+
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
+import { getLogisticsPlatformAPI } from "@/lib/generated/mail-connector/endpoints"
+import type { LoginCommand } from "@/lib/generated/mail-connector/model/loginCommand"
+import type { RefreshTokenCommand } from "@/lib/generated/mail-connector/model/refreshTokenCommand"
+import type { LogoutCommand } from "@/lib/generated/mail-connector/model/logoutCommand"
+import type { LogoutAllRequest } from "@/lib/generated/mail-connector/model/logoutAllRequest"
+import type { RevokeSessionRequest } from "@/lib/generated/mail-connector/model/revokeSessionRequest"
+import type { SendPasswordResetOtpCommand } from "@/lib/generated/mail-connector/model/sendPasswordResetOtpCommand"
+import type { ConfirmPasswordResetCommand } from "@/lib/generated/mail-connector/model/confirmPasswordResetCommand"
+import type { ExchangeTokenRequest } from "@/lib/generated/mail-connector/model/exchangeTokenRequest"
+import type { RefreshMailTokenRequest } from "@/lib/generated/mail-connector/model/refreshMailTokenRequest"
+
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+const mailApi: any = getLogisticsPlatformAPI()
+
+export const authQueryKeys = {
+  sessions: ["auth-sessions"] as const,
+}
+
+export function useAuthLoginMutation() {
+  return useMutation({
+    mutationFn: async (payload: LoginCommand) => {
+      const response = await mailApi.postApiV1AuthLogin(payload)
+      return response
+    },
+  })
+}
+
+export function useAuthRefreshMutation() {
+  return useMutation({
+    mutationFn: async (payload: RefreshTokenCommand) => {
+      const response = await mailApi.postApiV1AuthRefresh(payload)
+      return response.data
+    },
+  })
+}
+
+export function useAuthLogoutMutation() {
+  return useMutation({
+    mutationFn: async (payload: LogoutCommand) => {
+      const response = await mailApi.postApiV1AuthLogout(payload)
+      return response.data
+    },
+  })
+}
+
+export function useAuthSessionsQuery() {
+  return useQuery({
+    queryKey: authQueryKeys.sessions,
+    queryFn: async () => {
+      const response = await mailApi.getApiV1AuthSessions()
+      return response.data
+    },
+  })
+}
+
+export function useAuthRevokeSessionMutation() {
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: async ({ id, payload }: { id: string; payload: RevokeSessionRequest }) => {
+      const response = await mailApi.postApiV1AuthSessionsIdRevoke(id, payload)
+      return response.data
+    },
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: authQueryKeys.sessions })
+    },
+  })
+}
+
+export function useAuthLogoutAllMutation() {
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: async (payload: LogoutAllRequest) => {
+      const response = await mailApi.postApiV1AuthLogoutAll(payload)
+      return response.data
+    },
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: authQueryKeys.sessions })
+    },
+  })
+}
+
+export function useAuthForgotPasswordSendOtpMutation() {
+  return useMutation({
+    mutationFn: async (payload: SendPasswordResetOtpCommand) => {
+      const response = await mailApi.postApiV1AuthForgotPasswordSendOtp(payload)
+      return response.data
+    },
+  })
+}
+
+export function useAuthForgotPasswordConfirmResetMutation() {
+  return useMutation({
+    mutationFn: async (payload: ConfirmPasswordResetCommand) => {
+      const response = await mailApi.postApiV1AuthForgotPasswordConfirmReset(payload)
+      return response.data
+    },
+  })
+}
+
+export function useMailAuthExchangeTokenMutation() {
+  return useMutation({
+    mutationFn: async (payload: ExchangeTokenRequest) => {
+      const response = await mailApi.postApiV1MailAuthExchangeToken(payload)
+      return response.data
+    },
+  })
+}
+
+export function useMailAuthRefreshTokenMutation() {
+  return useMutation({
+    mutationFn: async (payload: RefreshMailTokenRequest) => {
+      const response = await mailApi.postApiV1MailAuthRefreshToken(payload)
+      return response.data
+    },
+  })
+}
+
+```
+
+---
+
 ## File: `hooks\use-auth.ts`
 
 ```ts
@@ -10522,6 +17887,163 @@ export function useAuth() {
 
 ---
 
+## File: `hooks\use-mail-assignments-queries.ts`
+
+```ts
+"use client"
+
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
+import { getLogisticsPlatformAPI } from "@/lib/generated/mail-connector/endpoints"
+import type { UnassignRequest } from "@/lib/generated/mail-connector/model/unassignRequest"
+import type { UpdateStatusRequest } from "@/lib/generated/mail-connector/model/updateStatusRequest"
+import type { ReassignRequest } from "@/lib/generated/mail-connector/model/reassignRequest"
+import type { CompleteRequest } from "@/lib/generated/mail-connector/model/completeRequest"
+import type { ConfirmRequest } from "@/lib/generated/mail-connector/model/confirmRequest"
+
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+const mailApi: any = getLogisticsPlatformAPI()
+
+export const mailAssignmentQueryKeys = {
+  my: ["mail-assignments-my"] as const,
+  byStatus: (status: string) => ["mail-assignments-by-status", status] as const,
+  status: (messageId: string) => ["mail-assignment-status", messageId] as const,
+}
+
+export function useMailAssignmentsMyQuery() {
+  return useQuery({
+    queryKey: mailAssignmentQueryKeys.my,
+    queryFn: async () => {
+      const response = await mailApi.getApiV1MailAssignmentsMy()
+      return response?.data ?? response
+    },
+  })
+}
+
+export function useMailAssignmentsByStatusQuery(status: string) {
+  return useQuery({
+    queryKey: mailAssignmentQueryKeys.byStatus(status),
+    queryFn: async () => {
+      const response = await mailApi.getApiV1MailAssignmentsByStatusStatus(status)
+      return response?.data ?? response
+    },
+  })
+}
+
+export function useMailAssignmentStatusQuery(messageId: string | null) {
+  return useQuery({
+    queryKey: messageId ? mailAssignmentQueryKeys.status(messageId) : ["mail-assignment-status", "none"],
+    enabled: Boolean(messageId),
+    queryFn: async () => {
+      const response = await mailApi.getApiV1MailAssignmentsMailConnectorMessageIdStatus(messageId)
+      return response?.data ?? response
+    },
+  })
+}
+
+function invalidateAssignments(queryClient: ReturnType<typeof useQueryClient>, messageId?: string) {
+  void queryClient.invalidateQueries({ queryKey: mailAssignmentQueryKeys.my })
+  void queryClient.invalidateQueries({ queryKey: ["mail-assignments-by-status"] })
+  void queryClient.invalidateQueries({ queryKey: ["mail-messages"] })
+  if (messageId) {
+    void queryClient.invalidateQueries({ queryKey: mailAssignmentQueryKeys.status(messageId) })
+  }
+}
+
+export function useAssignMailMutation() {
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: async ({
+      messageId,
+      payload,
+    }: {
+      messageId: string
+      payload?: { toUserId?: string | null }
+    }) => {
+      const response = await mailApi.postApiV1MailAssignmentsMailConnectorMessageIdAssign(messageId, payload ?? {})
+      return response?.data ?? response
+    },
+    onSuccess: () => {
+      invalidateAssignments(queryClient)
+    },
+  })
+}
+
+export function useUnassignMailMutation() {
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: async ({ messageId, payload }: { messageId: string; payload: UnassignRequest }) => {
+      const response = await mailApi.deleteApiV1MailAssignmentsMailConnectorMessageIdUnassign(messageId, payload)
+      return response?.data ?? response
+    },
+    onSuccess: () => {
+      invalidateAssignments(queryClient)
+    },
+  })
+}
+
+export function useUpdateMailAssignmentStatusMutation() {
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: async ({ messageId, payload }: { messageId: string; payload: UpdateStatusRequest }) => {
+      const response = await mailApi.putApiV1MailAssignmentsMailConnectorMessageIdStatus(messageId, payload)
+      return response?.data ?? response
+    },
+    onSuccess: (_, variables) => {
+      invalidateAssignments(queryClient, variables.messageId)
+    },
+  })
+}
+
+export function useReassignMailMutation() {
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: async ({ messageId, payload }: { messageId: string; payload: ReassignRequest }) => {
+      const response = await mailApi.postApiV1MailAssignmentsMailConnectorMessageIdReassign(messageId, payload)
+      return response?.data ?? response
+    },
+    onSuccess: () => {
+      invalidateAssignments(queryClient)
+    },
+  })
+}
+
+export function useConfirmMailAssignmentMutation() {
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: async ({ messageId, payload }: { messageId: string; payload?: ConfirmRequest }) => {
+      const response = await mailApi.postApiV1MailAssignmentsMailConnectorMessageIdConfirm(messageId, payload ?? {})
+      return response?.data ?? response
+    },
+    onSuccess: (_, variables) => {
+      invalidateAssignments(queryClient, variables.messageId)
+    },
+  })
+}
+
+export function useCompleteMailAssignmentMutation() {
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: async ({ messageId, payload }: { messageId: string; payload: CompleteRequest }) => {
+      const response = await mailApi.postApiV1MailAssignmentsMailConnectorMessageIdComplete(messageId, payload)
+      return response?.data ?? response
+    },
+    onSuccess: () => {
+      invalidateAssignments(queryClient)
+    },
+  })
+}
+
+
+```
+
+---
+
 ## File: `hooks\use-mail-queries.ts`
 
 ```ts
@@ -10530,16 +18052,37 @@ export function useAuth() {
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 import { MAIL_CONNECTOR_AXIOS } from "@/lib/orval/mail-connector-mutator"
 import { getLogisticsPlatformAPI } from "@/lib/generated/mail-connector/endpoints"
-import type { MailAnalysisResultDto } from "@/lib/generated/mail-connector/model/mailAnalysisResultDto"
 import type { CreateTemplateRequest } from "@/lib/generated/mail-connector/model/createTemplateRequest"
 import type { CreateWebhookSubscriptionRequest } from "@/lib/generated/mail-connector/model/createWebhookSubscriptionRequest"
+import type { GetApiV1AiOpenaiUsageUserUserIdParams } from "@/lib/generated/mail-connector/model/getApiV1AiOpenaiUsageUserUserIdParams"
+import type { GetApiV1AiOpenaiUsageParams } from "@/lib/generated/mail-connector/model/getApiV1AiOpenaiUsageParams"
+import type { GetApiV1AiOpenaiUsageUsersParams } from "@/lib/generated/mail-connector/model/getApiV1AiOpenaiUsageUsersParams"
 import type { GetApiV1MailAnalysisResultsParams } from "@/lib/generated/mail-connector/model/getApiV1MailAnalysisResultsParams"
 import type { GetApiV1MailMessagesParams } from "@/lib/generated/mail-connector/model/getApiV1MailMessagesParams"
 import type { GetApiV1MailMessagesMessageIdAttachmentsAttachmentIdPresignedUrlParams } from "@/lib/generated/mail-connector/model/getApiV1MailMessagesMessageIdAttachmentsAttachmentIdPresignedUrlParams"
 import type { UpdateTemplateRequest } from "@/lib/generated/mail-connector/model/updateTemplateRequest"
 import type { UpdateWebhookSubscriptionRequest } from "@/lib/generated/mail-connector/model/updateWebhookSubscriptionRequest"
 
-const mailApi = getLogisticsPlatformAPI()
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+const mailApi: any = getLogisticsPlatformAPI()
+
+type MailAnalysisResultDto = {
+  id?: string | null
+  mailMessageId?: string | null
+  category?: string | null
+  detectedIntent?: string | null
+  status?: string | null
+  confidenceScore?: number | null
+  extractedFields?: Record<string, string> | null
+  missingFields?: string[] | null
+  warnings?: string[] | null
+  modelName?: string | null
+  inputTokenCount?: number | null
+  outputTokenCount?: number | null
+  costEstimate?: number | null
+  createdAt?: string | null
+  updatedAt?: string | null
+}
 
 const getAnalysisItems = (data: unknown): MailAnalysisResultDto[] => {
   if (!Array.isArray(data)) return []
@@ -10582,6 +18125,15 @@ export const mailQueryKeys = {
   analysisResults: (params: GetApiV1MailAnalysisResultsParams) =>
     ["mail-analysis-results", params] as const,
   webhooks: ["webhook-subscriptions"] as const,
+  aiUsageUser: (userId: string, params?: GetApiV1AiOpenaiUsageUserUserIdParams) =>
+    ["ai-openai-usage-user", userId, params] as const,
+  aiUsageUserCurrentMonth: (userId: string) => ["ai-openai-usage-user-current-month", userId] as const,
+  aiUsageUsers: (params?: GetApiV1AiOpenaiUsageUsersParams) =>
+    ["ai-openai-usage-users", params] as const,
+  aiUsageUsersCurrentMonth: ["ai-openai-usage-users-current-month"] as const,
+  aiUsage: (params?: GetApiV1AiOpenaiUsageParams) => ["ai-openai-usage", params] as const,
+  aiUsageCurrentMonth: ["ai-openai-usage-current-month"] as const,
+  processingJobs: (messageId: string) => ["mail-processing-jobs", messageId] as const,
 }
 
 export function useMailAccountsQuery() {
@@ -10663,6 +18215,27 @@ export function useTriggerSyncMutation(accountId: string | null) {
   })
 }
 
+export function useTriggerSyncDirectMutation(accountId: string | null) {
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: () =>
+      mailApi.postApiV1MailAccountsIdSyncDirect(
+        accountId as string,
+        {
+          syncType: "MANUAL_RESYNC",
+          folderIds: ["INBOX"],
+        },
+        { params: { downloadAttachments: true } }
+      ),
+    onSuccess: () => {
+      if (accountId) {
+        void queryClient.invalidateQueries({ queryKey: mailQueryKeys.syncStatus(accountId) })
+      }
+    },
+  })
+}
+
 export function useMailMessagesQuery(params: {
   accountId?: string
   page: number
@@ -10680,16 +18253,15 @@ export function useMailMessagesQuery(params: {
   if (params.processStatus) filters.push(`processStatus==${params.processStatus}`)
 
   const queryParams: GetApiV1MailMessagesParams = {
-    Page: params.page,
-    PageSize: params.pageSize,
-    Filters: filters.join("&") || undefined,
-    SortField: params.sortField ?? "sentAt",
-    SortOrder: params.sortOrder ?? "desc",
+    page: params.page,
+    pageSize: params.pageSize,
+    filters: filters.join("&") || undefined,
+    sortField: params.sortField ?? "sentAt",
+    sortOrder: params.sortOrder ?? "desc",
   }
 
   return useQuery({
     queryKey: mailQueryKeys.messages(queryParams),
-    enabled: Boolean(params.accountId),
     queryFn: () => mailApi.getApiV1MailMessages(queryParams),
   })
 }
@@ -10736,12 +18308,8 @@ export function useProcessMailMutation() {
 
 export function useProcessDocumentsMutation() {
   return useMutation({
-    mutationFn: async (files: Array<{ fileName: string; content: string; type: string; mimeType: string }>) => {
-      const response = await mailApi.postApiV1DocumentProcessorProcessMultiple({
-        files,
-        prompt: "Extract key information from these documents",
-        model: "gpt-4",
-      })
+    mutationFn: async (payload: { files: Array<{ fileName: string; content: string; type: string; mimeType: string }>; prompt: string; model: string }) => {
+      const response = await mailApi.postApiV1DocumentProcessorProcessMultiple(payload)
       return response.data
     },
   })
@@ -10894,11 +18462,11 @@ export function useAnalysisResultsQuery(params: {
   if (params.category) filters.push(`category==${params.category}`)
 
   const queryParams: GetApiV1MailAnalysisResultsParams = {
-    Filters: filters.join("&") || undefined,
-    SortField: params.sortField ?? "createdAt",
-    SortOrder: params.sortOrder ?? "desc",
-    Page: params.page,
-    PageSize: params.pageSize,
+    filters: filters.join("&") || undefined,
+    sortField: params.sortField ?? "createdAt",
+    sortOrder: params.sortOrder ?? "desc",
+    page: params.page,
+    pageSize: params.pageSize,
   }
 
   return useQuery({
@@ -11035,6 +18603,601 @@ export function useTestWebhookMutation(webhookId: string | null) {
   })
 }
 
+export function useAiOpenaiUsageUserQuery(
+  userId: string | null,
+  params?: GetApiV1AiOpenaiUsageUserUserIdParams
+) {
+  return useQuery({
+    queryKey: userId ? mailQueryKeys.aiUsageUser(userId, params) : ["ai-openai-usage-user", "none"],
+    enabled: Boolean(userId),
+    queryFn: async () => {
+      const response = await mailApi.getApiV1AiOpenaiUsageUserUserId(userId as string, params)
+      return response.data as unknown
+    },
+  })
+}
+
+export function useAiOpenaiUsageUserCurrentMonthQuery(userId: string | null) {
+  return useQuery({
+    queryKey: userId
+      ? mailQueryKeys.aiUsageUserCurrentMonth(userId)
+      : ["ai-openai-usage-user-current-month", "none"],
+    enabled: Boolean(userId),
+    queryFn: async () => {
+      const response = await mailApi.getApiV1AiOpenaiUsageUserUserIdCurrentMonth(userId as string)
+      return response.data as unknown
+    },
+  })
+}
+
+export function useAiOpenaiUsageUsersQuery(params?: GetApiV1AiOpenaiUsageUsersParams) {
+  return useQuery({
+    queryKey: mailQueryKeys.aiUsageUsers(params),
+    queryFn: async () => {
+      const response = await mailApi.getApiV1AiOpenaiUsageUsers(params)
+      return response.data as unknown
+    },
+  })
+}
+
+export function useAiOpenaiUsageUsersCurrentMonthQuery() {
+  return useQuery({
+    queryKey: mailQueryKeys.aiUsageUsersCurrentMonth,
+    queryFn: async () => {
+      const response = await mailApi.getApiV1AiOpenaiUsageUsersCurrentMonth()
+      return response.data as unknown
+    },
+  })
+}
+
+export function useAiOpenaiUsageQuery(params?: GetApiV1AiOpenaiUsageParams) {
+  return useQuery({
+    queryKey: mailQueryKeys.aiUsage(params),
+    queryFn: async () => {
+      const response = await mailApi.getApiV1AiOpenaiUsage(params)
+      return response.data as unknown
+    },
+  })
+}
+
+export function useAiOpenaiUsageCurrentMonthQuery() {
+  return useQuery({
+    queryKey: mailQueryKeys.aiUsageCurrentMonth,
+    queryFn: async () => {
+      const response = await mailApi.getApiV1AiOpenaiUsageCurrentMonth()
+      return response.data as unknown
+    },
+  })
+}
+
+export function useTriggerPipelineMutation() {
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: async (messageId: string) => {
+      const response = await mailApi.postApiV1MailMessagesIdTriggerPipeline(messageId)
+      return response.data
+    },
+    onSuccess: (_, messageId) => {
+      void queryClient.invalidateQueries({ queryKey: mailQueryKeys.message(messageId) })
+      void queryClient.invalidateQueries({ queryKey: mailQueryKeys.processingJobs(messageId) })
+    },
+  })
+}
+
+export function useNormalizeMailMutation() {
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: async (messageId: string) => {
+      const response = await mailApi.postApiV1MailMessagesIdNormalize(messageId)
+      return response.data
+    },
+    onSuccess: (_, messageId) => {
+      void queryClient.invalidateQueries({ queryKey: mailQueryKeys.message(messageId) })
+    },
+  })
+}
+
+export function useClassifyMailMutation() {
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: async (messageId: string) => {
+      const response = await mailApi.postApiV1MailMessagesIdClassify(messageId)
+      return response.data
+    },
+    onSuccess: (_, messageId) => {
+      void queryClient.invalidateQueries({ queryKey: mailQueryKeys.message(messageId) })
+    },
+  })
+}
+
+export function useExtractMailMutation() {
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: async (messageId: string) => {
+      const response = await mailApi.postApiV1MailMessagesIdExtract(messageId)
+      return response.data
+    },
+    onSuccess: (_, messageId) => {
+      void queryClient.invalidateQueries({ queryKey: mailQueryKeys.message(messageId) })
+    },
+  })
+}
+
+export function useMailMessageProcessingJobsQuery(messageId: string | null) {
+  return useQuery({
+    queryKey: messageId ? mailQueryKeys.processingJobs(messageId) : ["mail-processing-jobs", "none"],
+    enabled: Boolean(messageId),
+    queryFn: async () => {
+      const response = await mailApi.getApiV1MailMessagesIdProcessingJobs(messageId)
+      return response.data
+    },
+  })
+}
+
+```
+
+---
+
+## File: `hooks\use-order-drafts-queries.ts`
+
+```ts
+"use client"
+
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
+import { getLogisticsPlatformAPI } from "@/lib/generated/mail-connector/endpoints"
+import type { GetApiV1OrderDraftsParams } from "@/lib/generated/mail-connector/model/getApiV1OrderDraftsParams"
+import type { GetApiV1OrderDraftsExportParams } from "@/lib/generated/mail-connector/model/getApiV1OrderDraftsExportParams"
+import type { ReviewRequest } from "@/lib/generated/mail-connector/model/reviewRequest"
+
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+const mailApi: any = getLogisticsPlatformAPI()
+
+export const orderDraftQueryKeys = {
+  orderDrafts: (params?: GetApiV1OrderDraftsParams) => ["order-drafts", params] as const,
+  orderDraft: (id: string) => ["order-draft", id] as const,
+  export: (params?: GetApiV1OrderDraftsExportParams) => ["order-drafts-export", params] as const,
+}
+
+export function useOrderDraftsQuery(params?: GetApiV1OrderDraftsParams) {
+  return useQuery({
+    queryKey: orderDraftQueryKeys.orderDrafts(params),
+    queryFn: async () => {
+      const response = await mailApi.getApiV1OrderDrafts(params)
+      return response?.data ?? response
+    },
+  })
+}
+
+export function useOrderDraftQuery(id: string | null) {
+  return useQuery({
+    queryKey: id ? orderDraftQueryKeys.orderDraft(id) : ["order-draft", "none"],
+    enabled: Boolean(id),
+    queryFn: async () => {
+      const response = await mailApi.getApiV1OrderDraftsId(id)
+      return response?.data ?? response
+    },
+  })
+}
+
+export function useApproveOrderDraftL1Mutation() {
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: async ({ id, payload }: { id: string; payload: ReviewRequest }) => {
+      const response = await mailApi.postApiV1OrderDraftsIdApproveL1(id, payload)
+      return response?.data ?? response
+    },
+    onSuccess: (_, variables) => {
+      void queryClient.invalidateQueries({ queryKey: orderDraftQueryKeys.orderDraft(variables.id) })
+      void queryClient.invalidateQueries({ queryKey: ["order-drafts"] })
+    },
+  })
+}
+
+export function useRejectOrderDraftL1Mutation() {
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: async ({ id, payload }: { id: string; payload: ReviewRequest }) => {
+      const response = await mailApi.postApiV1OrderDraftsIdRejectL1(id, payload)
+      return response?.data ?? response
+    },
+    onSuccess: (_, variables) => {
+      void queryClient.invalidateQueries({ queryKey: orderDraftQueryKeys.orderDraft(variables.id) })
+      void queryClient.invalidateQueries({ queryKey: ["order-drafts"] })
+    },
+  })
+}
+
+export function useConfirmOrderDraftMutation() {
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: async ({ id, payload }: { id: string; payload: ReviewRequest }) => {
+      const response = await mailApi.postApiV1OrderDraftsIdConfirm(id, payload)
+      return response?.data ?? response
+    },
+    onSuccess: (_, variables) => {
+      void queryClient.invalidateQueries({ queryKey: orderDraftQueryKeys.orderDraft(variables.id) })
+      void queryClient.invalidateQueries({ queryKey: ["order-drafts"] })
+    },
+  })
+}
+
+export function useRejectOrderDraftMutation() {
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: async ({ id, payload }: { id: string; payload: ReviewRequest }) => {
+      const response = await mailApi.postApiV1OrderDraftsIdReject(id, payload)
+      return response?.data ?? response
+    },
+    onSuccess: (_, variables) => {
+      void queryClient.invalidateQueries({ queryKey: orderDraftQueryKeys.orderDraft(variables.id) })
+      void queryClient.invalidateQueries({ queryKey: ["order-drafts"] })
+    },
+  })
+}
+
+export function useExportOrderDraftsQuery(params?: GetApiV1OrderDraftsExportParams) {
+  return useQuery({
+    queryKey: orderDraftQueryKeys.export(params),
+    queryFn: async () => {
+      const response = await mailApi.getApiV1OrderDraftsExport(params)
+      return response?.data ?? response
+    },
+  })
+}
+
+```
+
+---
+
+## File: `hooks\use-permission.ts`
+
+```ts
+"use client"
+
+import { useAuthStore } from "@/lib/stores/auth-store"
+import { useCurrentUserPermissionsQuery } from "@/hooks/use-user-queries"
+
+type PermissionItem = {
+  id?: string
+  code?: string
+  name?: string
+  module?: string
+}
+
+function extractCodes(data: unknown): string[] {
+  if (!data) return []
+  if (Array.isArray(data)) {
+    return data
+      .map((item) => {
+        const p = item as PermissionItem
+        return p.code ?? ""
+      })
+      .filter(Boolean)
+  }
+  if (typeof data === "object" && data !== null) {
+    const d = data as Record<string, unknown>
+    if (Array.isArray(d.data)) {
+      return extractCodes(d.data)
+    }
+  }
+  return []
+}
+
+export function usePermission(permissionCode: string) {
+  const authUser = useAuthStore((s) => s.user)
+  const permissionsQuery = useCurrentUserPermissionsQuery()
+
+  // Use auth store as primary source, API as fallback
+  const storeCodes = authUser?.permissions ?? []
+  const apiCodes = extractCodes(permissionsQuery.data)
+  const allCodes = apiCodes.length > 0 ? apiCodes : storeCodes
+
+  const has = allCodes.includes(permissionCode)
+
+  return {
+    has,
+    isLoading: permissionsQuery.isPending,
+    codes: allCodes,
+  }
+}
+
+export function usePermissions(permissionCodes: string[]) {
+  const authUser = useAuthStore((s) => s.user)
+  const permissionsQuery = useCurrentUserPermissionsQuery()
+
+  const storeCodes = authUser?.permissions ?? []
+  const apiCodes = extractCodes(permissionsQuery.data)
+  const allCodes = apiCodes.length > 0 ? apiCodes : storeCodes
+
+  const hasAll = permissionCodes.every((code) => allCodes.includes(code))
+  const hasAny = permissionCodes.some((code) => allCodes.includes(code))
+  const check = (code: string) => allCodes.includes(code)
+
+  return {
+    hasAll,
+    hasAny,
+    check,
+    isLoading: permissionsQuery.isPending,
+    codes: allCodes,
+  }
+}
+
+```
+
+---
+
+## File: `hooks\use-permissions-queries.ts`
+
+```ts
+"use client"
+
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
+import { getLogisticsPlatformAPI } from "@/lib/generated/mail-connector/endpoints"
+import type { GetApiV1PermissionsParams } from "@/lib/generated/mail-connector/model/getApiV1PermissionsParams"
+import type { CreatePermissionRequest } from "@/lib/generated/mail-connector/model/createPermissionRequest"
+import type { UpdatePermissionRequest } from "@/lib/generated/mail-connector/model/updatePermissionRequest"
+
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+const mailApi: any = getLogisticsPlatformAPI()
+
+export const permissionQueryKeys = {
+  permissions: (params?: GetApiV1PermissionsParams) => ["permissions", params] as const,
+  permission: (id: string) => ["permission", id] as const,
+  modules: ["permission-modules"] as const,
+}
+
+export function usePermissionsQuery(params?: GetApiV1PermissionsParams) {
+  return useQuery({
+    queryKey: permissionQueryKeys.permissions(params),
+    queryFn: async () => {
+      const response = await mailApi.getApiV1Permissions(params)
+      return response?.data ?? response
+    },
+  })
+}
+
+export function usePermissionModulesQuery() {
+  return useQuery({
+    queryKey: permissionQueryKeys.modules,
+    queryFn: async () => {
+      const response = await mailApi.getApiV1PermissionsModules()
+      return response?.data ?? response
+    },
+  })
+}
+
+export function usePermissionQuery(id: string | null) {
+  return useQuery({
+    queryKey: id ? permissionQueryKeys.permission(id) : ["permission", "none"],
+    enabled: Boolean(id),
+    queryFn: async () => {
+      const response = await mailApi.getApiV1PermissionsId(id)
+      return response?.data ?? response
+    },
+  })
+}
+
+export function useCreatePermissionMutation() {
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: async (payload: CreatePermissionRequest) => {
+      const response = await mailApi.postApiV1Permissions(payload)
+      return response?.data ?? response
+    },
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: ["permissions"] })
+    },
+  })
+}
+
+export function useUpdatePermissionMutation() {
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: async ({ id, payload }: { id: string; payload: UpdatePermissionRequest }) => {
+      const response = await mailApi.putApiV1PermissionsId(id, payload)
+      return response?.data ?? response
+    },
+    onSuccess: (_, variables) => {
+      void queryClient.invalidateQueries({ queryKey: permissionQueryKeys.permission(variables.id) })
+      void queryClient.invalidateQueries({ queryKey: ["permissions"] })
+    },
+  })
+}
+
+export function useDeletePermissionMutation() {
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: async (id: string) => {
+      const response = await mailApi.deleteApiV1PermissionsId(id)
+      return response?.data ?? response
+    },
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: ["permissions"] })
+    },
+  })
+}
+
+export function useRestorePermissionMutation() {
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: async (id: string) => {
+      const response = await mailApi.postApiV1PermissionsIdRestore(id)
+      return response?.data ?? response
+    },
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: ["permissions"] })
+    },
+  })
+}
+
+```
+
+---
+
+## File: `hooks\use-roles-queries.ts`
+
+```ts
+"use client"
+
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
+import { getLogisticsPlatformAPI } from "@/lib/generated/mail-connector/endpoints"
+import type { GetApiV1RolesParams } from "@/lib/generated/mail-connector/model/getApiV1RolesParams"
+import type { CreateRoleRequest } from "@/lib/generated/mail-connector/model/createRoleRequest"
+import type { UpdateRoleRequest } from "@/lib/generated/mail-connector/model/updateRoleRequest"
+import type { AssignPermissionsRequest } from "@/lib/generated/mail-connector/model/assignPermissionsRequest"
+
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+const mailApi: any = getLogisticsPlatformAPI()
+
+export const roleQueryKeys = {
+  roles: (params?: GetApiV1RolesParams) => ["roles", params] as const,
+  role: (id: string) => ["role", id] as const,
+  rolePermissions: (id: string) => ["role-permissions", id] as const,
+}
+
+export function useRolesQuery(params?: GetApiV1RolesParams) {
+  return useQuery({
+    queryKey: roleQueryKeys.roles(params),
+    queryFn: async () => {
+      const response = await mailApi.getApiV1Roles(params)
+      return response?.data ?? response
+    },
+  })
+}
+
+export function useRoleQuery(id: string | null) {
+  return useQuery({
+    queryKey: id ? roleQueryKeys.role(id) : ["role", "none"],
+    enabled: Boolean(id),
+    queryFn: async () => {
+      const response = await mailApi.getApiV1RolesId(id)
+      return response?.data ?? response
+    },
+  })
+}
+
+export function useCreateRoleMutation() {
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: async (payload: CreateRoleRequest) => {
+      const response = await mailApi.postApiV1Roles(payload)
+      return response?.data ?? response
+    },
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: ["roles"] })
+    },
+  })
+}
+
+export function useUpdateRoleMutation() {
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: async ({ id, payload }: { id: string; payload: UpdateRoleRequest }) => {
+      const response = await mailApi.putApiV1RolesId(id, payload)
+      return response?.data ?? response
+    },
+    onSuccess: (_, variables) => {
+      void queryClient.invalidateQueries({ queryKey: roleQueryKeys.role(variables.id) })
+      void queryClient.invalidateQueries({ queryKey: ["roles"] })
+    },
+  })
+}
+
+export function useDeleteRoleMutation() {
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: async (id: string) => {
+      const response = await mailApi.deleteApiV1RolesId(id)
+      return response?.data ?? response
+    },
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: ["roles"] })
+    },
+  })
+}
+
+export function useRestoreRoleMutation() {
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: async (id: string) => {
+      const response = await mailApi.postApiV1RolesIdRestore(id)
+      return response?.data ?? response
+    },
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: ["roles"] })
+    },
+  })
+}
+
+export function useRolePermissionsQuery(id: string | null) {
+  return useQuery({
+    queryKey: id ? roleQueryKeys.rolePermissions(id) : ["role-permissions", "none"],
+    enabled: Boolean(id),
+    queryFn: async () => {
+      const response = await mailApi.getApiV1RolesIdPermissions(id)
+      return response?.data ?? response
+    },
+  })
+}
+
+export function useAssignRolePermissionMutation() {
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: async ({ id, payload }: { id: string; payload: AssignPermissionsRequest }) => {
+      const response = await mailApi.postApiV1RolesIdPermissions(id, payload)
+      return response?.data ?? response
+    },
+    onSuccess: (_, variables) => {
+      void queryClient.invalidateQueries({ queryKey: roleQueryKeys.rolePermissions(variables.id) })
+    },
+  })
+}
+
+export function useUpdateRolePermissionsMutation() {
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: async ({ id, payload }: { id: string; payload: AssignPermissionsRequest }) => {
+      const response = await mailApi.putApiV1RolesIdPermissions(id, payload)
+      return response?.data ?? response
+    },
+    onSuccess: (_, variables) => {
+      void queryClient.invalidateQueries({ queryKey: roleQueryKeys.rolePermissions(variables.id) })
+    },
+  })
+}
+
+export function useRemoveRolePermissionMutation() {
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: async ({ id, permissionId }: { id: string; permissionId: string }) => {
+      const response = await mailApi.deleteApiV1RolesIdPermissionsPermissionId(id, permissionId)
+      return response?.data ?? response
+    },
+    onSuccess: (_, variables) => {
+      void queryClient.invalidateQueries({ queryKey: roleQueryKeys.rolePermissions(variables.id) })
+    },
+  })
+}
+
 ```
 
 ---
@@ -11045,7 +19208,7 @@ export function useTestWebhookMutation(webhookId: string | null) {
 "use client"
 
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
-import { MAIL_CONNECTOR_AXIOS } from "@/lib/orval/mail-connector-mutator"
+import { getLogisticsPlatformAPI } from "@/lib/generated/mail-connector/endpoints"
 import type { GetApiV1UsersParams } from "@/lib/generated/mail-connector/model/getApiV1UsersParams"
 import type { CreateUserRequest } from "@/lib/generated/mail-connector/model/createUserRequest"
 import type { UpdateUserRequest } from "@/lib/generated/mail-connector/model/updateUserRequest"
@@ -11053,6 +19216,9 @@ import type { UpdateUserRolesRequest } from "@/lib/generated/mail-connector/mode
 import type { UpdateUserStatusRequest } from "@/lib/generated/mail-connector/model/updateUserStatusRequest"
 import type { ChangePasswordRequest } from "@/lib/generated/mail-connector/model/changePasswordRequest"
 import type { ResetPasswordRequest } from "@/lib/generated/mail-connector/model/resetPasswordRequest"
+
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+const mailApi: any = getLogisticsPlatformAPI()
 
 export interface UserDto {
   id: string
@@ -11109,14 +19275,16 @@ export const userQueryKeys = {
   users: (params: GetApiV1UsersParams) => ["users", params] as const,
   user: (id: string) => ["user", id] as const,
   me: ["users-me"] as const,
+  userPermissions: (id: string) => ["user-permissions", id] as const,
 }
 
 export function useCurrentUserQuery() {
   return useQuery({
     queryKey: userQueryKeys.me,
     queryFn: async () => {
-      const { data } = await MAIL_CONNECTOR_AXIOS.get("/api/v1/users/me")
-      return (data?.data ?? data ?? null) as CurrentUserResponse | null
+      const response = await mailApi.getApiV1UsersMe()
+      const data = response?.data ?? response ?? null
+      return data as CurrentUserResponse | null
     },
   })
 }
@@ -11125,8 +19293,8 @@ export function useUsersQuery(params: GetApiV1UsersParams) {
   return useQuery({
     queryKey: userQueryKeys.users(params),
     queryFn: async () => {
-      const { data } = await MAIL_CONNECTOR_AXIOS.get("/api/v1/users", { params })
-      return getUserList(data)
+      const response = await mailApi.getApiV1Users(params)
+      return getUserList(response)
     },
   })
 }
@@ -11136,8 +19304,8 @@ export function useUserQuery(id: string | null) {
     queryKey: id ? userQueryKeys.user(id) : ["user", "none"],
     enabled: Boolean(id),
     queryFn: async () => {
-      const { data } = await MAIL_CONNECTOR_AXIOS.get(`/api/v1/users/${id}`)
-      return getUserDto(data)
+      const response = await mailApi.getApiV1UsersId(id)
+      return getUserDto(response?.data ?? response)
     },
   })
 }
@@ -11146,8 +19314,8 @@ export function useCreateUserMutation() {
   const queryClient = useQueryClient()
   return useMutation({
     mutationFn: async (payload: CreateUserRequest) => {
-      const { data } = await MAIL_CONNECTOR_AXIOS.post("/api/v1/users", payload)
-      return getUserDto(data)
+      const response = await mailApi.postApiV1Users(payload)
+      return getUserDto(response?.data ?? response)
     },
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: ["users"] })
@@ -11159,8 +19327,8 @@ export function useUpdateUserMutation() {
   const queryClient = useQueryClient()
   return useMutation({
     mutationFn: async ({ id, payload }: { id: string; payload: UpdateUserRequest }) => {
-      const { data } = await MAIL_CONNECTOR_AXIOS.put(`/api/v1/users/${id}`, payload)
-      return getUserDto(data)
+      const response = await mailApi.putApiV1UsersId(id, payload)
+      return getUserDto(response?.data ?? response)
     },
     onSuccess: (_, variables) => {
       void queryClient.invalidateQueries({ queryKey: userQueryKeys.user(variables.id) })
@@ -11173,8 +19341,8 @@ export function useUpdateUserRolesMutation() {
   const queryClient = useQueryClient()
   return useMutation({
     mutationFn: async ({ id, payload }: { id: string; payload: UpdateUserRolesRequest }) => {
-      const { data } = await MAIL_CONNECTOR_AXIOS.put(`/api/v1/users/${id}/roles`, payload)
-      return getUserDto(data)
+      const response = await mailApi.putApiV1UsersIdRoles(id, payload)
+      return getUserDto(response?.data ?? response)
     },
     onSuccess: (_, variables) => {
       void queryClient.invalidateQueries({ queryKey: userQueryKeys.user(variables.id) })
@@ -11187,8 +19355,8 @@ export function useUpdateUserStatusMutation() {
   const queryClient = useQueryClient()
   return useMutation({
     mutationFn: async ({ id, isActive }: { id: string; isActive: boolean }) => {
-      const { data } = await MAIL_CONNECTOR_AXIOS.patch(`/api/v1/users/${id}/status`, { isActive } as UpdateUserStatusRequest)
-      return getUserDto(data)
+      const response = await mailApi.patchApiV1UsersIdStatus(id, { isActive } as UpdateUserStatusRequest)
+      return getUserDto(response?.data ?? response)
     },
     onSuccess: (_, variables) => {
       void queryClient.invalidateQueries({ queryKey: userQueryKeys.user(variables.id) })
@@ -11201,8 +19369,8 @@ export function useDeleteUserMutation() {
   const queryClient = useQueryClient()
   return useMutation({
     mutationFn: async (id: string) => {
-      const { data } = await MAIL_CONNECTOR_AXIOS.delete(`/api/v1/users/${id}`)
-      return data
+      const response = await mailApi.deleteApiV1UsersId(id)
+      return response?.data ?? response
     },
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: ["users"] })
@@ -11214,8 +19382,8 @@ export function useRestoreUserMutation() {
   const queryClient = useQueryClient()
   return useMutation({
     mutationFn: async (id: string) => {
-      const { data } = await MAIL_CONNECTOR_AXIOS.post(`/api/v1/users/${id}/restore`)
-      return getUserDto(data)
+      const response = await mailApi.postApiV1UsersIdRestore(id)
+      return getUserDto(response?.data ?? response)
     },
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: ["users"] })
@@ -11226,9 +19394,9 @@ export function useRestoreUserMutation() {
 export function useUpdateMyProfileMutation() {
   const queryClient = useQueryClient()
   return useMutation({
-    mutationFn: async (payload: { fullName?: string | null; roles?: string[] | null }) => {
-      const { data } = await MAIL_CONNECTOR_AXIOS.put("/api/v1/users/me", payload)
-      return getUserDto(data)
+    mutationFn: async (payload: UpdateUserRequest) => {
+      const response = await mailApi.putApiV1UsersMe(payload)
+      return getUserDto(response?.data ?? response)
     },
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: userQueryKeys.me })
@@ -11239,8 +19407,8 @@ export function useUpdateMyProfileMutation() {
 export function useChangeMyPasswordMutation() {
   return useMutation({
     mutationFn: async (payload: ChangePasswordRequest) => {
-      const { data } = await MAIL_CONNECTOR_AXIOS.post("/api/v1/users/me/change-password", payload)
-      return data
+      const response = await mailApi.postApiV1UsersMeChangePassword(payload)
+      return response?.data ?? response
     },
   })
 }
@@ -11249,11 +19417,77 @@ export function useResetUserPasswordMutation() {
   const queryClient = useQueryClient()
   return useMutation({
     mutationFn: async ({ id, payload }: { id: string; payload: ResetPasswordRequest }) => {
-      const { data } = await MAIL_CONNECTOR_AXIOS.post(`/api/v1/users/${id}/reset-password`, payload)
-      return data
+      const response = await mailApi.postApiV1UsersIdResetPassword(id, payload)
+      return response?.data ?? response
     },
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: ["users"] })
+    },
+  })
+}
+
+export function useUserPermissionsQuery(id: string | null) {
+  return useQuery({
+    queryKey: id ? userQueryKeys.userPermissions(id) : ["user-permissions", "none"],
+    enabled: Boolean(id),
+    queryFn: async () => {
+      const response = await mailApi.getApiV1UsersIdPermissions(id)
+      return response?.data ?? response
+    },
+  })
+}
+
+export function useCurrentUserPermissionsQuery() {
+  return useQuery({
+    queryKey: ["users-me-permissions"],
+    queryFn: async () => {
+      const response = await mailApi.getApiV1UsersMePermissions()
+      return response?.data ?? response
+    },
+  })
+}
+
+export function useUsersWithPermissionQuery(permissionCode: string) {
+  return useQuery({
+    queryKey: ["users-with-permission", permissionCode],
+    queryFn: async () => {
+      // 1. Get all users
+      const usersRes = await mailApi.getApiV1Users({ page: 1, pageSize: 100 })
+      const usersRaw = usersRes?.data ?? usersRes
+      const users = (() => {
+        if (Array.isArray(usersRaw)) return usersRaw
+        if (usersRaw && typeof usersRaw === "object" && "data" in usersRaw) {
+          const d = usersRaw as unknown as Record<string, unknown>
+          if (Array.isArray(d.data)) return d.data
+        }
+        return []
+      })() as Record<string, unknown>[]
+
+      // 2. For each user, fetch permissions in parallel
+      const usersWithPerms = await Promise.all(
+        users.map(async (user) => {
+          const userId = String(user.id ?? "")
+          if (!userId) return { user, hasPermission: false }
+          try {
+            const permRes = await mailApi.getApiV1UsersIdPermissions(userId)
+            const permRaw = permRes?.data ?? permRes
+            const perms = (() => {
+              if (Array.isArray(permRaw)) return permRaw
+              if (permRaw && typeof permRaw === "object" && "data" in permRaw) {
+                const d = permRaw as unknown as Record<string, unknown>
+                if (Array.isArray(d.data)) return d.data
+              }
+              return []
+            })() as { code?: string }[]
+            const hasPermission = perms.some((p) => p.code === permissionCode)
+            return { user, hasPermission }
+          } catch {
+            return { user, hasPermission: false }
+          }
+        })
+      )
+
+      return usersWithPerms.filter((u) => u.hasPermission).map((u) => u.user)
     },
   })
 }
@@ -11746,22 +19980,32 @@ export async function importReport(formData: FormData) {
  */
 import type {
   ApproveRequest,
+  AssignPermissionsRequest,
+  AssignRequest,
   BatchCompleteUploadRequest,
   BatchDownloadUrlRequest,
   BatchInitiateUploadRequest,
   ChangePasswordRequest,
   CompleteRequest,
   ConfirmPasswordResetCommand,
+  ConfirmRequest,
   ConnectAccountRequest,
   CreateAnalysisResultRequest,
+  CreateConversationRequest,
   CreateMailAccountRequest,
+  CreatePermissionRequest,
+  CreateRoleRequest,
   CreateTemplateRequest,
   CreateUserRequest,
   CreateWebhookSubscriptionRequest,
   DocumentProcessingRequest,
   ExchangeTokenRequest,
   ExecuteImportRequest,
+  GetApiV1AiChatConversationsByEntityParams,
+  GetApiV1AiChatConversationsParams,
   GetApiV1AiOpenaiUsageParams,
+  GetApiV1AiOpenaiUsageUserUserIdParams,
+  GetApiV1AiOpenaiUsageUsersParams,
   GetApiV1FilesIdDownloadUrlParams,
   GetApiV1FilesParams,
   GetApiV1FilesQuotaParams,
@@ -11771,10 +20015,14 @@ import type {
   GetApiV1MailMessagesParams,
   GetApiV1OrderDraftsExportParams,
   GetApiV1OrderDraftsParams,
+  GetApiV1PermissionsParams,
+  GetApiV1RolesParams,
   GetApiV1UsersParams,
   GetApiV1WebhookSubscriptionsParams,
   GetOauthCallbackParams,
   InitiateUploadRequest,
+  LinkAttachmentRequest,
+  LinkEntityRequest,
   LoginCommand,
   LogoutAllRequest,
   LogoutCommand,
@@ -11783,20 +20031,23 @@ import type {
   PreviewImportRequest,
   ProcessMultipleDocumentsRequest,
   ReassignRequest,
-  RefreshLockRequest,
   RefreshMailTokenRequest,
   RefreshTokenCommand,
   RejectRequest,
   ResetPasswordRequest,
   ReviewRequest,
   RevokeSessionRequest,
+  SendMessageRequest,
   SendPasswordResetOtpCommand,
   TestWebhookRequest,
   TriggerSyncDto,
   UnassignRequest,
   UpdateAnalysisResultFieldsRequest,
+  UpdateConversationRequest,
   UpdateFileMetadataRequest,
   UpdateMailAccountDto,
+  UpdatePermissionRequest,
+  UpdateRoleRequest,
   UpdateStatusRequest,
   UpdateTemplateRequest,
   UpdateUserRequest,
@@ -11830,6 +20081,45 @@ const getApiV1AiOpenaiUsageCurrentMonth = (
  options?: SecondParameter<typeof mailConnectorInstance<void>>,) => {
       return mailConnectorInstance<void>(
       {url: `/api/v1/ai/openai-usage/current-month`, method: 'GET'
+    },
+      options);
+    }
+  
+const getApiV1AiOpenaiUsageUserUserId = (
+    userId: string,
+    params?: GetApiV1AiOpenaiUsageUserUserIdParams,
+ options?: SecondParameter<typeof mailConnectorInstance<void>>,) => {
+      return mailConnectorInstance<void>(
+      {url: `/api/v1/ai/openai-usage/user/${userId}`, method: 'GET',
+        params
+    },
+      options);
+    }
+  
+const getApiV1AiOpenaiUsageUserUserIdCurrentMonth = (
+    userId: string,
+ options?: SecondParameter<typeof mailConnectorInstance<void>>,) => {
+      return mailConnectorInstance<void>(
+      {url: `/api/v1/ai/openai-usage/user/${userId}/current-month`, method: 'GET'
+    },
+      options);
+    }
+  
+const getApiV1AiOpenaiUsageUsers = (
+    params?: GetApiV1AiOpenaiUsageUsersParams,
+ options?: SecondParameter<typeof mailConnectorInstance<void>>,) => {
+      return mailConnectorInstance<void>(
+      {url: `/api/v1/ai/openai-usage/users`, method: 'GET',
+        params
+    },
+      options);
+    }
+  
+const getApiV1AiOpenaiUsageUsersCurrentMonth = (
+    
+ options?: SecondParameter<typeof mailConnectorInstance<void>>,) => {
+      return mailConnectorInstance<void>(
+      {url: `/api/v1/ai/openai-usage/users/current-month`, method: 'GET'
     },
       options);
     }
@@ -11899,6 +20189,37 @@ const getApiAttachmentReviewsMailConnectorAttachmentId = (
  options?: SecondParameter<typeof mailConnectorInstance<void>>,) => {
       return mailConnectorInstance<void>(
       {url: `/api/attachment-reviews/${mailConnectorAttachmentId}`, method: 'GET'
+    },
+      options);
+    }
+  
+const postApiV1AiChatConversationsConversationIdAttachments = (
+    conversationId: string,
+    linkAttachmentRequest: BodyType<LinkAttachmentRequest>,
+ options?: SecondParameter<typeof mailConnectorInstance<void>>,) => {
+      return mailConnectorInstance<void>(
+      {url: `/api/v1/ai-chat/conversations/${conversationId}/attachments`, method: 'POST',
+      headers: {'Content-Type': 'application/json', },
+      data: linkAttachmentRequest
+    },
+      options);
+    }
+  
+const getApiV1AiChatConversationsConversationIdAttachments = (
+    conversationId: string,
+ options?: SecondParameter<typeof mailConnectorInstance<void>>,) => {
+      return mailConnectorInstance<void>(
+      {url: `/api/v1/ai-chat/conversations/${conversationId}/attachments`, method: 'GET'
+    },
+      options);
+    }
+  
+const deleteApiV1AiChatConversationsConversationIdAttachmentsId = (
+    conversationId: string,
+    id: string,
+ options?: SecondParameter<typeof mailConnectorInstance<void>>,) => {
+      return mailConnectorInstance<void>(
+      {url: `/api/v1/ai-chat/conversations/${conversationId}/attachments/${id}`, method: 'DELETE'
     },
       options);
     }
@@ -11986,6 +20307,109 @@ const postApiV1AuthForgotPasswordConfirmReset = (
       {url: `/api/v1/auth/forgot-password/confirm-reset`, method: 'POST',
       headers: {'Content-Type': 'application/json', },
       data: confirmPasswordResetCommand
+    },
+      options);
+    }
+  
+const getApiV1AiChatConversationsConversationIdMessages = (
+    conversationId: string,
+ options?: SecondParameter<typeof mailConnectorInstance<void>>,) => {
+      return mailConnectorInstance<void>(
+      {url: `/api/v1/ai-chat/conversations/${conversationId}/messages`, method: 'GET'
+    },
+      options);
+    }
+  
+const postApiV1AiChatConversationsConversationIdMessages = (
+    conversationId: string,
+    sendMessageRequest: BodyType<SendMessageRequest>,
+ options?: SecondParameter<typeof mailConnectorInstance<void>>,) => {
+      return mailConnectorInstance<void>(
+      {url: `/api/v1/ai-chat/conversations/${conversationId}/messages`, method: 'POST',
+      headers: {'Content-Type': 'application/json', },
+      data: sendMessageRequest
+    },
+      options);
+    }
+  
+const postApiV1AiChatConversations = (
+    createConversationRequest: BodyType<CreateConversationRequest>,
+ options?: SecondParameter<typeof mailConnectorInstance<void>>,) => {
+      return mailConnectorInstance<void>(
+      {url: `/api/v1/ai-chat/conversations`, method: 'POST',
+      headers: {'Content-Type': 'application/json', },
+      data: createConversationRequest
+    },
+      options);
+    }
+  
+const getApiV1AiChatConversations = (
+    params?: GetApiV1AiChatConversationsParams,
+ options?: SecondParameter<typeof mailConnectorInstance<void>>,) => {
+      return mailConnectorInstance<void>(
+      {url: `/api/v1/ai-chat/conversations`, method: 'GET',
+        params
+    },
+      options);
+    }
+  
+const getApiV1AiChatConversationsId = (
+    id: string,
+ options?: SecondParameter<typeof mailConnectorInstance<void>>,) => {
+      return mailConnectorInstance<void>(
+      {url: `/api/v1/ai-chat/conversations/${id}`, method: 'GET'
+    },
+      options);
+    }
+  
+const putApiV1AiChatConversationsId = (
+    id: string,
+    updateConversationRequest: BodyType<UpdateConversationRequest>,
+ options?: SecondParameter<typeof mailConnectorInstance<void>>,) => {
+      return mailConnectorInstance<void>(
+      {url: `/api/v1/ai-chat/conversations/${id}`, method: 'PUT',
+      headers: {'Content-Type': 'application/json', },
+      data: updateConversationRequest
+    },
+      options);
+    }
+  
+const deleteApiV1AiChatConversationsId = (
+    id: string,
+ options?: SecondParameter<typeof mailConnectorInstance<void>>,) => {
+      return mailConnectorInstance<void>(
+      {url: `/api/v1/ai-chat/conversations/${id}`, method: 'DELETE'
+    },
+      options);
+    }
+  
+const getApiV1AiChatConversationsByEntity = (
+    params?: GetApiV1AiChatConversationsByEntityParams,
+ options?: SecondParameter<typeof mailConnectorInstance<void>>,) => {
+      return mailConnectorInstance<void>(
+      {url: `/api/v1/ai-chat/conversations/by-entity`, method: 'GET',
+        params
+    },
+      options);
+    }
+  
+const postApiV1AiChatConversationsIdArchive = (
+    id: string,
+ options?: SecondParameter<typeof mailConnectorInstance<void>>,) => {
+      return mailConnectorInstance<void>(
+      {url: `/api/v1/ai-chat/conversations/${id}/archive`, method: 'POST'
+    },
+      options);
+    }
+  
+const postApiV1AiChatConversationsIdLinkEntity = (
+    id: string,
+    linkEntityRequest: BodyType<LinkEntityRequest>,
+ options?: SecondParameter<typeof mailConnectorInstance<void>>,) => {
+      return mailConnectorInstance<void>(
+      {url: `/api/v1/ai-chat/conversations/${id}/link-entity`, method: 'POST',
+      headers: {'Content-Type': 'application/json', },
+      data: linkEntityRequest
     },
       options);
     }
@@ -12360,98 +20784,101 @@ const postApiV1MailAccountsIdSyncDirect = (
       options);
     }
   
-const postApiMailAssignmentsMailConnectorMessageIdAssign = (
+const postApiV1MailAssignmentsMailConnectorMessageIdAssign = (
     mailConnectorMessageId: string,
+    assignRequest: BodyType<AssignRequest>,
  options?: SecondParameter<typeof mailConnectorInstance<void>>,) => {
       return mailConnectorInstance<void>(
-      {url: `/api/mail-assignments/${mailConnectorMessageId}/assign`, method: 'POST'
+      {url: `/api/v1/mail-assignments/${mailConnectorMessageId}/assign`, method: 'POST',
+      headers: {'Content-Type': 'application/json', },
+      data: assignRequest
     },
       options);
     }
   
-const deleteApiMailAssignmentsMailConnectorMessageIdUnassign = (
+const deleteApiV1MailAssignmentsMailConnectorMessageIdUnassign = (
     mailConnectorMessageId: string,
     unassignRequest: BodyType<UnassignRequest>,
  options?: SecondParameter<typeof mailConnectorInstance<void>>,) => {
       return mailConnectorInstance<void>(
-      {url: `/api/mail-assignments/${mailConnectorMessageId}/unassign`, method: 'DELETE',
+      {url: `/api/v1/mail-assignments/${mailConnectorMessageId}/unassign`, method: 'DELETE',
       headers: {'Content-Type': 'application/json', },
       data: unassignRequest
     },
       options);
     }
   
-const getApiMailAssignmentsMy = (
+const getApiV1MailAssignmentsMy = (
     
  options?: SecondParameter<typeof mailConnectorInstance<void>>,) => {
       return mailConnectorInstance<void>(
-      {url: `/api/mail-assignments/my`, method: 'GET'
+      {url: `/api/v1/mail-assignments/my`, method: 'GET'
     },
       options);
     }
   
-const getApiMailAssignmentsMailConnectorMessageIdStatus = (
+const getApiV1MailAssignmentsMailConnectorMessageIdStatus = (
     mailConnectorMessageId: string,
  options?: SecondParameter<typeof mailConnectorInstance<void>>,) => {
       return mailConnectorInstance<void>(
-      {url: `/api/mail-assignments/${mailConnectorMessageId}/status`, method: 'GET'
+      {url: `/api/v1/mail-assignments/${mailConnectorMessageId}/status`, method: 'GET'
     },
       options);
     }
   
-const putApiMailAssignmentsMailConnectorMessageIdStatus = (
+const putApiV1MailAssignmentsMailConnectorMessageIdStatus = (
     mailConnectorMessageId: string,
     updateStatusRequest: BodyType<UpdateStatusRequest>,
  options?: SecondParameter<typeof mailConnectorInstance<void>>,) => {
       return mailConnectorInstance<void>(
-      {url: `/api/mail-assignments/${mailConnectorMessageId}/status`, method: 'PUT',
+      {url: `/api/v1/mail-assignments/${mailConnectorMessageId}/status`, method: 'PUT',
       headers: {'Content-Type': 'application/json', },
       data: updateStatusRequest
     },
       options);
     }
   
-const postApiMailAssignmentsMailConnectorMessageIdReassign = (
+const postApiV1MailAssignmentsMailConnectorMessageIdReassign = (
     mailConnectorMessageId: string,
     reassignRequest: BodyType<ReassignRequest>,
  options?: SecondParameter<typeof mailConnectorInstance<void>>,) => {
       return mailConnectorInstance<void>(
-      {url: `/api/mail-assignments/${mailConnectorMessageId}/reassign`, method: 'POST',
+      {url: `/api/v1/mail-assignments/${mailConnectorMessageId}/reassign`, method: 'POST',
       headers: {'Content-Type': 'application/json', },
       data: reassignRequest
     },
       options);
     }
   
-const postApiMailAssignmentsMailConnectorMessageIdComplete = (
+const postApiV1MailAssignmentsMailConnectorMessageIdConfirm = (
+    mailConnectorMessageId: string,
+    confirmRequest: BodyType<ConfirmRequest>,
+ options?: SecondParameter<typeof mailConnectorInstance<void>>,) => {
+      return mailConnectorInstance<void>(
+      {url: `/api/v1/mail-assignments/${mailConnectorMessageId}/confirm`, method: 'POST',
+      headers: {'Content-Type': 'application/json', },
+      data: confirmRequest
+    },
+      options);
+    }
+  
+const postApiV1MailAssignmentsMailConnectorMessageIdComplete = (
     mailConnectorMessageId: string,
     completeRequest: BodyType<CompleteRequest>,
  options?: SecondParameter<typeof mailConnectorInstance<void>>,) => {
       return mailConnectorInstance<void>(
-      {url: `/api/mail-assignments/${mailConnectorMessageId}/complete`, method: 'POST',
+      {url: `/api/v1/mail-assignments/${mailConnectorMessageId}/complete`, method: 'POST',
       headers: {'Content-Type': 'application/json', },
       data: completeRequest
     },
       options);
     }
   
-const postApiMailAssignmentsMailConnectorMessageIdRefreshLock = (
-    mailConnectorMessageId: string,
-    refreshLockRequest: BodyType<RefreshLockRequest>,
- options?: SecondParameter<typeof mailConnectorInstance<void>>,) => {
-      return mailConnectorInstance<void>(
-      {url: `/api/mail-assignments/${mailConnectorMessageId}/refresh-lock`, method: 'POST',
-      headers: {'Content-Type': 'application/json', },
-      data: refreshLockRequest
-    },
-      options);
-    }
-  
-const getApiMailAssignmentsByStatusStatus = (
+const getApiV1MailAssignmentsByStatusStatus = (
     status: string,
  options?: SecondParameter<typeof mailConnectorInstance<void>>,) => {
       return mailConnectorInstance<void>(
-      {url: `/api/mail-assignments/by-status/${status}`, method: 'GET'
+      {url: `/api/v1/mail-assignments/by-status/${status}`, method: 'GET'
     },
       options);
     }
@@ -12567,6 +20994,16 @@ const getApiV1MailMessagesMessageIdAttachmentsAttachmentIdPresignedUrl = (
       return mailConnectorInstance<void>(
       {url: `/api/v1/mail-messages/${messageId}/attachments/${attachmentId}/presigned-url`, method: 'GET',
         params
+    },
+      options);
+    }
+  
+const getApiV1MailMessagesMessageIdAttachmentsAttachmentIdProxy = (
+    messageId: string,
+    attachmentId: string,
+ options?: SecondParameter<typeof mailConnectorInstance<void>>,) => {
+      return mailConnectorInstance<void>(
+      {url: `/api/v1/mail-messages/${messageId}/attachments/${attachmentId}/proxy`, method: 'GET'
     },
       options);
     }
@@ -12762,6 +21199,178 @@ const getApiV1OrderDraftsExport = (
       options);
     }
   
+const getApiV1Permissions = (
+    params?: GetApiV1PermissionsParams,
+ options?: SecondParameter<typeof mailConnectorInstance<void>>,) => {
+      return mailConnectorInstance<void>(
+      {url: `/api/v1/permissions`, method: 'GET',
+        params
+    },
+      options);
+    }
+  
+const postApiV1Permissions = (
+    createPermissionRequest: BodyType<CreatePermissionRequest>,
+ options?: SecondParameter<typeof mailConnectorInstance<void>>,) => {
+      return mailConnectorInstance<void>(
+      {url: `/api/v1/permissions`, method: 'POST',
+      headers: {'Content-Type': 'application/json', },
+      data: createPermissionRequest
+    },
+      options);
+    }
+  
+const getApiV1PermissionsModules = (
+    
+ options?: SecondParameter<typeof mailConnectorInstance<void>>,) => {
+      return mailConnectorInstance<void>(
+      {url: `/api/v1/permissions/modules`, method: 'GET'
+    },
+      options);
+    }
+  
+const getApiV1PermissionsId = (
+    id: string,
+ options?: SecondParameter<typeof mailConnectorInstance<void>>,) => {
+      return mailConnectorInstance<void>(
+      {url: `/api/v1/permissions/${id}`, method: 'GET'
+    },
+      options);
+    }
+  
+const putApiV1PermissionsId = (
+    id: string,
+    updatePermissionRequest: BodyType<UpdatePermissionRequest>,
+ options?: SecondParameter<typeof mailConnectorInstance<void>>,) => {
+      return mailConnectorInstance<void>(
+      {url: `/api/v1/permissions/${id}`, method: 'PUT',
+      headers: {'Content-Type': 'application/json', },
+      data: updatePermissionRequest
+    },
+      options);
+    }
+  
+const deleteApiV1PermissionsId = (
+    id: string,
+ options?: SecondParameter<typeof mailConnectorInstance<void>>,) => {
+      return mailConnectorInstance<void>(
+      {url: `/api/v1/permissions/${id}`, method: 'DELETE'
+    },
+      options);
+    }
+  
+const postApiV1PermissionsIdRestore = (
+    id: string,
+ options?: SecondParameter<typeof mailConnectorInstance<void>>,) => {
+      return mailConnectorInstance<void>(
+      {url: `/api/v1/permissions/${id}/restore`, method: 'POST'
+    },
+      options);
+    }
+  
+const getApiV1Roles = (
+    params?: GetApiV1RolesParams,
+ options?: SecondParameter<typeof mailConnectorInstance<void>>,) => {
+      return mailConnectorInstance<void>(
+      {url: `/api/v1/roles`, method: 'GET',
+        params
+    },
+      options);
+    }
+  
+const postApiV1Roles = (
+    createRoleRequest: BodyType<CreateRoleRequest>,
+ options?: SecondParameter<typeof mailConnectorInstance<void>>,) => {
+      return mailConnectorInstance<void>(
+      {url: `/api/v1/roles`, method: 'POST',
+      headers: {'Content-Type': 'application/json', },
+      data: createRoleRequest
+    },
+      options);
+    }
+  
+const getApiV1RolesId = (
+    id: string,
+ options?: SecondParameter<typeof mailConnectorInstance<void>>,) => {
+      return mailConnectorInstance<void>(
+      {url: `/api/v1/roles/${id}`, method: 'GET'
+    },
+      options);
+    }
+  
+const putApiV1RolesId = (
+    id: string,
+    updateRoleRequest: BodyType<UpdateRoleRequest>,
+ options?: SecondParameter<typeof mailConnectorInstance<void>>,) => {
+      return mailConnectorInstance<void>(
+      {url: `/api/v1/roles/${id}`, method: 'PUT',
+      headers: {'Content-Type': 'application/json', },
+      data: updateRoleRequest
+    },
+      options);
+    }
+  
+const deleteApiV1RolesId = (
+    id: string,
+ options?: SecondParameter<typeof mailConnectorInstance<void>>,) => {
+      return mailConnectorInstance<void>(
+      {url: `/api/v1/roles/${id}`, method: 'DELETE'
+    },
+      options);
+    }
+  
+const postApiV1RolesIdRestore = (
+    id: string,
+ options?: SecondParameter<typeof mailConnectorInstance<void>>,) => {
+      return mailConnectorInstance<void>(
+      {url: `/api/v1/roles/${id}/restore`, method: 'POST'
+    },
+      options);
+    }
+  
+const getApiV1RolesIdPermissions = (
+    id: string,
+ options?: SecondParameter<typeof mailConnectorInstance<void>>,) => {
+      return mailConnectorInstance<void>(
+      {url: `/api/v1/roles/${id}/permissions`, method: 'GET'
+    },
+      options);
+    }
+  
+const postApiV1RolesIdPermissions = (
+    id: string,
+    assignPermissionsRequest: BodyType<AssignPermissionsRequest>,
+ options?: SecondParameter<typeof mailConnectorInstance<void>>,) => {
+      return mailConnectorInstance<void>(
+      {url: `/api/v1/roles/${id}/permissions`, method: 'POST',
+      headers: {'Content-Type': 'application/json', },
+      data: assignPermissionsRequest
+    },
+      options);
+    }
+  
+const putApiV1RolesIdPermissions = (
+    id: string,
+    assignPermissionsRequest: BodyType<AssignPermissionsRequest>,
+ options?: SecondParameter<typeof mailConnectorInstance<void>>,) => {
+      return mailConnectorInstance<void>(
+      {url: `/api/v1/roles/${id}/permissions`, method: 'PUT',
+      headers: {'Content-Type': 'application/json', },
+      data: assignPermissionsRequest
+    },
+      options);
+    }
+  
+const deleteApiV1RolesIdPermissionsPermissionId = (
+    id: string,
+    permissionId: string,
+ options?: SecondParameter<typeof mailConnectorInstance<void>>,) => {
+      return mailConnectorInstance<void>(
+      {url: `/api/v1/roles/${id}/permissions/${permissionId}`, method: 'DELETE'
+    },
+      options);
+    }
+  
 const getApiV1UsersMe = (
     
  options?: SecondParameter<typeof mailConnectorInstance<void>>,) => {
@@ -12889,6 +21498,24 @@ const putApiV1UsersIdRoles = (
       options);
     }
   
+const getApiV1UsersIdPermissions = (
+    id: string,
+ options?: SecondParameter<typeof mailConnectorInstance<void>>,) => {
+      return mailConnectorInstance<void>(
+      {url: `/api/v1/users/${id}/permissions`, method: 'GET'
+    },
+      options);
+    }
+  
+const getApiV1UsersMePermissions = (
+    
+ options?: SecondParameter<typeof mailConnectorInstance<void>>,) => {
+      return mailConnectorInstance<void>(
+      {url: `/api/v1/users/me/permissions`, method: 'GET'
+    },
+      options);
+    }
+  
 const postApiV1WebhooksMailconnector = (
     webhookPayload: BodyType<WebhookPayload>,
  options?: SecondParameter<typeof mailConnectorInstance<void>>,) => {
@@ -12963,9 +21590,13 @@ const postApiV1WebhookSubscriptionsIdTest = (
       options);
     }
   
-return {getApiV1AiOpenaiUsage,getApiV1AiOpenaiUsageCurrentMonth,putApiAttachmentReviewsMailConnectorAttachmentIdApprove,putApiAttachmentReviewsMailConnectorAttachmentIdReject,getApiAttachmentReviewsByMessageMailConnectorMessageId,getApiAttachmentReviewsByStatusStatus,getApiAttachmentReviewsMy,postApiAttachmentReviewsMailConnectorAttachmentIdReset,getApiAttachmentReviewsMailConnectorAttachmentId,postApiV1AuthLogin,postApiV1AuthRefresh,postApiV1AuthLogout,getApiV1AuthSessions,postApiV1AuthSessionsIdRevoke,postApiV1AuthLogoutAll,postApiV1AuthForgotPasswordSendOtp,postApiV1AuthForgotPasswordConfirmReset,postApiV1DocumentProcessorProcess,postApiV1DocumentProcessorProcessMultiple,getApiV1MailAnalysisResults,postApiV1MailAnalysisResults,getApiV1MailAnalysisResultsId,putApiV1MailAnalysisResultsIdFields,postApiImportUpload,postApiImportValidateMapping,postApiImportPreview,postApiImportExecute,getApiImportHistory,getApiImportSchema,postApiV1FilesInitiateUpload,postApiV1FilesIdCompleteUpload,postApiV1FilesIdAbortUpload,getApiV1Files,getApiV1FilesId,deleteApiV1FilesId,getApiV1FilesIdDownloadUrl,getApiV1FilesQuota,postApiV1FilesBatchInitiateUpload,postApiV1FilesBatchCompleteUpload,patchApiV1FilesIdMetadata,postApiV1FilesIdRestore,postApiV1FilesBatchDownloadUrl,getApiV1MailAccounts,postApiV1MailAccounts,getApiV1MailAccountsId,putApiV1MailAccountsId,deleteApiV1MailAccountsId,postApiV1MailAccountsConnect,getApiV1MailAccountsIdSyncStatus,postApiV1MailAccountsIdSync,postApiV1MailAccountsIdSyncDirect,postApiMailAssignmentsMailConnectorMessageIdAssign,deleteApiMailAssignmentsMailConnectorMessageIdUnassign,getApiMailAssignmentsMy,getApiMailAssignmentsMailConnectorMessageIdStatus,putApiMailAssignmentsMailConnectorMessageIdStatus,postApiMailAssignmentsMailConnectorMessageIdReassign,postApiMailAssignmentsMailConnectorMessageIdComplete,postApiMailAssignmentsMailConnectorMessageIdRefreshLock,getApiMailAssignmentsByStatusStatus,postApiV1MailAuthOauthUrl,postApiV1MailAuthExchangeToken,postApiV1MailAuthRefreshToken,getApiV1MailMessages,getApiV1MailMessagesId,getApiV1MailMessagesIdAttachments,getApiV1MailMessagesMessageIdAttachmentsAttachmentIdDownload,getApiV1MailMessagesMessageIdAttachmentsAttachmentIdContent,getApiV1MailMessagesMessageIdAttachmentsAttachmentIdExtractText,getApiV1MailMessagesMessageIdAttachmentsAttachmentIdPreview,getApiV1MailMessagesMessageIdAttachmentsAttachmentIdPresignedUrl,postApiV1MailMessagesIdProcess,postApiV1MailMessagesIdTriggerPipeline,postApiV1MailMessagesIdNormalize,postApiV1MailMessagesIdClassify,postApiV1MailMessagesIdExtract,getApiV1MailMessagesIdProcessingJobs,getApiV1MailTemplates,postApiV1MailTemplates,getApiV1MailTemplatesId,putApiV1MailTemplatesId,deleteApiV1MailTemplatesId,getOauthCallback,getApiV1OrderDrafts,getApiV1OrderDraftsId,postApiV1OrderDraftsIdApproveL1,postApiV1OrderDraftsIdRejectL1,postApiV1OrderDraftsIdConfirm,postApiV1OrderDraftsIdReject,getApiV1OrderDraftsExport,getApiV1UsersMe,putApiV1UsersMe,getApiV1Users,postApiV1Users,getApiV1UsersId,putApiV1UsersId,deleteApiV1UsersId,postApiV1UsersIdRestore,patchApiV1UsersIdStatus,postApiV1UsersMeChangePassword,postApiV1UsersIdResetPassword,putApiV1UsersIdRoles,postApiV1WebhooksMailconnector,getApiV1WebhookSubscriptions,postApiV1WebhookSubscriptions,getApiV1WebhookSubscriptionsId,putApiV1WebhookSubscriptionsId,deleteApiV1WebhookSubscriptionsId,postApiV1WebhookSubscriptionsIdTest}};
+return {getApiV1AiOpenaiUsage,getApiV1AiOpenaiUsageCurrentMonth,getApiV1AiOpenaiUsageUserUserId,getApiV1AiOpenaiUsageUserUserIdCurrentMonth,getApiV1AiOpenaiUsageUsers,getApiV1AiOpenaiUsageUsersCurrentMonth,putApiAttachmentReviewsMailConnectorAttachmentIdApprove,putApiAttachmentReviewsMailConnectorAttachmentIdReject,getApiAttachmentReviewsByMessageMailConnectorMessageId,getApiAttachmentReviewsByStatusStatus,getApiAttachmentReviewsMy,postApiAttachmentReviewsMailConnectorAttachmentIdReset,getApiAttachmentReviewsMailConnectorAttachmentId,postApiV1AiChatConversationsConversationIdAttachments,getApiV1AiChatConversationsConversationIdAttachments,deleteApiV1AiChatConversationsConversationIdAttachmentsId,postApiV1AuthLogin,postApiV1AuthRefresh,postApiV1AuthLogout,getApiV1AuthSessions,postApiV1AuthSessionsIdRevoke,postApiV1AuthLogoutAll,postApiV1AuthForgotPasswordSendOtp,postApiV1AuthForgotPasswordConfirmReset,getApiV1AiChatConversationsConversationIdMessages,postApiV1AiChatConversationsConversationIdMessages,postApiV1AiChatConversations,getApiV1AiChatConversations,getApiV1AiChatConversationsId,putApiV1AiChatConversationsId,deleteApiV1AiChatConversationsId,getApiV1AiChatConversationsByEntity,postApiV1AiChatConversationsIdArchive,postApiV1AiChatConversationsIdLinkEntity,postApiV1DocumentProcessorProcess,postApiV1DocumentProcessorProcessMultiple,getApiV1MailAnalysisResults,postApiV1MailAnalysisResults,getApiV1MailAnalysisResultsId,putApiV1MailAnalysisResultsIdFields,postApiImportUpload,postApiImportValidateMapping,postApiImportPreview,postApiImportExecute,getApiImportHistory,getApiImportSchema,postApiV1FilesInitiateUpload,postApiV1FilesIdCompleteUpload,postApiV1FilesIdAbortUpload,getApiV1Files,getApiV1FilesId,deleteApiV1FilesId,getApiV1FilesIdDownloadUrl,getApiV1FilesQuota,postApiV1FilesBatchInitiateUpload,postApiV1FilesBatchCompleteUpload,patchApiV1FilesIdMetadata,postApiV1FilesIdRestore,postApiV1FilesBatchDownloadUrl,getApiV1MailAccounts,postApiV1MailAccounts,getApiV1MailAccountsId,putApiV1MailAccountsId,deleteApiV1MailAccountsId,postApiV1MailAccountsConnect,getApiV1MailAccountsIdSyncStatus,postApiV1MailAccountsIdSync,postApiV1MailAccountsIdSyncDirect,postApiV1MailAssignmentsMailConnectorMessageIdAssign,deleteApiV1MailAssignmentsMailConnectorMessageIdUnassign,getApiV1MailAssignmentsMy,getApiV1MailAssignmentsMailConnectorMessageIdStatus,putApiV1MailAssignmentsMailConnectorMessageIdStatus,postApiV1MailAssignmentsMailConnectorMessageIdReassign,postApiV1MailAssignmentsMailConnectorMessageIdConfirm,postApiV1MailAssignmentsMailConnectorMessageIdComplete,getApiV1MailAssignmentsByStatusStatus,postApiV1MailAuthOauthUrl,postApiV1MailAuthExchangeToken,postApiV1MailAuthRefreshToken,getApiV1MailMessages,getApiV1MailMessagesId,getApiV1MailMessagesIdAttachments,getApiV1MailMessagesMessageIdAttachmentsAttachmentIdDownload,getApiV1MailMessagesMessageIdAttachmentsAttachmentIdContent,getApiV1MailMessagesMessageIdAttachmentsAttachmentIdExtractText,getApiV1MailMessagesMessageIdAttachmentsAttachmentIdPreview,getApiV1MailMessagesMessageIdAttachmentsAttachmentIdPresignedUrl,getApiV1MailMessagesMessageIdAttachmentsAttachmentIdProxy,postApiV1MailMessagesIdProcess,postApiV1MailMessagesIdTriggerPipeline,postApiV1MailMessagesIdNormalize,postApiV1MailMessagesIdClassify,postApiV1MailMessagesIdExtract,getApiV1MailMessagesIdProcessingJobs,getApiV1MailTemplates,postApiV1MailTemplates,getApiV1MailTemplatesId,putApiV1MailTemplatesId,deleteApiV1MailTemplatesId,getOauthCallback,getApiV1OrderDrafts,getApiV1OrderDraftsId,postApiV1OrderDraftsIdApproveL1,postApiV1OrderDraftsIdRejectL1,postApiV1OrderDraftsIdConfirm,postApiV1OrderDraftsIdReject,getApiV1OrderDraftsExport,getApiV1Permissions,postApiV1Permissions,getApiV1PermissionsModules,getApiV1PermissionsId,putApiV1PermissionsId,deleteApiV1PermissionsId,postApiV1PermissionsIdRestore,getApiV1Roles,postApiV1Roles,getApiV1RolesId,putApiV1RolesId,deleteApiV1RolesId,postApiV1RolesIdRestore,getApiV1RolesIdPermissions,postApiV1RolesIdPermissions,putApiV1RolesIdPermissions,deleteApiV1RolesIdPermissionsPermissionId,getApiV1UsersMe,putApiV1UsersMe,getApiV1Users,postApiV1Users,getApiV1UsersId,putApiV1UsersId,deleteApiV1UsersId,postApiV1UsersIdRestore,patchApiV1UsersIdStatus,postApiV1UsersMeChangePassword,postApiV1UsersIdResetPassword,putApiV1UsersIdRoles,getApiV1UsersIdPermissions,getApiV1UsersMePermissions,postApiV1WebhooksMailconnector,getApiV1WebhookSubscriptions,postApiV1WebhookSubscriptions,getApiV1WebhookSubscriptionsId,putApiV1WebhookSubscriptionsId,deleteApiV1WebhookSubscriptionsId,postApiV1WebhookSubscriptionsIdTest}};
 export type GetApiV1AiOpenaiUsageResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getLogisticsPlatformAPI>['getApiV1AiOpenaiUsage']>>>
 export type GetApiV1AiOpenaiUsageCurrentMonthResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getLogisticsPlatformAPI>['getApiV1AiOpenaiUsageCurrentMonth']>>>
+export type GetApiV1AiOpenaiUsageUserUserIdResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getLogisticsPlatformAPI>['getApiV1AiOpenaiUsageUserUserId']>>>
+export type GetApiV1AiOpenaiUsageUserUserIdCurrentMonthResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getLogisticsPlatformAPI>['getApiV1AiOpenaiUsageUserUserIdCurrentMonth']>>>
+export type GetApiV1AiOpenaiUsageUsersResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getLogisticsPlatformAPI>['getApiV1AiOpenaiUsageUsers']>>>
+export type GetApiV1AiOpenaiUsageUsersCurrentMonthResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getLogisticsPlatformAPI>['getApiV1AiOpenaiUsageUsersCurrentMonth']>>>
 export type PutApiAttachmentReviewsMailConnectorAttachmentIdApproveResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getLogisticsPlatformAPI>['putApiAttachmentReviewsMailConnectorAttachmentIdApprove']>>>
 export type PutApiAttachmentReviewsMailConnectorAttachmentIdRejectResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getLogisticsPlatformAPI>['putApiAttachmentReviewsMailConnectorAttachmentIdReject']>>>
 export type GetApiAttachmentReviewsByMessageMailConnectorMessageIdResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getLogisticsPlatformAPI>['getApiAttachmentReviewsByMessageMailConnectorMessageId']>>>
@@ -12973,6 +21604,9 @@ export type GetApiAttachmentReviewsByStatusStatusResult = NonNullable<Awaited<Re
 export type GetApiAttachmentReviewsMyResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getLogisticsPlatformAPI>['getApiAttachmentReviewsMy']>>>
 export type PostApiAttachmentReviewsMailConnectorAttachmentIdResetResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getLogisticsPlatformAPI>['postApiAttachmentReviewsMailConnectorAttachmentIdReset']>>>
 export type GetApiAttachmentReviewsMailConnectorAttachmentIdResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getLogisticsPlatformAPI>['getApiAttachmentReviewsMailConnectorAttachmentId']>>>
+export type PostApiV1AiChatConversationsConversationIdAttachmentsResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getLogisticsPlatformAPI>['postApiV1AiChatConversationsConversationIdAttachments']>>>
+export type GetApiV1AiChatConversationsConversationIdAttachmentsResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getLogisticsPlatformAPI>['getApiV1AiChatConversationsConversationIdAttachments']>>>
+export type DeleteApiV1AiChatConversationsConversationIdAttachmentsIdResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getLogisticsPlatformAPI>['deleteApiV1AiChatConversationsConversationIdAttachmentsId']>>>
 export type PostApiV1AuthLoginResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getLogisticsPlatformAPI>['postApiV1AuthLogin']>>>
 export type PostApiV1AuthRefreshResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getLogisticsPlatformAPI>['postApiV1AuthRefresh']>>>
 export type PostApiV1AuthLogoutResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getLogisticsPlatformAPI>['postApiV1AuthLogout']>>>
@@ -12981,6 +21615,16 @@ export type PostApiV1AuthSessionsIdRevokeResult = NonNullable<Awaited<ReturnType
 export type PostApiV1AuthLogoutAllResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getLogisticsPlatformAPI>['postApiV1AuthLogoutAll']>>>
 export type PostApiV1AuthForgotPasswordSendOtpResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getLogisticsPlatformAPI>['postApiV1AuthForgotPasswordSendOtp']>>>
 export type PostApiV1AuthForgotPasswordConfirmResetResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getLogisticsPlatformAPI>['postApiV1AuthForgotPasswordConfirmReset']>>>
+export type GetApiV1AiChatConversationsConversationIdMessagesResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getLogisticsPlatformAPI>['getApiV1AiChatConversationsConversationIdMessages']>>>
+export type PostApiV1AiChatConversationsConversationIdMessagesResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getLogisticsPlatformAPI>['postApiV1AiChatConversationsConversationIdMessages']>>>
+export type PostApiV1AiChatConversationsResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getLogisticsPlatformAPI>['postApiV1AiChatConversations']>>>
+export type GetApiV1AiChatConversationsResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getLogisticsPlatformAPI>['getApiV1AiChatConversations']>>>
+export type GetApiV1AiChatConversationsIdResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getLogisticsPlatformAPI>['getApiV1AiChatConversationsId']>>>
+export type PutApiV1AiChatConversationsIdResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getLogisticsPlatformAPI>['putApiV1AiChatConversationsId']>>>
+export type DeleteApiV1AiChatConversationsIdResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getLogisticsPlatformAPI>['deleteApiV1AiChatConversationsId']>>>
+export type GetApiV1AiChatConversationsByEntityResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getLogisticsPlatformAPI>['getApiV1AiChatConversationsByEntity']>>>
+export type PostApiV1AiChatConversationsIdArchiveResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getLogisticsPlatformAPI>['postApiV1AiChatConversationsIdArchive']>>>
+export type PostApiV1AiChatConversationsIdLinkEntityResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getLogisticsPlatformAPI>['postApiV1AiChatConversationsIdLinkEntity']>>>
 export type PostApiV1DocumentProcessorProcessResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getLogisticsPlatformAPI>['postApiV1DocumentProcessorProcess']>>>
 export type PostApiV1DocumentProcessorProcessMultipleResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getLogisticsPlatformAPI>['postApiV1DocumentProcessorProcessMultiple']>>>
 export type GetApiV1MailAnalysisResultsResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getLogisticsPlatformAPI>['getApiV1MailAnalysisResults']>>>
@@ -13015,15 +21659,15 @@ export type PostApiV1MailAccountsConnectResult = NonNullable<Awaited<ReturnType<
 export type GetApiV1MailAccountsIdSyncStatusResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getLogisticsPlatformAPI>['getApiV1MailAccountsIdSyncStatus']>>>
 export type PostApiV1MailAccountsIdSyncResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getLogisticsPlatformAPI>['postApiV1MailAccountsIdSync']>>>
 export type PostApiV1MailAccountsIdSyncDirectResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getLogisticsPlatformAPI>['postApiV1MailAccountsIdSyncDirect']>>>
-export type PostApiMailAssignmentsMailConnectorMessageIdAssignResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getLogisticsPlatformAPI>['postApiMailAssignmentsMailConnectorMessageIdAssign']>>>
-export type DeleteApiMailAssignmentsMailConnectorMessageIdUnassignResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getLogisticsPlatformAPI>['deleteApiMailAssignmentsMailConnectorMessageIdUnassign']>>>
-export type GetApiMailAssignmentsMyResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getLogisticsPlatformAPI>['getApiMailAssignmentsMy']>>>
-export type GetApiMailAssignmentsMailConnectorMessageIdStatusResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getLogisticsPlatformAPI>['getApiMailAssignmentsMailConnectorMessageIdStatus']>>>
-export type PutApiMailAssignmentsMailConnectorMessageIdStatusResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getLogisticsPlatformAPI>['putApiMailAssignmentsMailConnectorMessageIdStatus']>>>
-export type PostApiMailAssignmentsMailConnectorMessageIdReassignResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getLogisticsPlatformAPI>['postApiMailAssignmentsMailConnectorMessageIdReassign']>>>
-export type PostApiMailAssignmentsMailConnectorMessageIdCompleteResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getLogisticsPlatformAPI>['postApiMailAssignmentsMailConnectorMessageIdComplete']>>>
-export type PostApiMailAssignmentsMailConnectorMessageIdRefreshLockResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getLogisticsPlatformAPI>['postApiMailAssignmentsMailConnectorMessageIdRefreshLock']>>>
-export type GetApiMailAssignmentsByStatusStatusResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getLogisticsPlatformAPI>['getApiMailAssignmentsByStatusStatus']>>>
+export type PostApiV1MailAssignmentsMailConnectorMessageIdAssignResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getLogisticsPlatformAPI>['postApiV1MailAssignmentsMailConnectorMessageIdAssign']>>>
+export type DeleteApiV1MailAssignmentsMailConnectorMessageIdUnassignResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getLogisticsPlatformAPI>['deleteApiV1MailAssignmentsMailConnectorMessageIdUnassign']>>>
+export type GetApiV1MailAssignmentsMyResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getLogisticsPlatformAPI>['getApiV1MailAssignmentsMy']>>>
+export type GetApiV1MailAssignmentsMailConnectorMessageIdStatusResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getLogisticsPlatformAPI>['getApiV1MailAssignmentsMailConnectorMessageIdStatus']>>>
+export type PutApiV1MailAssignmentsMailConnectorMessageIdStatusResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getLogisticsPlatformAPI>['putApiV1MailAssignmentsMailConnectorMessageIdStatus']>>>
+export type PostApiV1MailAssignmentsMailConnectorMessageIdReassignResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getLogisticsPlatformAPI>['postApiV1MailAssignmentsMailConnectorMessageIdReassign']>>>
+export type PostApiV1MailAssignmentsMailConnectorMessageIdConfirmResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getLogisticsPlatformAPI>['postApiV1MailAssignmentsMailConnectorMessageIdConfirm']>>>
+export type PostApiV1MailAssignmentsMailConnectorMessageIdCompleteResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getLogisticsPlatformAPI>['postApiV1MailAssignmentsMailConnectorMessageIdComplete']>>>
+export type GetApiV1MailAssignmentsByStatusStatusResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getLogisticsPlatformAPI>['getApiV1MailAssignmentsByStatusStatus']>>>
 export type PostApiV1MailAuthOauthUrlResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getLogisticsPlatformAPI>['postApiV1MailAuthOauthUrl']>>>
 export type PostApiV1MailAuthExchangeTokenResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getLogisticsPlatformAPI>['postApiV1MailAuthExchangeToken']>>>
 export type PostApiV1MailAuthRefreshTokenResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getLogisticsPlatformAPI>['postApiV1MailAuthRefreshToken']>>>
@@ -13035,6 +21679,7 @@ export type GetApiV1MailMessagesMessageIdAttachmentsAttachmentIdContentResult = 
 export type GetApiV1MailMessagesMessageIdAttachmentsAttachmentIdExtractTextResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getLogisticsPlatformAPI>['getApiV1MailMessagesMessageIdAttachmentsAttachmentIdExtractText']>>>
 export type GetApiV1MailMessagesMessageIdAttachmentsAttachmentIdPreviewResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getLogisticsPlatformAPI>['getApiV1MailMessagesMessageIdAttachmentsAttachmentIdPreview']>>>
 export type GetApiV1MailMessagesMessageIdAttachmentsAttachmentIdPresignedUrlResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getLogisticsPlatformAPI>['getApiV1MailMessagesMessageIdAttachmentsAttachmentIdPresignedUrl']>>>
+export type GetApiV1MailMessagesMessageIdAttachmentsAttachmentIdProxyResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getLogisticsPlatformAPI>['getApiV1MailMessagesMessageIdAttachmentsAttachmentIdProxy']>>>
 export type PostApiV1MailMessagesIdProcessResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getLogisticsPlatformAPI>['postApiV1MailMessagesIdProcess']>>>
 export type PostApiV1MailMessagesIdTriggerPipelineResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getLogisticsPlatformAPI>['postApiV1MailMessagesIdTriggerPipeline']>>>
 export type PostApiV1MailMessagesIdNormalizeResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getLogisticsPlatformAPI>['postApiV1MailMessagesIdNormalize']>>>
@@ -13054,6 +21699,23 @@ export type PostApiV1OrderDraftsIdRejectL1Result = NonNullable<Awaited<ReturnTyp
 export type PostApiV1OrderDraftsIdConfirmResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getLogisticsPlatformAPI>['postApiV1OrderDraftsIdConfirm']>>>
 export type PostApiV1OrderDraftsIdRejectResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getLogisticsPlatformAPI>['postApiV1OrderDraftsIdReject']>>>
 export type GetApiV1OrderDraftsExportResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getLogisticsPlatformAPI>['getApiV1OrderDraftsExport']>>>
+export type GetApiV1PermissionsResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getLogisticsPlatformAPI>['getApiV1Permissions']>>>
+export type PostApiV1PermissionsResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getLogisticsPlatformAPI>['postApiV1Permissions']>>>
+export type GetApiV1PermissionsModulesResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getLogisticsPlatformAPI>['getApiV1PermissionsModules']>>>
+export type GetApiV1PermissionsIdResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getLogisticsPlatformAPI>['getApiV1PermissionsId']>>>
+export type PutApiV1PermissionsIdResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getLogisticsPlatformAPI>['putApiV1PermissionsId']>>>
+export type DeleteApiV1PermissionsIdResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getLogisticsPlatformAPI>['deleteApiV1PermissionsId']>>>
+export type PostApiV1PermissionsIdRestoreResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getLogisticsPlatformAPI>['postApiV1PermissionsIdRestore']>>>
+export type GetApiV1RolesResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getLogisticsPlatformAPI>['getApiV1Roles']>>>
+export type PostApiV1RolesResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getLogisticsPlatformAPI>['postApiV1Roles']>>>
+export type GetApiV1RolesIdResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getLogisticsPlatformAPI>['getApiV1RolesId']>>>
+export type PutApiV1RolesIdResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getLogisticsPlatformAPI>['putApiV1RolesId']>>>
+export type DeleteApiV1RolesIdResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getLogisticsPlatformAPI>['deleteApiV1RolesId']>>>
+export type PostApiV1RolesIdRestoreResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getLogisticsPlatformAPI>['postApiV1RolesIdRestore']>>>
+export type GetApiV1RolesIdPermissionsResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getLogisticsPlatformAPI>['getApiV1RolesIdPermissions']>>>
+export type PostApiV1RolesIdPermissionsResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getLogisticsPlatformAPI>['postApiV1RolesIdPermissions']>>>
+export type PutApiV1RolesIdPermissionsResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getLogisticsPlatformAPI>['putApiV1RolesIdPermissions']>>>
+export type DeleteApiV1RolesIdPermissionsPermissionIdResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getLogisticsPlatformAPI>['deleteApiV1RolesIdPermissionsPermissionId']>>>
 export type GetApiV1UsersMeResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getLogisticsPlatformAPI>['getApiV1UsersMe']>>>
 export type PutApiV1UsersMeResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getLogisticsPlatformAPI>['putApiV1UsersMe']>>>
 export type GetApiV1UsersResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getLogisticsPlatformAPI>['getApiV1Users']>>>
@@ -13066,6 +21728,8 @@ export type PatchApiV1UsersIdStatusResult = NonNullable<Awaited<ReturnType<Retur
 export type PostApiV1UsersMeChangePasswordResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getLogisticsPlatformAPI>['postApiV1UsersMeChangePassword']>>>
 export type PostApiV1UsersIdResetPasswordResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getLogisticsPlatformAPI>['postApiV1UsersIdResetPassword']>>>
 export type PutApiV1UsersIdRolesResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getLogisticsPlatformAPI>['putApiV1UsersIdRoles']>>>
+export type GetApiV1UsersIdPermissionsResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getLogisticsPlatformAPI>['getApiV1UsersIdPermissions']>>>
+export type GetApiV1UsersMePermissionsResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getLogisticsPlatformAPI>['getApiV1UsersMePermissions']>>>
 export type PostApiV1WebhooksMailconnectorResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getLogisticsPlatformAPI>['postApiV1WebhooksMailconnector']>>>
 export type GetApiV1WebhookSubscriptionsResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getLogisticsPlatformAPI>['getApiV1WebhookSubscriptions']>>>
 export type PostApiV1WebhookSubscriptionsResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getLogisticsPlatformAPI>['postApiV1WebhookSubscriptions']>>>
@@ -13091,6 +21755,44 @@ export type PostApiV1WebhookSubscriptionsIdTestResult = NonNullable<Awaited<Retu
 export interface ApproveRequest {
   /** @nullable */
   notes?: string | null;
+}
+
+```
+
+---
+
+## File: `lib\generated\mail-connector\model\assignPermissionsRequest.ts`
+
+```ts
+/**
+ * Generated by orval v7.21.0 🍺
+ * Do not edit manually.
+ * Logistics Platform API
+ * OpenAPI spec version: v1
+ */
+
+export interface AssignPermissionsRequest {
+  /** @nullable */
+  permissionIds?: string[] | null;
+}
+
+```
+
+---
+
+## File: `lib\generated\mail-connector\model\assignRequest.ts`
+
+```ts
+/**
+ * Generated by orval v7.21.0 🍺
+ * Do not edit manually.
+ * Logistics Platform API
+ * OpenAPI spec version: v1
+ */
+
+export interface AssignRequest {
+  /** @nullable */
+  toUserId?: string | null;
 }
 
 ```
@@ -13279,6 +21981,25 @@ export interface ConfirmPasswordResetCommand {
 
 ---
 
+## File: `lib\generated\mail-connector\model\confirmRequest.ts`
+
+```ts
+/**
+ * Generated by orval v7.21.0 🍺
+ * Do not edit manually.
+ * Logistics Platform API
+ * OpenAPI spec version: v1
+ */
+
+export interface ConfirmRequest {
+  /** @nullable */
+  notes?: string | null;
+}
+
+```
+
+---
+
 ## File: `lib\generated\mail-connector\model\connectAccountRequest.ts`
 
 ```ts
@@ -13318,6 +22039,29 @@ export interface CreateAnalysisResultRequest {
 
 ---
 
+## File: `lib\generated\mail-connector\model\createConversationRequest.ts`
+
+```ts
+/**
+ * Generated by orval v7.21.0 🍺
+ * Do not edit manually.
+ * Logistics Platform API
+ * OpenAPI spec version: v1
+ */
+
+export interface CreateConversationRequest {
+  /** @nullable */
+  title?: string | null;
+  tenantId?: string;
+  createdBy?: string;
+  /** @nullable */
+  idempotencyKey?: string | null;
+}
+
+```
+
+---
+
 ## File: `lib\generated\mail-connector\model\createMailAccountRequest.ts`
 
 ```ts
@@ -13335,6 +22079,54 @@ export interface CreateMailAccountRequest {
   authorizationCode?: string | null;
   /** @nullable */
   redirectUri?: string | null;
+}
+
+```
+
+---
+
+## File: `lib\generated\mail-connector\model\createPermissionRequest.ts`
+
+```ts
+/**
+ * Generated by orval v7.21.0 🍺
+ * Do not edit manually.
+ * Logistics Platform API
+ * OpenAPI spec version: v1
+ */
+
+export interface CreatePermissionRequest {
+  /** @nullable */
+  code?: string | null;
+  /** @nullable */
+  name?: string | null;
+  /** @nullable */
+  module?: string | null;
+  /** @nullable */
+  description?: string | null;
+}
+
+```
+
+---
+
+## File: `lib\generated\mail-connector\model\createRoleRequest.ts`
+
+```ts
+/**
+ * Generated by orval v7.21.0 🍺
+ * Do not edit manually.
+ * Logistics Platform API
+ * OpenAPI spec version: v1
+ */
+
+export interface CreateRoleRequest {
+  /** @nullable */
+  code?: string | null;
+  /** @nullable */
+  name?: string | null;
+  /** @nullable */
+  description?: string | null;
 }
 
 ```
@@ -13591,6 +22383,44 @@ export const FileVisibility = {
 
 ---
 
+## File: `lib\generated\mail-connector\model\getApiV1AiChatConversationsByEntityParams.ts`
+
+```ts
+/**
+ * Generated by orval v7.21.0 🍺
+ * Do not edit manually.
+ * Logistics Platform API
+ * OpenAPI spec version: v1
+ */
+
+export type GetApiV1AiChatConversationsByEntityParams = {
+entityType?: string;
+entityId?: string;
+};
+
+```
+
+---
+
+## File: `lib\generated\mail-connector\model\getApiV1AiChatConversationsParams.ts`
+
+```ts
+/**
+ * Generated by orval v7.21.0 🍺
+ * Do not edit manually.
+ * Logistics Platform API
+ * OpenAPI spec version: v1
+ */
+
+export type GetApiV1AiChatConversationsParams = {
+tenantId?: string;
+createdBy?: string;
+};
+
+```
+
+---
+
 ## File: `lib\generated\mail-connector\model\getApiV1AiOpenaiUsageParams.ts`
 
 ```ts
@@ -13602,6 +22432,44 @@ export const FileVisibility = {
  */
 
 export type GetApiV1AiOpenaiUsageParams = {
+startDate?: string;
+endDate?: string;
+};
+
+```
+
+---
+
+## File: `lib\generated\mail-connector\model\getApiV1AiOpenaiUsageUsersParams.ts`
+
+```ts
+/**
+ * Generated by orval v7.21.0 🍺
+ * Do not edit manually.
+ * Logistics Platform API
+ * OpenAPI spec version: v1
+ */
+
+export type GetApiV1AiOpenaiUsageUsersParams = {
+startDate?: string;
+endDate?: string;
+};
+
+```
+
+---
+
+## File: `lib\generated\mail-connector\model\getApiV1AiOpenaiUsageUserUserIdParams.ts`
+
+```ts
+/**
+ * Generated by orval v7.21.0 🍺
+ * Do not edit manually.
+ * Logistics Platform API
+ * OpenAPI spec version: v1
+ */
+
+export type GetApiV1AiOpenaiUsageUserUserIdParams = {
 startDate?: string;
 endDate?: string;
 };
@@ -13790,6 +22658,50 @@ pageSize?: number;
 
 ---
 
+## File: `lib\generated\mail-connector\model\getApiV1PermissionsParams.ts`
+
+```ts
+/**
+ * Generated by orval v7.21.0 🍺
+ * Do not edit manually.
+ * Logistics Platform API
+ * OpenAPI spec version: v1
+ */
+
+export type GetApiV1PermissionsParams = {
+filters?: string;
+sortField?: string;
+sortOrder?: string;
+page?: number;
+pageSize?: number;
+};
+
+```
+
+---
+
+## File: `lib\generated\mail-connector\model\getApiV1RolesParams.ts`
+
+```ts
+/**
+ * Generated by orval v7.21.0 🍺
+ * Do not edit manually.
+ * Logistics Platform API
+ * OpenAPI spec version: v1
+ */
+
+export type GetApiV1RolesParams = {
+filters?: string;
+sortField?: string;
+sortOrder?: string;
+page?: number;
+pageSize?: number;
+};
+
+```
+
+---
+
 ## File: `lib\generated\mail-connector\model\getApiV1UsersParams.ts`
 
 ```ts
@@ -13864,6 +22776,8 @@ state?: string;
  */
 
 export * from './approveRequest';
+export * from './assignPermissionsRequest';
+export * from './assignRequest';
 export * from './batchCompleteUploadRequest';
 export * from './batchDownloadUrlRequest';
 export * from './batchInitiateUploadRequest';
@@ -13872,9 +22786,13 @@ export * from './changePasswordRequest';
 export * from './columnMappingDto';
 export * from './completeRequest';
 export * from './confirmPasswordResetCommand';
+export * from './confirmRequest';
 export * from './connectAccountRequest';
 export * from './createAnalysisResultRequest';
+export * from './createConversationRequest';
 export * from './createMailAccountRequest';
+export * from './createPermissionRequest';
+export * from './createRoleRequest';
 export * from './createTemplateRequest';
 export * from './createTemplateRequestExpectedFields';
 export * from './createUserRequest';
@@ -13885,7 +22803,11 @@ export * from './exchangeTokenRequest';
 export * from './executeImportRequest';
 export * from './fileContentDto';
 export * from './fileVisibility';
+export * from './getApiV1AiChatConversationsByEntityParams';
+export * from './getApiV1AiChatConversationsParams';
 export * from './getApiV1AiOpenaiUsageParams';
+export * from './getApiV1AiOpenaiUsageUserUserIdParams';
+export * from './getApiV1AiOpenaiUsageUsersParams';
 export * from './getApiV1FilesIdDownloadUrlParams';
 export * from './getApiV1FilesParams';
 export * from './getApiV1FilesQuotaParams';
@@ -13895,10 +22817,14 @@ export * from './getApiV1MailMessagesMessageIdAttachmentsAttachmentIdPreviewPara
 export * from './getApiV1MailMessagesParams';
 export * from './getApiV1OrderDraftsExportParams';
 export * from './getApiV1OrderDraftsParams';
+export * from './getApiV1PermissionsParams';
+export * from './getApiV1RolesParams';
 export * from './getApiV1UsersParams';
 export * from './getApiV1WebhookSubscriptionsParams';
 export * from './getOauthCallbackParams';
 export * from './initiateUploadRequest';
+export * from './linkAttachmentRequest';
+export * from './linkEntityRequest';
 export * from './loginCommand';
 export * from './logoutAllRequest';
 export * from './logoutCommand';
@@ -13907,13 +22833,13 @@ export * from './postApiImportUploadBody';
 export * from './previewImportRequest';
 export * from './processMultipleDocumentsRequest';
 export * from './reassignRequest';
-export * from './refreshLockRequest';
 export * from './refreshMailTokenRequest';
 export * from './refreshTokenCommand';
 export * from './rejectRequest';
 export * from './resetPasswordRequest';
 export * from './reviewRequest';
 export * from './revokeSessionRequest';
+export * from './sendMessageRequest';
 export * from './sendPasswordResetOtpCommand';
 export * from './testWebhookRequest';
 export * from './testWebhookRequestPayload';
@@ -13921,8 +22847,11 @@ export * from './triggerSyncDto';
 export * from './unassignRequest';
 export * from './updateAnalysisResultFieldsRequest';
 export * from './updateAnalysisResultFieldsRequestExtractedFields';
+export * from './updateConversationRequest';
 export * from './updateFileMetadataRequest';
 export * from './updateMailAccountDto';
+export * from './updatePermissionRequest';
+export * from './updateRoleRequest';
 export * from './updateStatusRequest';
 export * from './updateTemplateRequest';
 export * from './updateTemplateRequestExpectedFields';
@@ -13964,6 +22893,64 @@ export interface InitiateUploadRequest {
   visibility?: FileVisibility;
   /** @nullable */
   uploadExpirySeconds?: number | null;
+}
+
+```
+
+---
+
+## File: `lib\generated\mail-connector\model\linkAttachmentRequest.ts`
+
+```ts
+/**
+ * Generated by orval v7.21.0 🍺
+ * Do not edit manually.
+ * Logistics Platform API
+ * OpenAPI spec version: v1
+ */
+
+export interface LinkAttachmentRequest {
+  /** @nullable */
+  source?: string | null;
+  /** @nullable */
+  messageId?: string | null;
+  /** @nullable */
+  attachmentId?: string | null;
+  /** @nullable */
+  fileName?: string | null;
+  /** @nullable */
+  contentType?: string | null;
+  /** @nullable */
+  fileSize?: number | null;
+  /** @nullable */
+  fileHash?: string | null;
+  /** @nullable */
+  storageBucket?: string | null;
+  /** @nullable */
+  storagePath?: string | null;
+  tenantId?: string;
+  createdBy?: string;
+}
+
+```
+
+---
+
+## File: `lib\generated\mail-connector\model\linkEntityRequest.ts`
+
+```ts
+/**
+ * Generated by orval v7.21.0 🍺
+ * Do not edit manually.
+ * Logistics Platform API
+ * OpenAPI spec version: v1
+ */
+
+export interface LinkEntityRequest {
+  /** @nullable */
+  entityType?: string | null;
+  /** @nullable */
+  entityId?: string | null;
 }
 
 ```
@@ -14139,27 +23126,6 @@ export interface ProcessMultipleDocumentsRequest {
 
 export interface ReassignRequest {
   toUserId?: string;
-  /** @nullable */
-  lockToken?: string | null;
-}
-
-```
-
----
-
-## File: `lib\generated\mail-connector\model\refreshLockRequest.ts`
-
-```ts
-/**
- * Generated by orval v7.21.0 🍺
- * Do not edit manually.
- * Logistics Platform API
- * OpenAPI spec version: v1
- */
-
-export interface RefreshLockRequest {
-  /** @nullable */
-  lockToken?: string | null;
 }
 
 ```
@@ -14286,6 +23252,37 @@ export interface RevokeSessionRequest {
 
 ---
 
+## File: `lib\generated\mail-connector\model\sendMessageRequest.ts`
+
+```ts
+/**
+ * Generated by orval v7.21.0 🍺
+ * Do not edit manually.
+ * Logistics Platform API
+ * OpenAPI spec version: v1
+ */
+
+export interface SendMessageRequest {
+  /** @nullable */
+  message?: string | null;
+  /** @nullable */
+  selectedAttachmentIds?: string[] | null;
+  /** @nullable */
+  provider?: string | null;
+  /** @nullable */
+  model?: string | null;
+  /** @nullable */
+  responseFormat?: string | null;
+  /** @nullable */
+  templateType?: string | null;
+  tenantId?: string;
+  createdBy?: string;
+}
+
+```
+
+---
+
 ## File: `lib\generated\mail-connector\model\sendPasswordResetOtpCommand.ts`
 
 ```ts
@@ -14387,7 +23384,7 @@ export interface TriggerSyncDto {
 
 export interface UnassignRequest {
   /** @nullable */
-  lockToken?: string | null;
+  userId?: string | null;
 }
 
 ```
@@ -14437,6 +23434,27 @@ export type UpdateAnalysisResultFieldsRequestExtractedFields = {[key: string]: s
 
 ---
 
+## File: `lib\generated\mail-connector\model\updateConversationRequest.ts`
+
+```ts
+/**
+ * Generated by orval v7.21.0 🍺
+ * Do not edit manually.
+ * Logistics Platform API
+ * OpenAPI spec version: v1
+ */
+
+export interface UpdateConversationRequest {
+  /** @nullable */
+  title?: string | null;
+  /** @nullable */
+  description?: string | null;
+}
+
+```
+
+---
+
 ## File: `lib\generated\mail-connector\model\updateFileMetadataRequest.ts`
 
 ```ts
@@ -14473,6 +23491,50 @@ export interface UpdateFileMetadataRequest {
 export interface UpdateMailAccountDto {
   /** @nullable */
   displayName?: string | null;
+}
+
+```
+
+---
+
+## File: `lib\generated\mail-connector\model\updatePermissionRequest.ts`
+
+```ts
+/**
+ * Generated by orval v7.21.0 🍺
+ * Do not edit manually.
+ * Logistics Platform API
+ * OpenAPI spec version: v1
+ */
+
+export interface UpdatePermissionRequest {
+  /** @nullable */
+  name?: string | null;
+  /** @nullable */
+  description?: string | null;
+  /** @nullable */
+  module?: string | null;
+}
+
+```
+
+---
+
+## File: `lib\generated\mail-connector\model\updateRoleRequest.ts`
+
+```ts
+/**
+ * Generated by orval v7.21.0 🍺
+ * Do not edit manually.
+ * Logistics Platform API
+ * OpenAPI spec version: v1
+ */
+
+export interface UpdateRoleRequest {
+  /** @nullable */
+  name?: string | null;
+  /** @nullable */
+  description?: string | null;
 }
 
 ```
@@ -14664,11 +23726,9 @@ export interface ValidateMappingRequest {
 
 export interface WebhookPayload {
   /** @nullable */
-  event?: string | null;
+  eventType?: string | null;
   eventId?: string;
-  occurredAt?: string;
-  /** @nullable */
-  correlationId?: string | null;
+  timestamp?: string;
   data?: unknown;
 }
 
@@ -14791,6 +23851,12 @@ MAIL_CONNECTOR_AXIOS.interceptors.response.use(
       return Promise.reject(error)
     }
 
+    // Skip refresh if user is not logged in (no token) — e.g., login page
+    const token = localStorage.getItem("token")
+    if (!token) {
+      return Promise.reject(error)
+    }
+
     originalRequest._retry = true
 
     if (isRefreshing) {
@@ -14892,6 +23958,43 @@ interface AuthState {
   clearAuth: () => void
   isAdmin: () => boolean
   isUser: () => boolean
+}
+
+export function getTenantIdFromToken(): string | null {
+  if (typeof window === "undefined") return null
+  try {
+    const token = localStorage.getItem("token")
+    if (!token) {
+      console.warn("[getTenantIdFromToken] No token found")
+      return null
+    }
+    const base64Url = token.split(".")[1]
+    if (!base64Url) {
+      console.warn("[getTenantIdFromToken] Token has no payload segment")
+      return null
+    }
+    const base64 = base64Url.replace(/-/g, "+").replace(/_/g, "/")
+    const jsonPayload = decodeURIComponent(
+      atob(base64)
+        .split("")
+        .map((c) => "%" + ("00" + c.charCodeAt(0).toString(16)).slice(-2))
+        .join("")
+    )
+    const payload = JSON.parse(jsonPayload)
+    const tenantId =
+      payload.tenantId ??
+      payload.tenant_id ??
+      payload.tid ??
+      payload.tenantid ??
+      null
+    if (!tenantId) {
+      console.warn("[getTenantIdFromToken] No tenantId in payload, keys:", Object.keys(payload))
+    }
+    return tenantId || null
+  } catch (err) {
+    console.error("[getTenantIdFromToken] Failed to decode token:", err)
+    return null
+  }
 }
 
 export const useAuthStore = create<AuthState>()(
@@ -15000,39 +24103,64 @@ export function cn(...inputs: ClassValue[]) {
 
 ### 4.1 Mở chi tiết
 - **Hành động**: Mở Chi tiết Email
-- **Dữ liệu hiển thị**:
-  - 📝 Nội dung email
-  - 📎 Tệp đính kèm
+- **Layout**: 3 cột ngang (Desktop) / xếp dọc (Mobile)
+  - 📎 **Cột trái**: Tệp đính kèm — chọn checkbox để gửi AI
+  - 📝 **Cột giữa**: Nội dung email (HTML/Text/Auto)
+  - 🤖 **Cột phải**: AI Chat — luôn hiển thị, không floating
 
-### 4.2 Kiểm tra nội dung
-- **Điều kiện**: Nội dung đầy đủ?
-  - **❌ Không**: Yêu cầu bổ sung → Quay lại chi tiết
-  - **✅ Có**: Tiếp tục
+### 4.2 Chọn file đính kèm cho AI
+- **Hành động**: Click checkbox bên cạnh từng file
+- **Hiển thị**: Badge đếm số file đã chọn trong header AI panel
+- **Điều kiện**: Chưa chọn file?
+  - **❌ Chưa**: Chat hiển thị "Chọn file đính kèm trước"
+  - **✅ Đã chọn**: Có thể gửi yêu cầu AI
 
-### 4.3 Kiểm tra tệp đính kèm
-- **Điều kiện**: Có tệp đính kèm?
-  - **❌ Không**: Gửi nội dung vào AI
-  - **✅ Có**: Kiểm tra từng tệp
+### 4.3 Chat với AI bóc tách
+- **Hành động**: Nhập yêu cầu vào input box, nhấn Enter hoặc nút gửi
+- **2 chế độ**:
+  - **Chat mode**: AI trả lời text tự do trong khung chat (hỏi gì đáp nấy)
+  - **Template mode**: AI trả về JSON theo template đã chọn → hiển thị nút "Xem chi tiết" mở modal
 
-#### 4.3.1 Kiểm tra tệp
-- **Hành động**: Kiểm tra từng tệp
-- **Điều kiện**: Tệp hợp lệ?
-  - **❌ Không hợp lệ**: Bỏ qua tệp → Kiểm tra tệp tiếp theo
-  - **🟡 Đang kiểm tra**: Đang kiểm tra
-  - **✅ Đã duyệt**: Gửi vào AI
+#### 4.3.1 Chuyển đổi mode
+- **Chat**: Trả lời tự do, không bắt JSON
+- **Template**: Chọn template từ dropdown → AI trả về dữ liệu cấu trúc theo `expectedFields`
 
 ---
 
-## Giai đoạn 5: Bóc Tách bằng AI
+## Giai đoạn 5: Bóc Tách bằng AI (Chat-based)
 
-### 5.1 Gửi dữ liệu vào AI
-- **Dữ liệu gửi**: Nội dung + Tệp đính kèm (PDF, Excel, Word...)
-- **Hành động**: AI bóc tách dữ liệu
+### 5.1 Chuẩn bị dữ liệu
+- **File đã chọn**: Lấy file từ `selectedForAI` (Set của attachment IDs)
+- **Download & encode**: Tải nội dung file, base64 encode
+- **DOCX đặc biệt**: Dùng `mammoth` để extract text raw trước khi gửi AI
 
-### 5.2 Kiểm tra kết quả bóc tách
-- **Điều kiện**: AI bóc tách thành công?
-  - **❌ Thất bại**: Ghi log lỗi → Quay lại gửi lại
-  - **✅ Thành công**: Tiếp tục
+### 5.2 Gửi prompt vào AI
+- **API**: `POST /document-processor/process-multiple`
+- **Payload**:
+  ```json
+  {
+    "files": [{"fileName", "content": "base64", "type", "mimeType"}],
+    "prompt": "Yêu cầu bóc tách từ người dùng",
+    "model": "gpt-4"
+  }
+  ```
+- **2 loại prompt**:
+  - **Chat**: Trả lời tự do text, không bắt JSON
+  - **Template**: Bắt buộc JSON array theo `expectedFields` của template
+
+### 5.3 Nhận kết quả trong chat
+- **Chat mode**: AI trả lời text → hiển thị trực tiếp trong message bubble
+- **Template mode**: AI trả JSON → hiển thị "Đã bóc tách xong" + nút **"Xem chi tiết"**
+- **Lỗi**: Hiển thị error message inline trong chat
+
+### 5.4 Xem kết quả chi tiết (Template mode)
+- **Hành động**: Click "Xem chi tiết" trong chat message
+- **Mở modal**: `ExtractionResultModal` hiển thị bảng dữ liệu logistics
+- **Chức năng modal**:
+  - Hiển thị dạng bảng (có thể chỉnh sửa)
+  - Xem raw JSON
+  - Sao chép JSON
+  - Preview file đính kèm
 
 ---
 
@@ -15100,12 +24228,453 @@ export function cn(...inputs: ClassValue[]) {
 
 ---
 
+## File: `mail-assignments-api (1).md`
+
+```md
+# Mail Assignments API Documentation
+
+## Overview
+
+The `MailAssignmentsController` provides endpoints for managing mail assignments within the logistics platform. It handles mail assignment, reassignment, and status tracking.
+
+**Base Path:** `/api/v1/mail-assignments`
+**Authentication:** Required (Bearer Token)
+**Module:** `LogisticsPlatform.MailIntegration.Api.Controllers`
+
+## Features
+
+- **Assignment Management**: Assign, unassign, and reassign mails between users
+- **Status Tracking**: Track mail processing status (Assigned, InProgress, Completed, etc.)
+- **Personal Dashboard**: View assigned mails for the current user
+
+## Endpoints
+
+### 1. Assign Mail
+
+Assigns a mail to a user. If no `toUserId` is provided, assigns to the current authenticated user.
+
+**Endpoint:** `POST /api/v1/mail-assignments/{mailConnectorMessageId}/assign`
+
+**Parameters:**
+- `mailConnectorMessageId` (path, GUID): The ID of the mail connector message to assign
+
+**Request Body (optional):**
+```json
+{
+  "toUserId": "guid (optional)"
+}
+```
+
+**Authentication:** Required
+
+**Authorization:**
+- If `toUserId` is not provided: Any authenticated user can assign to themselves
+- If `toUserId` is provided: Requires Admin or Supervisor role to assign to another user
+
+**Response (200 OK):**
+```json
+{
+  "id": "guid",
+  "mailConnectorMessageId": "guid",
+  "assignedToUserId": "guid",
+  "assignedAt": "datetime",
+  "status": "string"
+}
+```
+
+**Error Responses:**
+- `409 Conflict`: Mail is already assigned to another user
+- `401 Unauthorized`: User not authenticated
+- `403 Forbidden`: User does not have permission to assign to another user
+
+**Use Case:**
+- Regular user: Assigns a mail to themselves to start processing
+- Admin/Supervisor: Assigns a mail to a specific user for delegation
+
+---
+
+### 2. Unassign Mail
+
+Removes the assignment from a user. If no `userId` is provided, removes assignment from the current authenticated user.
+
+**Endpoint:** `DELETE /api/v1/mail-assignments/{mailConnectorMessageId}/unassign`
+
+**Parameters:**
+- `mailConnectorMessageId` (path, GUID): The ID of the mail connector message
+
+**Request Body (optional):**
+```json
+{
+  "userId": "guid (optional)"
+}
+```
+
+**Authentication:** Required
+
+**Authorization:**
+- If `userId` is not provided: Any authenticated user can unassign their own mail
+- If `userId` is provided: Requires Admin or Supervisor role to unassign from another user
+
+**Response (204 No Content):** Assignment successfully removed
+
+**Error Responses:**
+- `404 Not Found`: Assignment not found
+- `400 Bad Request`: Operation not allowed
+- `403 Forbidden`: User does not have permission to unassign from another user
+
+**Use Case:**
+- Regular user: Releases their own mail assignment for others to pick up
+- Admin/Supervisor: Removes assignment from a specific user (e.g., reassignment, cleanup)
+
+---
+
+### 3. Get My Assignments
+
+Retrieves all mail assignments for the currently authenticated user.
+
+**Endpoint:** `GET /api/v1/mail-assignments/my`
+
+**Authentication:** Required
+
+**Response (200 OK):**
+```json
+[
+  {
+    "id": "guid",
+    "mailConnectorMessageId": "guid",
+    "assignedToUserId": "guid",
+    "assignedAt": "datetime",
+    "status": "string",
+    "confirmedAt": "datetime",
+    "completedAt": "datetime",
+    "notes": "string"
+  }
+]
+```
+
+**Error Responses:**
+- `401 Unauthorized`: User not authenticated
+
+**Use Case:** Displaying the user's personal dashboard of assigned mails.
+
+---
+
+### 4. Get Assignment Status
+
+Retrieves the current assignment status for a specific mail.
+
+**Endpoint:** `GET /api/v1/mail-assignments/{mailConnectorMessageId}/status`
+
+**Parameters:**
+- `mailConnectorMessageId` (path, GUID): The ID of the mail connector message
+
+**Authentication:** Required
+
+**Response (200 OK):**
+```json
+{
+  "id": "guid",
+  "mailConnectorMessageId": "guid",
+  "assignedToUserId": "guid",
+  "assignedAt": "datetime",
+  "status": "string",
+  "confirmedAt": "datetime",
+  "completedAt": "datetime",
+  "notes": "string"
+}
+```
+
+**Error Responses:**
+- `404 Not Found`: Assignment not found
+
+**Use Case:** Checking if a mail is currently assigned before attempting to assign it.
+
+---
+
+### 5. Reassign Mail
+
+Transfers mail assignment from the current user to another user.
+
+**Endpoint:** `POST /api/v1/mail-assignments/{mailConnectorMessageId}/reassign`
+
+**Parameters:**
+- `mailConnectorMessageId` (path, GUID): The ID of the mail connector message
+
+**Request Body:**
+```json
+{
+  "toUserId": "guid"
+}
+```
+
+**Authentication:** Required
+
+**Response (200 OK):**
+```json
+{
+  "id": "guid",
+  "mailConnectorMessageId": "guid",
+  "assignedToUserId": "guid",
+  "assignedAt": "datetime",
+  "status": "string"
+}
+```
+
+**Error Responses:**
+- `404 Not Found`: Assignment not found
+- `400 Bad Request`: Operation not allowed
+
+**Use Case:** When a user needs to delegate a mail to another user (e.g., escalation, handoff).
+
+---
+
+### 6. Update Status
+
+Updates the processing status of a mail assignment.
+
+**Endpoint:** `PUT /api/v1/mail-assignments/{mailConnectorMessageId}/status`
+
+**Parameters:**
+- `mailConnectorMessageId` (path, GUID): The ID of the mail connector message
+
+**Request Body:**
+```json
+{
+  "status": "string",
+  "notes": "string (optional)"
+}
+```
+
+**Authentication:** Required
+
+**Response (200 OK):**
+```json
+{
+  "message": "Status updated successfully"
+}
+```
+
+**Error Responses:**
+- `404 Not Found`: Assignment not found
+
+**Use Case:** Tracking progress through different stages (e.g., Assigned → InProgress → Reviewing).
+
+---
+
+### 7. Confirm Mail
+
+Confirms a mail assignment, transitioning status from "Assigned" to "Confirmed".
+
+**Endpoint:** `POST /api/v1/mail-assignments/{mailConnectorMessageId}/confirm`
+
+**Parameters:**
+- `mailConnectorMessageId` (path, GUID): The ID of the mail connector message
+
+**Request Body (optional):**
+```json
+{
+  "notes": "string (optional)"
+}
+```
+
+**Authentication:** Required
+
+**Response (200 OK):**
+```json
+{
+  "message": "Mail confirmed successfully"
+}
+```
+
+**Error Responses:**
+- `404 Not Found`: Assignment not found
+- `400 Bad Request`: Mail is not in "Assigned" status
+
+**Use Case:** When a user has reviewed the mail and confirms it for further processing (e.g., extraction, export).
+
+---
+
+### 8. Mark as Completed
+
+Marks a mail assignment as completed with optional notes.
+
+**Endpoint:** `POST /api/v1/mail-assignments/{mailConnectorMessageId}/complete`
+
+**Parameters:**
+- `mailConnectorMessageId` (path, GUID): The ID of the mail connector message
+
+**Request Body (optional):**
+```json
+{
+  "notes": "string (optional)"
+}
+```
+
+**Authentication:** Required
+
+**Response (200 OK):**
+```json
+{
+  "message": "Mail marked as completed"
+}
+```
+
+**Error Responses:**
+- `404 Not Found`: Assignment not found
+
+**Use Case:** Finalizing mail processing after all required actions are completed.
+
+---
+
+
+### 10. Get By Status
+
+Retrieves all mail assignments filtered by status.
+
+**Endpoint:** `GET /api/v1/mail-assignments/by-status/{status}`
+
+**Parameters:**
+- `status` (path, string): The status to filter by (e.g., "Assigned", "InProgress", "Completed")
+
+**Authentication:** Required
+
+**Response (200 OK):**
+```json
+[
+  {
+    "id": "guid",
+    "mailConnectorMessageId": "guid",
+    "assignedToUserId": "guid",
+    "assignedToUserName": "string",
+    "assignedToUserEmail": "string",
+    "assignedAt": "datetime",
+    "status": "string",
+    "completedAt": "datetime",
+    "notes": "string"
+  }
+]
+```
+
+**Use Case:** Generating reports or views filtered by processing status.
+
+---
+
+## Request Models
+
+### AssignRequest
+```csharp
+public class AssignRequest
+{
+    public Guid? ToUserId { get; set; }
+}
+```
+
+### UnassignRequest
+```csharp
+public class UnassignRequest
+{
+    public Guid? UserId { get; set; }
+}
+```
+
+### ReassignRequest
+```csharp
+public class ReassignRequest
+{
+    public Guid ToUserId { get; set; }
+}
+```
+
+### UpdateStatusRequest
+```csharp
+public class UpdateStatusRequest
+{
+    public string Status { get; set; } = string.Empty;
+    public string? Notes { get; set; }
+}
+```
+
+### CompleteRequest
+```csharp
+public class CompleteRequest
+{
+    public string? Notes { get; set; }
+}
+```
+
+### ConfirmRequest
+```csharp
+public class ConfirmRequest
+{
+    public string? Notes { get; set; }
+}
+```
+
+
+## Status Values
+
+Common status values (exact values depend on domain configuration):
+- `Unassigned`: Mail has not been assigned yet
+- `Assigned`: Mail has been assigned to a user
+- `Confirmed`: Mail has been confirmed by the assigned user
+- `NeedSupplement`: Additional information is required
+- `Extracted`: Mail data has been extracted
+- `Exported`: Mail data has been exported
+- `Imported`: Mail data has been imported
+- `ManualProcessing`: Requires manual processing
+
+## Error Handling
+
+All endpoints follow consistent error handling patterns:
+
+- **401 Unauthorized**: User is not authenticated or `UserId` is null
+- **404 Not Found**: Resource (assignment) does not exist
+- **400 Bad Request**: Invalid request data
+- **409 Conflict**: Mail is already assigned to another user
+
+## Dependencies
+
+- `MailAssignmentService`: Application service handling business logic
+- `ICurrentUserService`: Service providing current user information
+- `LogisticsPlatform.MailIntegration.Domain`: Domain models and entities
+
+## Business Requirements Reference
+
+- Mail assignment management for processing workflow
+- Ensures proper tracking of mail processing status
+
+## Usage Example
+
+### Typical Workflow
+
+1. **Assign Mail**: User calls `POST /api/v1/mail-assignments/{id}/assign` to claim a mail
+2. **Process Mail**: User works on the mail (external process)
+3. **Update Status**: User calls `PUT /api/v1/mail-assignments/{id}/status` to track progress
+4. **Complete**: User calls `POST /api/v1/mail-assignments/{id}/complete` to finish
+
+### Escalation Workflow
+
+1. User has an active assignment
+2. User calls `POST /api/v1/mail-assignments/{id}/reassign` with `toUserId` of the target user
+3. Assignment is transferred
+4. Target user can now process the mail
+
+## Security Considerations
+
+- All endpoints require authentication via `[Authorize]` attribute
+- Users can only unassign/reassign mails they currently own
+- User ID is extracted from `ICurrentUserService` to prevent impersonation
+
+```
+
+---
+
 ## File: `next-env.d.ts`
 
 ```ts
 /// <reference types="next" />
 /// <reference types="next/image-types/global" />
-import "./.next/dev/types/routes.d.ts";
+import "./.next/types/routes.d.ts";
 
 // NOTE: This file should not be edited
 // see https://nextjs.org/docs/app/api-reference/config/typescript for more information.
@@ -15226,6 +24795,581 @@ export default defineConfig({
 
 ---
 
+## File: `permission-api.md`
+
+```md
+# Permission Management API Documentation
+
+**Version:** 1.0  
+**Module:** Identity  
+**Target Audience:** Frontend Developers
+
+---
+
+## Overview
+
+Permission Management API cung cấp các endpoint để quản lý permissions trong hệ thống, bao gồm tạo, cập nhật, xóa, khôi phục và liệt kê permissions theo module.
+
+**Base URL:** `https://{domain}/api/v1/permissions`
+
+**Authentication:** Tất cả endpoints yêu cầu Bearer token (Access Token)
+
+---
+
+## Endpoints
+
+### 1. List Permissions (Paginated)
+
+Lấy danh sách permissions với hỗ trợ filter, sort và pagination.
+
+**Endpoint:** `GET /api/v1/permissions`
+
+**Query Parameters:**
+
+| Parameter | Type | Required | Default | Description |
+|-----------|------|----------|---------|-------------|
+| page | int | No | 1 | Số trang (1-based) |
+| pageSize | int | No | 20 | Số items mỗi trang (max 100) |
+| sortField | string | No | createdAtUtc | Field để sort (code, name, module, createdAtUtc) |
+| sortOrder | string | No | asc | Hướng sort (asc, desc) |
+| filters | string | No | - | Filter expression (DSL format) |
+
+**Filter Syntax:**
+
+- `code@=value` - Contains (case-insensitive)
+- `code==value` - Exact match (case-insensitive)
+- `name@=value` - Contains (case-insensitive)
+- `module@=value` - Contains (case-insensitive)
+- `module==value` - Exact match (case-insensitive)
+
+**Examples:**
+```
+?filters=module==user&sortField=code&sortOrder=asc&page=1&pageSize=20
+?filters=name@=read,code@=user&sortField=createdAtUtc&sortOrder=desc
+```
+
+**Headers:**
+
+```http
+Authorization: Bearer {accessToken}
+```
+
+**Success Response (200 OK):**
+
+```json
+{
+  "correlationId": "9b7b7f6e-4b5c-4c3d-b7d4-9cc3f6e4d888",
+  "traceId": "f47ac10b-58cc-4372-a567-0e02b2c3d479",
+  "timestamp": "2026-05-26T10:30:00.000Z",
+  "data": [
+    {
+      "id": "perm-1",
+      "code": "user.read",
+      "name": "View Users",
+      "description": "Can view user list",
+      "module": "user"
+    },
+    {
+      "id": "perm-2",
+      "code": "user.create",
+      "name": "Create User",
+      "description": "Can create new users",
+      "module": "user"
+    }
+  ],
+  "meta": {
+    "pagination": {
+      "page": 1,
+      "pageSize": 20,
+      "totalItems": 15,
+      "totalPages": 1,
+      "hasNextPage": false,
+      "hasPreviousPage": false
+    }
+  },
+  "errors": []
+}
+```
+
+---
+
+### 2. Get Permission by ID
+
+Lấy chi tiết một permission theo ID.
+
+**Endpoint:** `GET /api/v1/permissions/{id}`
+
+**Path Parameters:**
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| id | guid | Yes | Permission ID |
+
+**Headers:**
+
+```http
+Authorization: Bearer {accessToken}
+```
+
+**Success Response (200 OK):**
+
+```json
+{
+  "correlationId": "9b7b7f6e-4b5c-4c3d-b7d4-9cc3f6e4d888",
+  "traceId": "f47ac10b-58cc-4372-a567-0e02b2c3d479",
+  "timestamp": "2026-05-26T10:30:00.000Z",
+  "data": {
+    "id": "perm-1",
+    "code": "user.read",
+    "name": "View Users",
+    "description": "Can view user list",
+    "module": "user"
+  },
+  "meta": {},
+  "errors": []
+}
+```
+
+**Error Response (404 Not Found):**
+
+```json
+{
+  "correlationId": "9b7b7f6e-4b5c-4c3d-b7d4-9cc3f6e4d888",
+  "traceId": "f47ac10b-58cc-4372-a567-0e02b2c3d479",
+  "timestamp": "2026-05-26T10:30:00.000Z",
+  "data": null,
+  "meta": {},
+  "errors": [
+    {
+      "code": "PERMISSION_NOT_FOUND",
+      "message": "Permission not found",
+      "severity": "medium"
+    }
+  ]
+}
+```
+
+---
+
+### 3. List Modules
+
+Lấy danh sách các module có permissions.
+
+**Endpoint:** `GET /api/v1/permissions/modules`
+
+**Headers:**
+
+```http
+Authorization: Bearer {accessToken}
+```
+
+**Success Response (200 OK):**
+
+```json
+{
+  "correlationId": "9b7b7f6e-4b5c-4c3d-b7d4-9cc3f6e4d888",
+  "traceId": "f47ac10b-58cc-4372-a567-0e02b2c3d479",
+  "timestamp": "2026-05-26T10:30:00.000Z",
+  "data": [
+    "user",
+    "mail",
+    "report",
+    "order_draft"
+  ],
+  "meta": {},
+  "errors": []
+}
+```
+
+---
+
+### 4. Create Permission
+
+Tạo permission mới.
+
+**Endpoint:** `POST /api/v1/permissions`
+
+**Headers:**
+
+```http
+Authorization: Bearer {accessToken}
+Content-Type: application/json
+```
+
+**Request Body:**
+
+```json
+{
+  "code": "user.export",
+  "name": "Export Users",
+  "module": "user",
+  "description": "Can export user list to CSV"
+}
+```
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| code | string | Yes | Permission code (unique, will be lowercased) |
+| name | string | Yes | Permission display name |
+| module | string | Yes | Module name (will be lowercased) |
+| description | string | No | Permission description |
+
+**Success Response (200 OK):**
+
+```json
+{
+  "correlationId": "9b7b7f6e-4b5c-4c3d-b7d4-9cc3f6e4d888",
+  "traceId": "f47ac10b-58cc-4372-a567-0e02b2c3d479",
+  "timestamp": "2026-05-26T10:30:00.000Z",
+  "data": {
+    "id": "perm-new",
+    "code": "user.export",
+    "name": "Export Users",
+    "description": "Can export user list to CSV",
+    "module": "user"
+  },
+  "meta": {},
+  "errors": []
+}
+```
+
+**Error Response (400 Bad Request):**
+
+```json
+{
+  "correlationId": "9b7b7f6e-4b5c-4c3d-b7d4-9cc3f6e4d888",
+  "traceId": "f47ac10b-58cc-4372-a567-0e02b2c3d479",
+  "timestamp": "2026-05-26T10:30:00.000Z",
+  "data": null,
+  "meta": {},
+  "errors": [
+    {
+      "code": "PERMISSION_EXISTS",
+      "message": "Permission code already exists",
+      "severity": "medium"
+    }
+  ]
+}
+```
+
+---
+
+### 5. Update Permission
+
+Cập nhật thông tin permission.
+
+**Endpoint:** `PUT /api/v1/permissions/{id}`
+
+**Path Parameters:**
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| id | guid | Yes | Permission ID |
+
+**Headers:**
+
+```http
+Authorization: Bearer {accessToken}
+Content-Type: application/json
+```
+
+**Request Body:**
+
+```json
+{
+  "name": "Export User Data",
+  "description": "Updated description",
+  "module": "user"
+}
+```
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| name | string | No | New permission name |
+| description | string | No | New permission description |
+| module | string | No | New module name |
+
+**Success Response (200 OK):**
+
+```json
+{
+  "correlationId": "9b7b7f6e-4b5c-4c3d-b7d4-9cc3f6e4d888",
+  "traceId": "f47ac10b-58cc-4372-a567-0e02b2c3d479",
+  "timestamp": "2026-05-26T10:30:00.000Z",
+  "data": {
+    "id": "perm-new",
+    "code": "user.export",
+    "name": "Export User Data",
+    "description": "Updated description",
+    "module": "user"
+  },
+  "meta": {},
+  "errors": []
+}
+```
+
+---
+
+### 6. Delete Permission (Soft Delete)
+
+Xóa permission (soft delete, có thể khôi phục).
+
+**Endpoint:** `DELETE /api/v1/permissions/{id}`
+
+**Path Parameters:**
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| id | guid | Yes | Permission ID |
+
+**Headers:**
+
+```http
+Authorization: Bearer {accessToken}
+```
+
+**Success Response (200 OK):**
+
+```json
+{
+  "correlationId": "9b7b7f6e-4b5c-4c3d-b7d4-9cc3f6e4d888",
+  "traceId": "f47ac10b-58cc-4372-a567-0e02b2c3d479",
+  "timestamp": "2026-05-26T10:30:00.000Z",
+  "data": {
+    "id": "perm-new",
+    "deleted": true
+  },
+  "meta": {},
+  "errors": []
+}
+```
+
+---
+
+### 7. Restore Permission
+
+Khôi phục permission đã bị xóa.
+
+**Endpoint:** `POST /api/v1/permissions/{id}/restore`
+
+**Path Parameters:**
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| id | guid | Yes | Permission ID |
+
+**Headers:**
+
+```http
+Authorization: Bearer {accessToken}
+```
+
+**Success Response (200 OK):**
+
+```json
+{
+  "correlationId": "9b7b7f6e-4b5c-4c3d-b7d4-9cc3f6e4d888",
+  "traceId": "f47ac10b-58cc-4372-a567-0e02b2c3d479",
+  "timestamp": "2026-05-26T10:30:00.000Z",
+  "data": {
+    "id": "perm-new",
+    "code": "user.export",
+    "name": "Export Users",
+    "description": "Can export user list to CSV",
+    "module": "user"
+  },
+  "meta": {},
+  "errors": []
+}
+```
+
+**Error Response (400 Bad Request):**
+
+```json
+{
+  "correlationId": "9b7b7f6e-4b5c-4c3d-b7d4-9cc3f6e4d888",
+  "traceId": "f47ac10b-58cc-4372-a567-0e02b2c3d479",
+  "timestamp": "2026-05-26T10:30:00.000Z",
+  "data": null,
+  "meta": {},
+  "errors": [
+    {
+      "code": "PERMISSION_NOT_DELETED",
+      "message": "Permission is not deleted",
+      "severity": "low"
+    }
+  ]
+}
+```
+
+---
+
+## Common Error Codes
+
+| Code | Message | Severity | Description |
+|------|---------|----------|-------------|
+| PERMISSION_NOT_FOUND | Permission not found | medium | Permission không tồn tại |
+| PERMISSION_EXISTS | Permission code already exists | medium | Permission code đã được sử dụng |
+| PERMISSION_NOT_DELETED | Permission is not deleted | low | Permission chưa bị xóa, không thể khôi phục |
+
+---
+
+## TypeScript Types
+
+```typescript
+interface PermissionDto {
+  id: string;
+  code: string;
+  name: string;
+  description: string | null;
+  module: string;
+}
+
+interface CreatePermissionRequest {
+  code: string;
+  name: string;
+  module: string;
+  description?: string;
+}
+
+interface UpdatePermissionRequest {
+  name?: string;
+  description?: string;
+  module?: string;
+}
+
+interface PagedQuery {
+  page?: number;
+  pageSize?: number;
+  sortField?: string;
+  sortOrder?: 'asc' | 'desc';
+  filters?: string;
+}
+
+interface PaginationMeta {
+  page: number;
+  pageSize: number;
+  totalItems: number;
+  totalPages: number;
+  hasNextPage: boolean;
+  hasPreviousPage: boolean;
+}
+```
+
+---
+
+## Usage Examples
+
+### List permissions with filtering
+
+```typescript
+const response = await fetch('/api/v1/permissions?filters=module==user&sortField=code&sortOrder=asc&page=1&pageSize=20', {
+  headers: {
+    'Authorization': `Bearer ${accessToken}`
+  }
+});
+
+const result = await response.json();
+const permissions = result.data;
+const pagination = result.meta.pagination;
+```
+
+### Get available modules
+
+```typescript
+const response = await fetch('/api/v1/permissions/modules', {
+  headers: {
+    'Authorization': `Bearer ${accessToken}`
+  }
+});
+
+const result = await response.json();
+const modules = result.data; // ["user", "mail", "report", "order_draft"]
+```
+
+### Create a new permission
+
+```typescript
+const newPermission = await fetch('/api/v1/permissions', {
+  method: 'POST',
+  headers: {
+    'Authorization': `Bearer ${accessToken}`,
+    'Content-Type': 'application/json'
+  },
+  body: JSON.stringify({
+    code: 'user.export',
+    name: 'Export Users',
+    module: 'user',
+    description: 'Can export user list to CSV'
+  })
+});
+```
+
+### Update permission
+
+```typescript
+await fetch(`/api/v1/permissions/${permissionId}`, {
+  method: 'PUT',
+  headers: {
+    'Authorization': `Bearer ${accessToken}`,
+    'Content-Type': 'application/json'
+  },
+  body: JSON.stringify({
+    name: 'Export User Data',
+    description: 'Updated description'
+  })
+});
+```
+
+### Delete permission
+
+```typescript
+await fetch(`/api/v1/permissions/${permissionId}`, {
+  method: 'DELETE',
+  headers: {
+    'Authorization': `Bearer ${accessToken}`
+  }
+});
+```
+
+### Restore permission
+
+```typescript
+await fetch(`/api/v1/permissions/${permissionId}/restore`, {
+  method: 'POST',
+  headers: {
+    'Authorization': `Bearer ${accessToken}`
+  }
+});
+```
+
+---
+
+## Permission Modules
+
+System hỗ trợ các module permissions sau:
+
+| Module | Description | Example Permissions |
+|--------|-------------|---------------------|
+| user | Quản lý người dùng | user.read, user.create, user.update, user.delete |
+| mail | Quản lý email | mail.read, mail.send, mail.delete |
+| report | Báo cáo | report.view, report.export |
+| order_draft | Draft đơn hàng | order_draft.read, order_draft.review_l1, order_draft.review_l2, order_draft.export |
+
+---
+
+## Best Practices
+
+1. **Sử dụng module filter**: Khi hiển thị permissions, nên filter theo module để nhóm permissions logic lại
+2. **Code convention**: Permission code nên theo format `{module}.{action}` (ví dụ: `user.read`, `mail.send`)
+3. **Soft delete**: Luôn sử dụng soft delete để giữ audit trail. Chỉ hard delete khi thật sự cần thiết
+4. **Permission seeding**: Permissions system được seed từ `PermissionSeeder.cs`, nên thêm permissions mới vào đó cho consistency
+5. **Role-permission mapping**: Khi gán permissions cho role, nên sử dụng endpoint `PUT /roles/{id}/permissions` để replace toàn bộ thay vì add/remove từng cái
+
+```
+
+---
+
 ## File: `postcss.config.mjs`
 
 ```mjs
@@ -15285,6 +25429,716 @@ Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/bui
 
 ---
 
+## File: `role-api.md`
+
+```md
+# Role Management API Documentation
+
+**Version:** 1.0  
+**Module:** Identity  
+**Target Audience:** Frontend Developers
+
+---
+
+## Overview
+
+Role Management API cung cấp các endpoint để quản lý roles trong hệ thống, bao gồm tạo, cập nhật, xóa, khôi phục và quản lý permissions của roles.
+
+**Base URL:** `https://{domain}/api/v1/roles`
+
+**Authentication:** Tất cả endpoints yêu cầu Bearer token (Access Token)
+
+---
+
+## Endpoints
+
+### 1. List Roles (Paginated)
+
+Lấy danh sách roles với hỗ trợ filter, sort và pagination.
+
+**Endpoint:** `GET /api/v1/roles`
+
+**Query Parameters:**
+
+| Parameter | Type | Required | Default | Description |
+|-----------|------|----------|---------|-------------|
+| page | int | No | 1 | Số trang (1-based) |
+| pageSize | int | No | 20 | Số items mỗi trang (max 100) |
+| sortField | string | No | createdAtUtc | Field để sort (code, name, isSystem, createdAtUtc) |
+| sortOrder | string | No | asc | Hướng sort (asc, desc) |
+| filters | string | No | - | Filter expression (DSL format) |
+
+**Filter Syntax:**
+
+- `code@=value` - Contains (case-insensitive)
+- `code==value` - Exact match (case-insensitive)
+- `name@=value` - Contains (case-insensitive)
+- `isSystem==true/false` - Exact match
+
+**Examples:**
+```
+?filters=name@=admin,isSystem==false&sortField=name&sortOrder=asc&page=1&pageSize=20
+?filters=code@=manager&sortField=createdAtUtc&sortOrder=desc
+```
+
+**Headers:**
+
+```http
+Authorization: Bearer {accessToken}
+```
+
+**Success Response (200 OK):**
+
+```json
+{
+  "correlationId": "9b7b7f6e-4b5c-4c3d-b7d4-9cc3f6e4d888",
+  "traceId": "f47ac10b-58cc-4372-a567-0e02b2c3d479",
+  "timestamp": "2026-05-26T10:30:00.000Z",
+  "data": [
+    {
+      "id": "550e8400-e29b-41d4-a716-446655440000",
+      "code": "admin",
+      "name": "Administrator",
+      "description": "Full system access",
+      "isSystem": true,
+      "permissions": [
+        {
+          "id": "perm-1",
+          "code": "user.read",
+          "name": "View Users",
+          "description": "Can view user list",
+          "module": "user"
+        }
+      ]
+    }
+  ],
+  "meta": {
+    "pagination": {
+      "page": 1,
+      "pageSize": 20,
+      "totalItems": 5,
+      "totalPages": 1,
+      "hasNextPage": false,
+      "hasPreviousPage": false
+    }
+  },
+  "errors": []
+}
+```
+
+---
+
+### 2. Get Role by ID
+
+Lấy chi tiết một role theo ID.
+
+**Endpoint:** `GET /api/v1/roles/{id}`
+
+**Path Parameters:**
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| id | guid | Yes | Role ID |
+
+**Headers:**
+
+```http
+Authorization: Bearer {accessToken}
+```
+
+**Success Response (200 OK):**
+
+```json
+{
+  "correlationId": "9b7b7f6e-4b5c-4c3d-b7d4-9cc3f6e4d888",
+  "traceId": "f47ac10b-58cc-4372-a567-0e02b2c3d479",
+  "timestamp": "2026-05-26T10:30:00.000Z",
+  "data": {
+    "id": "550e8400-e29b-41d4-a716-446655440000",
+    "code": "admin",
+    "name": "Administrator",
+    "description": "Full system access",
+    "isSystem": true,
+    "permissions": [
+      {
+        "id": "perm-1",
+        "code": "user.read",
+        "name": "View Users",
+        "description": "Can view user list",
+        "module": "user"
+      }
+    ]
+  },
+  "meta": {},
+  "errors": []
+}
+```
+
+**Error Response (404 Not Found):**
+
+```json
+{
+  "correlationId": "9b7b7f6e-4b5c-4c3d-b7d4-9cc3f6e4d888",
+  "traceId": "f47ac10b-58cc-4372-a567-0e02b2c3d479",
+  "timestamp": "2026-05-26T10:30:00.000Z",
+  "data": null,
+  "meta": {},
+  "errors": [
+    {
+      "code": "ROLE_NOT_FOUND",
+      "message": "Role not found",
+      "severity": "medium"
+    }
+  ]
+}
+```
+
+---
+
+### 3. Create Role
+
+Tạo role mới (chỉ cho custom roles, không cho system roles).
+
+**Endpoint:** `POST /api/v1/roles`
+
+**Headers:**
+
+```http
+Authorization: Bearer {accessToken}
+Content-Type: application/json
+```
+
+**Request Body:**
+
+```json
+{
+  "code": "manager",
+  "name": "Manager",
+  "description": "Manager role with limited access"
+}
+```
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| code | string | Yes | Role code (unique, will be lowercased) |
+| name | string | Yes | Role display name |
+| description | string | No | Role description |
+
+**Success Response (200 OK):**
+
+```json
+{
+  "correlationId": "9b7b7f6e-4b5c-4c3d-b7d4-9cc3f6e4d888",
+  "traceId": "f47ac10b-58cc-4372-a567-0e02b2c3d479",
+  "timestamp": "2026-05-26T10:30:00.000Z",
+  "data": {
+    "id": "550e8400-e29b-41d4-a716-446655440000",
+    "code": "manager",
+    "name": "Manager",
+    "description": "Manager role with limited access",
+    "isSystem": false,
+    "permissions": []
+  },
+  "meta": {},
+  "errors": []
+}
+```
+
+**Error Response (400 Bad Request):**
+
+```json
+{
+  "correlationId": "9b7b7f6e-4b5c-4c3d-b7d4-9cc3f6e4d888",
+  "traceId": "f47ac10b-58cc-4372-a567-0e02b2c3d479",
+  "timestamp": "2026-05-26T10:30:00.000Z",
+  "data": null,
+  "meta": {},
+  "errors": [
+    {
+      "code": "ROLE_EXISTS",
+      "message": "Role code already exists",
+      "severity": "medium"
+    }
+  ]
+}
+```
+
+---
+
+### 4. Update Role
+
+Cập nhật thông tin role (chỉ custom roles).
+
+**Endpoint:** `PUT /api/v1/roles/{id}`
+
+**Path Parameters:**
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| id | guid | Yes | Role ID |
+
+**Headers:**
+
+```http
+Authorization: Bearer {accessToken}
+Content-Type: application/json
+```
+
+**Request Body:**
+
+```json
+{
+  "name": "Senior Manager",
+  "description": "Updated description"
+}
+```
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| name | string | No | New role name |
+| description | string | No | New role description |
+
+**Success Response (200 OK):**
+
+```json
+{
+  "correlationId": "9b7b7f6e-4b5c-4c3d-b7d4-9cc3f6e4d888",
+  "traceId": "f47ac10b-58cc-4372-a567-0e02b2c3d479",
+  "timestamp": "2026-05-26T10:30:00.000Z",
+  "data": {
+    "id": "550e8400-e29b-41d4-a716-446655440000",
+    "code": "manager",
+    "name": "Senior Manager",
+    "description": "Updated description",
+    "isSystem": false,
+    "permissions": []
+  },
+  "meta": {},
+  "errors": []
+}
+```
+
+**Error Response (400 Bad Request):**
+
+```json
+{
+  "correlationId": "9b7b7f6e-4b5c-4c3d-b7d4-9cc3f6e4d888",
+  "traceId": "f47ac10b-58cc-4372-a567-0e02b2c3d479",
+  "timestamp": "2026-05-26T10:30:00.000Z",
+  "data": null,
+  "meta": {},
+  "errors": [
+    {
+      "code": "SYSTEM_ROLE_READONLY",
+      "message": "Cannot modify system role",
+      "severity": "high"
+    }
+  ]
+}
+```
+
+---
+
+### 5. Delete Role (Soft Delete)
+
+Xóa role (soft delete, có thể khôi phục). Chỉ áp dụng cho custom roles.
+
+**Endpoint:** `DELETE /api/v1/roles/{id}`
+
+**Path Parameters:**
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| id | guid | Yes | Role ID |
+
+**Headers:**
+
+```http
+Authorization: Bearer {accessToken}
+```
+
+**Success Response (200 OK):**
+
+```json
+{
+  "correlationId": "9b7b7f6e-4b5c-4c3d-b7d4-9cc3f6e4d888",
+  "traceId": "f47ac10b-58cc-4372-a567-0e02b2c3d479",
+  "timestamp": "2026-05-26T10:30:00.000Z",
+  "data": {
+    "id": "550e8400-e29b-41d4-a716-446655440000",
+    "deleted": true
+  },
+  "meta": {},
+  "errors": []
+}
+```
+
+---
+
+### 6. Restore Role
+
+Khôi phục role đã bị xóa.
+
+**Endpoint:** `POST /api/v1/roles/{id}/restore`
+
+**Path Parameters:**
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| id | guid | Yes | Role ID |
+
+**Headers:**
+
+```http
+Authorization: Bearer {accessToken}
+```
+
+**Success Response (200 OK):**
+
+```json
+{
+  "correlationId": "9b7b7f6e-4b5c-4c3d-b7d4-9cc3f6e4d888",
+  "traceId": "f47ac10b-58cc-4372-a567-0e02b2c3d479",
+  "timestamp": "2026-05-26T10:30:00.000Z",
+  "data": {
+    "id": "550e8400-e29b-41d4-a716-446655440000",
+    "code": "manager",
+    "name": "Manager",
+    "description": "Manager role with limited access",
+    "isSystem": false,
+    "permissions": []
+  },
+  "meta": {},
+  "errors": []
+}
+```
+
+**Error Response (400 Bad Request):**
+
+```json
+{
+  "correlationId": "9b7b7f6e-4b5c-4c3d-b7d4-9cc3f6e4d888",
+  "traceId": "f47ac10b-58cc-4372-a567-0e02b2c3d479",
+  "timestamp": "2026-05-26T10:30:00.000Z",
+  "data": null,
+  "meta": {},
+  "errors": [
+    {
+      "code": "ROLE_NOT_DELETED",
+      "message": "Role is not deleted",
+      "severity": "low"
+    }
+  ]
+}
+```
+
+---
+
+### 7. Get Role Permissions
+
+Lấy danh sách permissions của một role.
+
+**Endpoint:** `GET /api/v1/roles/{id}/permissions`
+
+**Path Parameters:**
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| id | guid | Yes | Role ID |
+
+**Headers:**
+
+```http
+Authorization: Bearer {accessToken}
+```
+
+**Success Response (200 OK):**
+
+```json
+{
+  "correlationId": "9b7b7f6e-4b5c-4c3d-b7d4-9cc3f6e4d888",
+  "traceId": "f47ac10b-58cc-4372-a567-0e02b2c3d479",
+  "timestamp": "2026-05-26T10:30:00.000Z",
+  "data": [
+    {
+      "id": "perm-1",
+      "code": "user.read",
+      "name": "View Users",
+      "description": "Can view user list",
+      "module": "user"
+    },
+    {
+      "id": "perm-2",
+      "code": "user.create",
+      "name": "Create User",
+      "description": "Can create new users",
+      "module": "user"
+    }
+  ],
+  "meta": {},
+  "errors": []
+}
+```
+
+---
+
+### 8. Assign Permissions to Role
+
+Gán permissions cho role (thêm vào danh sách hiện có).
+
+**Endpoint:** `POST /api/v1/roles/{id}/permissions`
+
+**Path Parameters:**
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| id | guid | Yes | Role ID |
+
+**Headers:**
+
+```http
+Authorization: Bearer {accessToken}
+Content-Type: application/json
+```
+
+**Request Body:**
+
+```json
+{
+  "permissionIds": [
+    "perm-1",
+    "perm-2",
+    "perm-3"
+  ]
+}
+```
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| permissionIds | array | Yes | List of permission IDs to assign |
+
+**Success Response (200 OK):**
+
+```json
+{
+  "correlationId": "9b7b7f6e-4b5c-4c3d-b7d4-9cc3f6e4d888",
+  "traceId": "f47ac10b-58cc-4372-a567-0e02b2c3d479",
+  "timestamp": "2026-05-26T10:30:00.000Z",
+  "data": {
+    "message": "Permissions assigned successfully"
+  },
+  "meta": {},
+  "errors": []
+}
+```
+
+---
+
+### 9. Remove Permission from Role
+
+Xóa một permission khỏi role.
+
+**Endpoint:** `DELETE /api/v1/roles/{id}/permissions/{permissionId}`
+
+**Path Parameters:**
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| id | guid | Yes | Role ID |
+| permissionId | guid | Yes | Permission ID |
+
+**Headers:**
+
+```http
+Authorization: Bearer {accessToken}
+```
+
+**Success Response (200 OK):**
+
+```json
+{
+  "correlationId": "9b7b7f6e-4b5c-4c3d-b7d4-9cc3f6e4d888",
+  "traceId": "f47ac10b-58cc-4372-a567-0e02b2c3d479",
+  "timestamp": "2026-05-26T10:30:00.000Z",
+  "data": {
+    "message": "Permission removed successfully"
+  },
+  "meta": {},
+  "errors": []
+}
+```
+
+---
+
+### 10. Replace Role Permissions
+
+Thay thế toàn bộ permissions của role (xóa tất cả hiện tại, gán mới).
+
+**Endpoint:** `PUT /api/v1/roles/{id}/permissions`
+
+**Path Parameters:**
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| id | guid | Yes | Role ID |
+
+**Headers:**
+
+```http
+Authorization: Bearer {accessToken}
+Content-Type: application/json
+```
+
+**Request Body:**
+
+```json
+{
+  "permissionIds": [
+    "perm-1",
+    "perm-2"
+  ]
+}
+```
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| permissionIds | array | Yes | List of permission IDs to replace with |
+
+**Success Response (200 OK):**
+
+```json
+{
+  "correlationId": "9b7b7f6e-4b5c-4c3d-b7d4-9cc3f6e4d888",
+  "traceId": "f47ac10b-58cc-4372-a567-0e02b2c3d479",
+  "timestamp": "2026-05-26T10:30:00.000Z",
+  "data": {
+    "message": "Permissions replaced successfully"
+  },
+  "meta": {},
+  "errors": []
+}
+```
+
+---
+
+## Common Error Codes
+
+| Code | Message | Severity | Description |
+|------|---------|----------|-------------|
+| ROLE_NOT_FOUND | Role not found | medium | Role không tồn tại |
+| ROLE_EXISTS | Role code already exists | medium | Role code đã được sử dụng |
+| SYSTEM_ROLE_READONLY | Cannot modify system role | high | Không thể sửa/xóa system role |
+| ROLE_NOT_DELETED | Role is not deleted | low | Role chưa bị xóa, không thể khôi phục |
+
+---
+
+## TypeScript Types
+
+```typescript
+interface RoleDto {
+  id: string;
+  code: string;
+  name: string;
+  description: string | null;
+  isSystem: boolean;
+  permissions: PermissionDto[];
+}
+
+interface PermissionDto {
+  id: string;
+  code: string;
+  name: string;
+  description: string | null;
+  module: string;
+}
+
+interface CreateRoleRequest {
+  code: string;
+  name: string;
+  description?: string;
+}
+
+interface UpdateRoleRequest {
+  name?: string;
+  description?: string;
+}
+
+interface AssignPermissionsRequest {
+  permissionIds: string[];
+}
+
+interface PagedQuery {
+  page?: number;
+  pageSize?: number;
+  sortField?: string;
+  sortOrder?: 'asc' | 'desc';
+  filters?: string;
+}
+
+interface PaginationMeta {
+  page: number;
+  pageSize: number;
+  totalItems: number;
+  totalPages: number;
+  hasNextPage: boolean;
+  hasPreviousPage: boolean;
+}
+```
+
+---
+
+## Usage Examples
+
+### List roles with filtering
+
+```typescript
+const response = await fetch('/api/v1/roles?filters=name@=admin,isSystem==false&sortField=name&sortOrder=asc&page=1&pageSize=20', {
+  headers: {
+    'Authorization': `Bearer ${accessToken}`
+  }
+});
+
+const result = await response.json();
+const roles = result.data;
+const pagination = result.meta.pagination;
+```
+
+### Create a new role
+
+```typescript
+const newRole = await fetch('/api/v1/roles', {
+  method: 'POST',
+  headers: {
+    'Authorization': `Bearer ${accessToken}`,
+    'Content-Type': 'application/json'
+  },
+  body: JSON.stringify({
+    code: 'manager',
+    name: 'Manager',
+    description: 'Manager role'
+  })
+});
+```
+
+### Assign permissions to role
+
+```typescript
+await fetch(`/api/v1/roles/${roleId}/permissions`, {
+  method: 'POST',
+  headers: {
+    'Authorization': `Bearer ${accessToken}`,
+    'Content-Type': 'application/json'
+  },
+  body: JSON.stringify({
+    permissionIds: ['perm-1', 'perm-2', 'perm-3']
+  })
+});
+```
+
+```
+
+---
+
 ## File: `session-summary.md`
 
 ```md
@@ -15335,6 +26189,56 @@ Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/bui
 - **"Invalid sync type 'full'"** → đổi thành `MANUAL_RESYNC`
 - **401 redirect liên tục** → sửa login lấy đúng field `accessToken` thay vì `token`
 - **UI item file đính kèm tràn** → JS truncate + compact button + overflow-hidden chain
+
+---
+
+# Session Summary — 27/05/2026
+
+## 1. Email Detail Page — Chat-based AI Extraction Refactor
+
+### 1.1 Layout 3 cột ngang (Desktop)
+- `@/app/(app)/emails/[id]/page.tsx`
+  - **Trái `220px`**: File đính kèm (scroll riêng)
+  - **Giữa `flex-1`**: Nội dung email (HTML iframe / text)
+  - **Phải `300px`**: AI Chat panel (luôn hiển thị, không floating)
+  - Mobile: xếp dọc email → files → chat
+  - Chiều cao: `calc(100dvh - 116px)`, mỗi cột scroll độc lập
+
+### 1.2 Header gọn
+- 1 dòng ngang: ← Quay lại | Subject — From — Date | Trích xuất
+- Bỏ card riêng, không còn `p-5` header
+
+### 1.3 AI Chat panel
+- Toggle **Chat** / **Template** mode
+- Template chọn inline qua `<select>` dropdown
+- Message list với avatar, loading dots, auto-scroll (`chatEndRef`)
+- **Chat mode**: AI trả lời text tự do trong bubble
+- **Template mode**: AI trả JSON → nút "Xem chi tiết" mở `ExtractionResultModal`
+- Input + nút gửi ở bottom
+- Bỏ hẳn floating chat button (`MessageCircle`, `Minimize2`), `chatOpen` state
+
+### 1.4 Prompt engineering
+- `buildChatPrompt`: Yêu cầu AI trả lời text tự do, không bắt JSON
+- `buildTemplatePrompt`: Bắt JSON array theo `expectedFields` của template
+
+## 2. File Attachment Item — Vertical Card Redesign
+- `@/components/file-attachment-item.tsx`
+  - Dạng **card dọc**: Top (checkbox + icon + type badge) → Middle (name `line-clamp-2`) → Bottom (size + actions)
+  - Actions nhỏ gọn: "Trích", "Xem" text button + icon Download
+  - Phù hợp sidebar hẹp `220px`
+  - Bỏ: status badge "Đã xong", `Card` import
+
+## 3. Webhooks page — Tạm ẩn
+- `@/app/(app)/webhooks/page.tsx`: Comment toàn bộ content
+- `@/app/(app)/layout.tsx`: Comment nav item "Webhooks" + breadcrumb
+
+## 4. CSS Fixes
+- `bg-gradient-to-r` → `bg-linear-to-r` (Tailwind v4)
+- Dùng `100dvh` thay `100vh` cho mobile Safari
+
+## 5. Files đã tạo/cập nhật
+- `CHANGELOG-27-05-2026.md`: Tài liệu chi tiết các thay đổi hôm nay
+- `luong-app.md`: Cập nhật Giai đoạn 4 & 5 theo flow chat-based mới
 
 ```
 

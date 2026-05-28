@@ -14,7 +14,8 @@ import {
 } from "lucide-react"
 import dayjs from "dayjs"
 import { getErrorMessage } from "@/lib/get-error-message"
-import { useMailAssignmentsMyQuery } from "@/hooks/use-mail-assignments-queries"
+import { useMailAssignmentsMyQuery, useConfirmMailAssignmentMutation } from "@/hooks/use-mail-assignments-queries"
+import { toast } from "sonner"
 
 const ITEMS_PER_PAGE = 10
 
@@ -88,6 +89,7 @@ export default function EmailsPage() {
   const [page, setPage] = useState(1)
 
   const assignmentsQuery = useMailAssignmentsMyQuery()
+  const confirmMutation = useConfirmMailAssignmentMutation()
 
   const assignmentsRaw = assignmentsQuery.data
   const assignments: AssignmentItem[] = useMemo(() => {
@@ -220,16 +222,48 @@ export default function EmailsPage() {
                             : "—"}
                         </td>
                         <td className="px-4 py-3 text-right">
-                          {messageId ? (
-                            <Link
-                              href={`/emails/${messageId}`}
-                              className="inline-flex items-center gap-1 rounded-md bg-primary px-2.5 py-1 text-xs font-medium text-white hover:bg-primary-500"
-                            >
-                              Xử lý
-                            </Link>
-                          ) : (
-                            <span className="text-neutral-400">—</span>
-                          )}
+                          {(() => {
+                            const statusLower = item.status?.toLowerCase() ?? ""
+                            const canConfirm = statusLower === "assigned"
+                            const canProcess = ["confirmed", "needSupplement", "extracted", "exported"].includes(statusLower)
+                            const isCompleted = statusLower === "completed"
+                            return (
+                              <div className="flex items-center justify-end gap-1">
+                                {canConfirm && messageId && (
+                                  <button
+                                    onClick={() => {
+                                      confirmMutation.mutate(
+                                        { messageId, payload: {} },
+                                        {
+                                          onSuccess: () => toast.success("Đã xác nhận nhận mail."),
+                                          onError: (err) => toast.error("Xác nhận thất bại: " + String(err)),
+                                        }
+                                      )
+                                    }}
+                                    disabled={confirmMutation.isPending}
+                                    className="inline-flex items-center gap-1 rounded-md border border-amber-200 bg-amber-50 px-2 py-1 text-xs font-medium text-amber-700 hover:bg-amber-100 disabled:opacity-50"
+                                  >
+                                    Xác nhận
+                                  </button>
+                                )}
+                                {canProcess && messageId && (
+                                  <Link
+                                    href={`/emails/${messageId}`}
+                                    className="inline-flex items-center gap-1 rounded-md bg-primary px-2.5 py-1 text-xs font-medium text-white hover:bg-primary-500"
+                                  >
+                                    Xử lý
+                                  </Link>
+                                )}
+                                {isCompleted && (
+                                  <span className="inline-flex items-center gap-1 rounded-full bg-green-50 px-2 py-1 text-[11px] font-medium text-green-700">
+                                    <CheckCircle2 className="h-3 w-3" />
+                                    Hoàn thành
+                                  </span>
+                                )}
+                                {!messageId && <span className="text-neutral-400">—</span>}
+                              </div>
+                            )
+                          })()}
                         </td>
                       </tr>
                     )

@@ -86,25 +86,27 @@ export function TemplateResultModal({
             {fieldEntries.length === 0 ? (
               <p className="text-sm text-neutral-400">Không có trường nào được định nghĩa trong template.</p>
             ) : (
-              <table className="w-full table-fixed text-sm">
-                <tbody>
-                  {fieldEntries.map(([key, label]) => (
-                    <tr key={key} className="border-b last:border-b-0">
-                      <th className="w-[45%] bg-neutral-50 px-3 py-2 text-left text-xs font-semibold uppercase tracking-wide text-neutral-500">
-                        {label || key}
-                      </th>
-                      <td className="px-2 py-1">
-                        <input
-                          type="text"
-                          value={displayData[key] || ""}
-                          onChange={(e) => handleChange(key, e.target.value)}
-                          className="w-full rounded border border-transparent bg-transparent px-1 py-1 text-xs text-neutral-800 outline-none hover:border-neutral-200 focus:border-primary focus:bg-white"
-                        />
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
+              <div className="overflow-x-auto">
+                <table className="w-full table-fixed text-sm">
+                  <tbody>
+                    {fieldEntries.map(([key, label]) => (
+                      <tr key={key} className="border-b last:border-b-0">
+                        <th className="w-[40%] min-w-[120px] bg-neutral-50 px-2 py-2 text-left text-[11px] font-semibold uppercase tracking-wide text-neutral-500 wrap-break-word whitespace-normal align-top">
+                          {label || key}
+                        </th>
+                        <td className="w-[60%] px-2 py-1 align-top">
+                          <input
+                            type="text"
+                            value={displayData[key] || ""}
+                            onChange={(e) => handleChange(key, e.target.value)}
+                            className="w-full rounded border border-transparent bg-transparent px-1 py-1 text-xs text-neutral-800 outline-none hover:border-neutral-200 focus:border-primary focus:bg-white"
+                          />
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
             )}
           </div>
 
