@@ -5,12 +5,15 @@ import { MAIL_CONNECTOR_AXIOS } from "@/lib/orval/mail-connector-mutator"
 import { getLogisticsPlatformAPI } from "@/lib/generated/mail-connector/endpoints"
 import type { CreateTemplateRequest } from "@/lib/generated/mail-connector/model/createTemplateRequest"
 import type { CreateWebhookSubscriptionRequest } from "@/lib/generated/mail-connector/model/createWebhookSubscriptionRequest"
+import type { GetApiV1AiOpenaiUsageUserUserIdParams } from "@/lib/generated/mail-connector/model/getApiV1AiOpenaiUsageUserUserIdParams"
+import type { GetApiV1AiOpenaiUsageUsersParams } from "@/lib/generated/mail-connector/model/getApiV1AiOpenaiUsageUsersParams"
 import type { GetApiV1MailAnalysisResultsParams } from "@/lib/generated/mail-connector/model/getApiV1MailAnalysisResultsParams"
 import type { GetApiV1MailMessagesParams } from "@/lib/generated/mail-connector/model/getApiV1MailMessagesParams"
 import type { GetApiV1MailMessagesMessageIdAttachmentsAttachmentIdPresignedUrlParams } from "@/lib/generated/mail-connector/model/getApiV1MailMessagesMessageIdAttachmentsAttachmentIdPresignedUrlParams"
 import type { UpdateTemplateRequest } from "@/lib/generated/mail-connector/model/updateTemplateRequest"
 import type { UpdateWebhookSubscriptionRequest } from "@/lib/generated/mail-connector/model/updateWebhookSubscriptionRequest"
 
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
 const mailApi: any = getLogisticsPlatformAPI()
 
 type MailAnalysisResultDto = {
@@ -72,6 +75,12 @@ export const mailQueryKeys = {
   analysisResults: (params: GetApiV1MailAnalysisResultsParams) =>
     ["mail-analysis-results", params] as const,
   webhooks: ["webhook-subscriptions"] as const,
+  aiUsageUser: (userId: string, params?: GetApiV1AiOpenaiUsageUserUserIdParams) =>
+    ["ai-openai-usage-user", userId, params] as const,
+  aiUsageUserCurrentMonth: (userId: string) => ["ai-openai-usage-user-current-month", userId] as const,
+  aiUsageUsers: (params?: GetApiV1AiOpenaiUsageUsersParams) =>
+    ["ai-openai-usage-users", params] as const,
+  aiUsageUsersCurrentMonth: ["ai-openai-usage-users-current-month"] as const,
 }
 
 export function useMailAccountsQuery() {
@@ -535,5 +544,52 @@ export function useTestWebhookMutation(webhookId: string | null) {
         eventType: payload.eventType,
         payload: payload.payload,
       }),
+  })
+}
+
+export function useAiOpenaiUsageUserQuery(
+  userId: string | null,
+  params?: GetApiV1AiOpenaiUsageUserUserIdParams
+) {
+  return useQuery({
+    queryKey: userId ? mailQueryKeys.aiUsageUser(userId, params) : ["ai-openai-usage-user", "none"],
+    enabled: Boolean(userId),
+    queryFn: async () => {
+      const response = await mailApi.getApiV1AiOpenaiUsageUserUserId(userId as string, params)
+      return response.data as unknown
+    },
+  })
+}
+
+export function useAiOpenaiUsageUserCurrentMonthQuery(userId: string | null) {
+  return useQuery({
+    queryKey: userId
+      ? mailQueryKeys.aiUsageUserCurrentMonth(userId)
+      : ["ai-openai-usage-user-current-month", "none"],
+    enabled: Boolean(userId),
+    queryFn: async () => {
+      const response = await mailApi.getApiV1AiOpenaiUsageUserUserIdCurrentMonth(userId as string)
+      return response.data as unknown
+    },
+  })
+}
+
+export function useAiOpenaiUsageUsersQuery(params?: GetApiV1AiOpenaiUsageUsersParams) {
+  return useQuery({
+    queryKey: mailQueryKeys.aiUsageUsers(params),
+    queryFn: async () => {
+      const response = await mailApi.getApiV1AiOpenaiUsageUsers(params)
+      return response.data as unknown
+    },
+  })
+}
+
+export function useAiOpenaiUsageUsersCurrentMonthQuery() {
+  return useQuery({
+    queryKey: mailQueryKeys.aiUsageUsersCurrentMonth,
+    queryFn: async () => {
+      const response = await mailApi.getApiV1AiOpenaiUsageUsersCurrentMonth()
+      return response.data as unknown
+    },
   })
 }

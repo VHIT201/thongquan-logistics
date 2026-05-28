@@ -2,6 +2,7 @@
 
 import { useState } from "react"
 import {
+  BarChart3,
   CheckCircle,
   Eye,
   EyeOff,
@@ -9,10 +10,8 @@ import {
   Loader,
   Pencil,
   Plus,
-  RefreshCw,
   Shield,
   Trash2,
-  UserCheck,
   XCircle,
 } from "lucide-react"
 import dayjs from "dayjs"
@@ -29,6 +28,10 @@ import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { getErrorMessage } from "@/lib/get-error-message"
 import {
+  useAiOpenaiUsageUserCurrentMonthQuery,
+  useAiOpenaiUsageUserQuery,
+} from "@/hooks/use-mail-queries"
+import {
   useUsersQuery,
   useCreateUserMutation,
   useUpdateUserMutation,
@@ -41,6 +44,102 @@ import {
 } from "@/hooks/use-user-queries"
 
 const ALL_ROLES = ["admin", "user", "viewer", "editor"]
+type UsageRecord = Record<string, unknown>
+type UsageSummary = {
+  totalRequests: number
+  totalTokens: number
+  totalCost: number
+}
+
+const numberOf = (value: unknown): number => {
+  if (typeof value === "number" && Number.isFinite(value)) return value
+  if (typeof value === "string") {
+    const parsed = Number(value)
+    return Number.isFinite(parsed) ? parsed : 0
+  }
+  return 0
+}
+
+const readNumber = (record: UsageRecord, keys: string[]) => {
+  for (const key of keys) {
+    if (key in record) return numberOf(record[key])
+  }
+  return 0
+}
+
+const getUsageItems = (value: unknown): UsageRecord[] => {
+  if (Array.isArray(value)) {
+    return value.filter((item) => item && typeof item === "object") as UsageRecord[]
+  }
+  if (!value || typeof value !== "object") return []
+
+  const record = value as UsageRecord
+  const nestedCandidates = [record.items, record.data, record.results, record.users]
+  for (const candidate of nestedCandidates) {
+    if (Array.isArray(candidate)) {
+      return candidate.filter((item) => item && typeof item === "object") as UsageRecord[]
+    }
+  }
+  return [record]
+}
+
+const buildUsageSummary = (value: unknown): UsageSummary => {
+  const items = getUsageItems(value)
+  if (items.length === 0) {
+    return { totalRequests: 0, totalTokens: 0, totalCost: 0 }
+  }
+
+  const first = items[0]
+  const directTotalRequests = readNumber(first, [
+    "totalRequests",
+    "totalCalls",
+    "requestCount",
+    "totalRequestCount",
+  ])
+  const directTotalTokens = readNumber(first, [
+    "totalTokens",
+    "tokenCount",
+    "totalTokenCount",
+  ])
+  const directTotalCost = readNumber(first, ["totalCost", "costEstimate", "cost", "amount"])
+
+  if (
+    items.length === 1 &&
+    (directTotalRequests > 0 || directTotalTokens > 0 || directTotalCost > 0)
+  ) {
+    return {
+      totalRequests: directTotalRequests,
+      totalTokens: directTotalTokens,
+      totalCost: directTotalCost,
+    }
+  }
+
+  return items.reduce<UsageSummary>(
+    (accumulator, item) => {
+      const inputTokens = readNumber(item, ["inputTokenCount", "inputTokens"])
+      const outputTokens = readNumber(item, ["outputTokenCount", "outputTokens"])
+      const tokens =
+        readNumber(item, ["totalTokens", "tokenCount", "totalTokenCount"]) ||
+        inputTokens + outputTokens
+
+      accumulator.totalRequests += readNumber(item, [
+        "totalRequests",
+        "requestCount",
+        "calls",
+        "totalCalls",
+      ])
+      accumulator.totalTokens += tokens
+      accumulator.totalCost += readNumber(item, [
+        "totalCost",
+        "costEstimate",
+        "cost",
+        "amount",
+      ])
+      return accumulator
+    },
+    { totalRequests: 0, totalTokens: 0, totalCost: 0 }
+  )
+}
 
 export default function AdminUsersPage() {
   const [page, setPage] = useState(1)
@@ -52,6 +151,8 @@ export default function AdminUsersPage() {
   const [modalOpen, setModalOpen] = useState(false)
   const [modalMode, setModalMode] = useState<"create" | "edit">("create")
   const [selectedUser, setSelectedUser] = useState<UserDto | null>(null)
+  const [usageModalOpen, setUsageModalOpen] = useState(false)
+  const [selectedUsageUser, setSelectedUsageUser] = useState<UserDto | null>(null)
 
   const [resetPasswordOpen, setResetPasswordOpen] = useState(false)
   const [resetPasswordUser, setResetPasswordUser] = useState<UserDto | null>(null)
@@ -92,10 +193,16 @@ export default function AdminUsersPage() {
   const deleteMutation = useDeleteUserMutation()
   const restoreMutation = useRestoreUserMutation()
   const resetPasswordMutation = useResetUserPasswordMutation()
+  const userUsageCurrentMonthQuery = useAiOpenaiUsageUserCurrentMonthQuery(
+    selectedUsageUser?.id ?? null
+  )
+  const userUsageAllTimeQuery = useAiOpenaiUsageUserQuery(selectedUsageUser?.id ?? null)
 
   const listData = usersQuery.data
   const users = listData?.data ?? []
   const pagination = listData?.meta?.pagination
+  const monthUsageSummary = buildUsageSummary(userUsageCurrentMonthQuery.data)
+  const allTimeUsageSummary = buildUsageSummary(userUsageAllTimeQuery.data)
 
   const openCreate = () => {
     setModalMode("create")
@@ -187,6 +294,11 @@ export default function AdminUsersPage() {
     setResetPasswordOpen(true)
   }
 
+  const openUsageModal = (user: UserDto) => {
+    setSelectedUsageUser(user)
+    setUsageModalOpen(true)
+  }
+
   const handleResetPassword = async () => {
     if (!resetPasswordUser || !newPassword) return
     try {
@@ -241,7 +353,8 @@ export default function AdminUsersPage() {
         <select
           value={statusFilter}
           onChange={(e) => {
-            setStatusFilter(e.target.value as any)
+            const nextValue = e.target.value as "all" | "active" | "inactive"
+            setStatusFilter(nextValue)
             setPage(1)
           }}
           className="h-10 rounded-lg border border-neutral-100 bg-white px-3 text-sm text-neutral-300 focus:border-primary focus:outline-none"
@@ -349,6 +462,13 @@ export default function AdminUsersPage() {
                         className="inline-flex h-8 w-8 cursor-pointer items-center justify-center rounded-md border border-neutral-100 bg-white text-neutral-300 transition-colors hover:bg-neutral-50 hover:text-primary"
                       >
                         {user.isActive ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                      </button>
+                      <button
+                        onClick={() => openUsageModal(user)}
+                        title="AI usage"
+                        className="inline-flex h-8 w-8 cursor-pointer items-center justify-center rounded-md border border-neutral-100 bg-white text-neutral-300 transition-colors hover:bg-neutral-50 hover:text-primary"
+                      >
+                        <BarChart3 className="h-4 w-4" />
                       </button>
                       <button
                         onClick={() => openResetPassword(user)}
@@ -480,6 +600,69 @@ export default function AdminUsersPage() {
                 {modalMode === "create" ? "Tạo" : "Lưu"}
               </Button>
             </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* AI Usage Modal */}
+      <Dialog open={usageModalOpen} onOpenChange={setUsageModalOpen}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle className="text-black">AI usage theo user</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-3 py-2">
+            <p className="text-sm text-neutral-200">
+              Tai khoan: <strong className="text-neutral-300">{selectedUsageUser?.email}</strong>
+            </p>
+
+            {(userUsageCurrentMonthQuery.isPending || userUsageAllTimeQuery.isPending) && (
+              <div className="rounded-lg border border-neutral-100 p-3 text-sm text-neutral-200">
+                Dang tai usage...
+              </div>
+            )}
+
+            {(userUsageCurrentMonthQuery.error || userUsageAllTimeQuery.error) && (
+              <div className="rounded-lg border border-red-100 bg-red-50 p-3 text-sm text-red-700">
+                {getErrorMessage(
+                  userUsageCurrentMonthQuery.error || userUsageAllTimeQuery.error,
+                  "Khong tai duoc usage cua user."
+                )}
+              </div>
+            )}
+
+            {!userUsageCurrentMonthQuery.isPending &&
+              !userUsageAllTimeQuery.isPending &&
+              !userUsageCurrentMonthQuery.error &&
+              !userUsageAllTimeQuery.error && (
+                <div className="grid grid-cols-1 gap-3">
+                  <div className="rounded-lg border border-neutral-100 bg-white p-3">
+                    <p className="text-xs text-neutral-200">Requests thang nay</p>
+                    <p className="text-lg font-semibold text-neutral-300">
+                      {monthUsageSummary.totalRequests.toLocaleString("vi-VN")}
+                    </p>
+                  </div>
+                  <div className="rounded-lg border border-neutral-100 bg-white p-3">
+                    <p className="text-xs text-neutral-200">Tokens thang nay</p>
+                    <p className="text-lg font-semibold text-neutral-300">
+                      {monthUsageSummary.totalTokens.toLocaleString("vi-VN")}
+                    </p>
+                  </div>
+                  <div className="rounded-lg border border-neutral-100 bg-white p-3">
+                    <p className="text-xs text-neutral-200">Cost thang nay (USD)</p>
+                    <p className="text-lg font-semibold text-neutral-300">
+                      {monthUsageSummary.totalCost.toLocaleString("en-US", {
+                        maximumFractionDigits: 4,
+                      })}
+                    </p>
+                  </div>
+                  <div className="rounded-lg border border-neutral-100 bg-white p-3">
+                    <p className="text-xs text-neutral-200">Tong requests (all-time)</p>
+                    <p className="text-lg font-semibold text-neutral-300">
+                      {allTimeUsageSummary.totalRequests.toLocaleString("vi-VN")}
+                    </p>
+                  </div>
+                </div>
+              )}
           </div>
         </DialogContent>
       </Dialog>

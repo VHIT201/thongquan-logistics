@@ -6,6 +6,7 @@
  */
 
 export * from './approveRequest';
+export * from './assignPermissionsRequest';
 export * from './batchCompleteUploadRequest';
 export * from './batchDownloadUrlRequest';
 export * from './batchInitiateUploadRequest';
@@ -17,6 +18,8 @@ export * from './confirmPasswordResetCommand';
 export * from './connectAccountRequest';
 export * from './createAnalysisResultRequest';
 export * from './createMailAccountRequest';
+export * from './createPermissionRequest';
+export * from './createRoleRequest';
 export * from './createTemplateRequest';
 export * from './createTemplateRequestExpectedFields';
 export * from './createUserRequest';
@@ -28,6 +31,8 @@ export * from './executeImportRequest';
 export * from './fileContentDto';
 export * from './fileVisibility';
 export * from './getApiV1AiOpenaiUsageParams';
+export * from './getApiV1AiOpenaiUsageUserUserIdParams';
+export * from './getApiV1AiOpenaiUsageUsersParams';
 export * from './getApiV1FilesIdDownloadUrlParams';
 export * from './getApiV1FilesParams';
 export * from './getApiV1FilesQuotaParams';
@@ -37,6 +42,8 @@ export * from './getApiV1MailMessagesMessageIdAttachmentsAttachmentIdPreviewPara
 export * from './getApiV1MailMessagesParams';
 export * from './getApiV1OrderDraftsExportParams';
 export * from './getApiV1OrderDraftsParams';
+export * from './getApiV1PermissionsParams';
+export * from './getApiV1RolesParams';
 export * from './getApiV1UsersParams';
 export * from './getApiV1WebhookSubscriptionsParams';
 export * from './getOauthCallbackParams';
@@ -65,6 +72,8 @@ export * from './updateAnalysisResultFieldsRequest';
 export * from './updateAnalysisResultFieldsRequestExtractedFields';
 export * from './updateFileMetadataRequest';
 export * from './updateMailAccountDto';
+export * from './updatePermissionRequest';
+export * from './updateRoleRequest';
 export * from './updateStatusRequest';
 export * from './updateTemplateRequest';
 export * from './updateTemplateRequestExpectedFields';
