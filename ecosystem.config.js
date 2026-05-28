@@ -2,9 +2,9 @@ module.exports = {
   apps: [
     {
       name: "logistics-platform",
-      script: "node_modules/.bin/next",
-      args: "start -p 3056",
-      env_production: {
+      script: "pnpm", 
+      args: "start",
+      env: {
         NODE_ENV: "production",
       },
     },
