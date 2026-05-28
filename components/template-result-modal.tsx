@@ -62,7 +62,12 @@ export function TemplateResultModal({
     return sources.google || sources.office || sources.proxy || sources.direct || ""
   }, [sources, viewerMode])
 
-  const fieldEntries = Object.entries(fields)
+  // Fallback: if template fields empty, use keys from data
+  const fieldEntries = Object.entries(fields).length > 0
+    ? Object.entries(fields)
+    : Object.keys(data).map((k) => [k, k] as [string, string])
+
+  const isFallback = Object.entries(fields).length === 0 && Object.keys(data).length > 0
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -83,6 +88,9 @@ export function TemplateResultModal({
               <p className="text-sm font-medium text-neutral-700">Thông tin đã bóc tách</p>
               <p className="text-[11px] text-neutral-400">Click để sửa</p>
             </div>
+            {isFallback ? (
+              <p className="mb-2 text-[11px] text-amber-600">⚠️ Template gốc không khả dụng. Hiển thị theo keys từ dữ liệu.</p>
+            ) : null}
             {fieldEntries.length === 0 ? (
               <p className="text-sm text-neutral-400">Không có trường nào được định nghĩa trong template.</p>
             ) : (

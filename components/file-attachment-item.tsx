@@ -70,14 +70,14 @@ export function FileAttachmentItem({
       <div className="flex items-center justify-between">
         <span className="text-[11px] text-neutral-300">{fileSize}</span>
         <div className="flex items-center gap-1">
-          {onViewExtract && (
+          {/* {onViewExtract && (
             <button
               onClick={onViewExtract}
               className="flex items-center gap-1 rounded-md border border-neutral-100 bg-white px-2 py-1 text-[10px] font-medium text-neutral-400 hover:text-primary hover:border-primary/30 transition-colors"
             >
               <FileText className="h-3 w-3" /> Trích
             </button>
-          )}
+          )} */}
           {onViewContent && (
             <button
               onClick={onViewContent}

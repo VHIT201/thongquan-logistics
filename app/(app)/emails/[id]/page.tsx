@@ -347,25 +347,95 @@ export default function EmailDetailPage() {
     linkEntityMutation,
   ])
 
-  function parseAiDisplayContent(raw: string): { display: string; result: string | null } {
+  function extractJsonFromRaw(raw: string): Record<string, unknown> | null {
+    // 1. Try pure JSON first
     try {
-      const parsed = JSON.parse(raw) as Record<string, unknown>
-      if (parsed.fields && Array.isArray(parsed.fields)) {
-        const lines = (parsed.fields as Array<{ name?: string; value?: string }>)
+      const parsed = JSON.parse(raw)
+      if (parsed && typeof parsed === "object" && !Array.isArray(parsed)) return parsed
+    } catch {}
+
+    // 2. Try code block ```json ... ```
+    const codeBlockMatch = raw.match(/```(?:json)?\s*([\s\S]*?)```/)
+    if (codeBlockMatch) {
+      try {
+        const parsed = JSON.parse(codeBlockMatch[1])
+        if (parsed && typeof parsed === "object" && !Array.isArray(parsed)) return parsed
+      } catch {}
+    }
+
+    // 3. Find largest JSON object in text
+    let best: Record<string, unknown> | null = null
+    let bestLen = 0
+    const objectRegex = /\{[\s\S]*?\}/g
+    let m: RegExpExecArray | null
+    while ((m = objectRegex.exec(raw)) !== null) {
+      try {
+        const parsed = JSON.parse(m[0])
+        if (parsed && typeof parsed === "object" && !Array.isArray(parsed) && m[0].length > bestLen) {
+          best = parsed
+          bestLen = m[0].length
+        }
+      } catch {}
+    }
+    return best
+  }
+
+  function formatFieldsDisplay(parsed: Record<string, unknown>): { display: string; result: string } {
+    const fieldsObj = parsed.fields as Record<string, unknown> | undefined
+    const missing = (parsed.missingFields ?? []) as string[]
+    const confidence = typeof parsed.confidence === "number" ? parsed.confidence : null
+    const entries = fieldsObj ? Object.entries(fieldsObj) : []
+    const filled = entries.filter(([, v]) => v !== null && v !== undefined && String(v).trim() !== "")
+    const total = entries.length
+
+    const lines: string[] = []
+    lines.push(`✅ Đã trích xuất ${filled.length}/${total} trường`)
+    lines.push("")
+
+    if (filled.length > 0) {
+      lines.push("📝 Có dữ liệu:")
+      for (const [key, value] of filled) {
+        lines.push(`  • ${key}: ${String(value)}`)
+      }
+      lines.push("")
+    }
+
+    if (missing.length > 0) {
+      lines.push(`⚠️ Thiếu ${missing.length} trường:`)
+      lines.push(`  ${missing.join(", ")}`)
+      lines.push("")
+    }
+
+    if (confidence !== null) {
+      const pct = Math.round(confidence * 100)
+      lines.push(`📊 Độ tin cậy: ${pct}%`)
+    }
+
+    return { display: lines.join("\n"), result: JSON.stringify(parsed) }
+  }
+
+  function parseAiDisplayContent(raw: string): { display: string; result: string | null } {
+    const jsonObj = extractJsonFromRaw(raw)
+    if (jsonObj) {
+      if (jsonObj.fields && typeof jsonObj.fields === "object" && !Array.isArray(jsonObj.fields)) {
+        return formatFieldsDisplay(jsonObj)
+      }
+      if (jsonObj.fields && Array.isArray(jsonObj.fields)) {
+        const lines = (jsonObj.fields as Array<{ name?: string; value?: string }>)
           .map((f) => `${f.name ?? ""}: ${f.value ?? ""}`)
-        const summary = typeof parsed.summary === "string" ? parsed.summary : ""
+        const summary = typeof jsonObj.summary === "string" ? jsonObj.summary : ""
         return {
           display: [...lines, summary].filter(Boolean).join("\n"),
-          result: JSON.stringify(parsed),
+          result: JSON.stringify(jsonObj),
         }
       }
-      if (typeof parsed.summary === "string") {
-        return { display: parsed.summary, result: JSON.stringify(parsed) }
+      if (typeof jsonObj.summary === "string") {
+        return { display: jsonObj.summary, result: JSON.stringify(jsonObj) }
       }
-      return { display: JSON.stringify(parsed, null, 2), result: JSON.stringify(parsed) }
-    } catch {
-      return { display: raw, result: null }
+      return { display: JSON.stringify(jsonObj, null, 2), result: JSON.stringify(jsonObj) }
     }
+
+    return { display: raw, result: null }
   }
 
   // Sync BE messages to local chat state
@@ -413,7 +483,7 @@ export default function EmailDetailPage() {
 
   const sendChatMessage = async (messageText?: string) => {
     const text = (messageText ?? chatInput).trim()
-    if (!text) return
+    if (!text && aiMode !== "template") return
 
     if (selectedForAI.size === 0) {
       setPromptError("Vui lòng chọn ít nhất một file đính kèm trước khi chat.")
@@ -476,7 +546,7 @@ export default function EmailDetailPage() {
           provider: "openai",
           model: "deepseek/deepseek-v4-flash-20260423",
           responseFormat: aiMode === "template" ? "json" : "text",
-          templateType: aiMode === "template" ? (selectedTemplate?.templateCode ?? null) : null,
+          templateId: aiMode === "template" ? (selectedTemplateId || null) : null,
           ...(tenantId ? { tenantId } : {}),
           createdBy: currentUser?.userId || "",
         },
@@ -514,9 +584,12 @@ export default function EmailDetailPage() {
     if (aiMode === "template") {
       try {
         const parsed = JSON.parse(result) as Record<string, unknown>
+        const fieldsObj = parsed.fields as Record<string, unknown> | undefined
         const flat: Record<string, string> = {}
-        for (const [key, value] of Object.entries(parsed)) {
-          flat[key] = value === null || value === undefined ? "" : String(value)
+        if (fieldsObj && typeof fieldsObj === "object" && !Array.isArray(fieldsObj)) {
+          for (const [key, value] of Object.entries(fieldsObj)) {
+            flat[key] = value === null || value === undefined ? "" : String(value)
+          }
         }
         setTemplateExtractedData(flat)
         setTemplateResultOpen(true)
@@ -547,66 +620,47 @@ export default function EmailDetailPage() {
   ) => {
     if (!attachmentId) return
 
-    const isOfficeFile =
-      contentType?.toLowerCase().includes("word") ||
-      contentType?.toLowerCase().includes("excel") ||
-      contentType?.toLowerCase().includes("powerpoint") ||
-      contentType?.toLowerCase().includes("document") ||
-      contentType?.toLowerCase().includes("sheet") ||
-      contentType?.toLowerCase().includes("presentation")
+    try {
+      const response = await MAIL_CONNECTOR_AXIOS.get(
+        `/api/v1/mail-messages/${messageId}/attachments/${attachmentId}/presigned-url`
+      )
+      const data =
+        response.data && typeof response.data === "object"
+          ? (response.data as Record<string, unknown>)
+          : null
+      const nestedData =
+        data?.data && typeof data.data === "object"
+          ? (data.data as Record<string, unknown>)
+          : null
+      const nestedUrl = nestedData?.url
+      const rootUrl = data?.url
+      const presignedUrl =
+        typeof nestedUrl === "string"
+          ? nestedUrl
+          : typeof rootUrl === "string"
+            ? rootUrl
+            : null
 
-    if (isOfficeFile) {
-      try {
-        const response = await MAIL_CONNECTOR_AXIOS.get(
-          `/api/v1/mail-messages/${messageId}/attachments/${attachmentId}/presigned-url`
-        )
-        const data =
-          response.data && typeof response.data === "object"
-            ? (response.data as Record<string, unknown>)
-            : null
-        const nestedData =
-          data?.data && typeof data.data === "object"
-            ? (data.data as Record<string, unknown>)
-            : null
-        const nestedUrl = nestedData?.url
-        const rootUrl = data?.url
-        const presignedUrl =
-          typeof nestedUrl === "string"
-            ? nestedUrl
-            : typeof rootUrl === "string"
-              ? rootUrl
-              : null
-        if (presignedUrl) {
-          const googleDocsUrl = `https://docs.google.com/viewer?url=${encodeURIComponent(presignedUrl)}&embedded=true`
-          setFileViewerUrl(googleDocsUrl)
-          setFileViewerName(fileName || "")
-          setFileViewerType(contentType || "")
-          setFileViewerAttachmentId(attachmentId)
-          setFileViewerOpen(true)
-          return
-        }
-      } catch {
-        console.log("Presigned URL failed for Office file, showing download message")
+      if (!presignedUrl) {
+        alert("Không thể tạo link xem trước.")
+        return
       }
 
-      setFileViewerUrl("")
-      setFileViewerName(fileName || "")
-      setFileViewerType(contentType || "")
-      setFileViewerAttachmentId(attachmentId)
-      setFileViewerOpen(true)
-      return
-    }
+      const isOfficeFile =
+        contentType?.toLowerCase().includes("word") ||
+        contentType?.toLowerCase().includes("excel") ||
+        contentType?.toLowerCase().includes("powerpoint") ||
+        contentType?.toLowerCase().includes("document") ||
+        contentType?.toLowerCase().includes("sheet") ||
+        contentType?.toLowerCase().includes("presentation")
 
-    try {
-      const downloadResponse = await MAIL_CONNECTOR_AXIOS.get(
-        `/api/v1/mail-messages/${messageId}/attachments/${attachmentId}/download`,
-        { responseType: "blob" }
-      )
-      const blob = new Blob([downloadResponse.data], {
-        type: contentType || "application/octet-stream",
-      })
-      const objectUrl = URL.createObjectURL(blob)
-      setFileViewerUrl(objectUrl)
+      if (isOfficeFile) {
+        const googleDocsUrl = `https://docs.google.com/viewer?url=${encodeURIComponent(presignedUrl)}&embedded=true`
+        setFileViewerUrl(googleDocsUrl)
+      } else {
+        setFileViewerUrl(presignedUrl)
+      }
+
       setFileViewerName(fileName || "")
       setFileViewerType(contentType || "")
       setFileViewerAttachmentId(attachmentId)
@@ -775,12 +829,6 @@ export default function EmailDetailPage() {
                 </button>
               </>
             )}
-            <Link
-              href={`/emails/${messageId}/extract`}
-              className="inline-flex items-center rounded-lg border border-primary/20 bg-primary/5 px-3 py-1.5 text-xs font-semibold text-primary hover:bg-primary/10"
-            >
-              Trích xuất
-            </Link>
           </div>
         </div>
       </section>
@@ -1086,6 +1134,32 @@ export default function EmailDetailPage() {
                     ) : (
                       <pre className="whitespace-pre-wrap font-sans">{msg.displayContent ?? msg.content}</pre>
                     )}
+
+                    {msg.result && (() => {
+                      try {
+                        const parsed = JSON.parse(msg.result) as Record<string, unknown>
+                        const fields = parsed.fields as Record<string, unknown> | undefined
+                        if (fields && typeof fields === "object" && !Array.isArray(fields)) {
+                          const filled = Object.entries(fields).filter(([, v]) => v !== null && v !== undefined && String(v).trim() !== "")
+                          if (filled.length > 0) {
+                            return (
+                              <div className="mt-1.5 rounded-lg border border-neutral-100 bg-neutral-50/70 p-2 space-y-1">
+                                <p className="text-[10px] font-medium uppercase tracking-wide text-neutral-500">Dữ liệu trích xuất</p>
+                                <div className="grid grid-cols-2 gap-x-3 gap-y-1">
+                                  {filled.map(([key, value]) => (
+                                    <div key={key} className="flex flex-col min-w-0">
+                                      <span className="text-[10px] text-neutral-400 truncate">{key}</span>
+                                      <span className="text-[11px] font-medium text-neutral-700 truncate">{String(value)}</span>
+                                    </div>
+                                  ))}
+                                </div>
+                              </div>
+                            )
+                          }
+                        }
+                      } catch {}
+                      return null
+                    })()}
                   </div>
 
                   {msg.role === "assistant" && (msg.totalTokens || msg.inputTokens || msg.outputTokens) && (

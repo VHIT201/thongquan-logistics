@@ -17,7 +17,7 @@ export interface SendMessageRequest {
   /** @nullable */
   responseFormat?: string | null;
   /** @nullable */
-  templateType?: string | null;
+  templateId?: string | null;
   tenantId?: string;
   createdBy?: string;
 }
