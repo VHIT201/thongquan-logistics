@@ -34,3 +34,13 @@ You can check out [the Next.js GitHub repository](https://github.com/vercel/next
 The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
 
 Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+
+## pnpm build scripts approval (pnpm v7+)
+
+If your build logs show warnings like "Ignored build scripts: esbuild@..., sharp@...", run the following locally to approve them and commit the lockfile changes before pushing:
+
+```bash
+pnpm approve-builds
+```
+
+This allows pnpm to accept post-install build scripts required by some native dependencies.
