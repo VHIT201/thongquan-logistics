@@ -3,16 +3,23 @@ stages:
   - deploy
 
 variables:
-  # 1. Đổi tên thư mục deploy cho đúng
   DEPLOY_DIR: "/opt/logistics-platform"
+  PNPM_STORE_PATH: ".pnpm-store"
+
+cache:
+  key: "${CI_COMMIT_REF_SLUG}"
+  paths:
+    - .pnpm-store/
 
 build:
   stage: build
   tags:
     - runner-vpd-que
-  script:
+  before_script:
     - corepack enable
     - corepack prepare pnpm@latest --activate
+    - pnpm config set store-dir $PNPM_STORE_PATH
+  script:
     - pnpm install --frozen-lockfile
     - pnpm run build
   artifacts:
@@ -30,30 +37,31 @@ deploy:
   stage: deploy
   tags:
     - runner-vpd-que
-  script:
-    # 1. Dọn dẹp tiến trình cũ
-    - pm2 delete logistics-platform || true
-    
-    # 2. Đảm bảo quyền sở hữu thư mục (Nếu bạn chạy Runner với quyền sudo, bỏ qua dòng này)
-    # Nếu bị lỗi permission, hãy đảm bảo user gitlab-runner có quyền ghi vào /opt
-    - sudo mkdir -p $DEPLOY_DIR
-    - sudo chown -R $USER:$USER $DEPLOY_DIR
-    
-    # 3. Copy artifact vào thư mục
-    - cp -r ./.next $DEPLOY_DIR/
-    - cp -r ./public $DEPLOY_DIR/
-    - cp package.json $DEPLOY_DIR/
-    - cp pnpm-lock.yaml $DEPLOY_DIR/
-    - cp ecosystem.config.js $DEPLOY_DIR/
-    
-    # 4. Cài đặt dependency và chạy
-    - cd $DEPLOY_DIR
+  dependencies:
+    - build
+  before_script:
     - corepack enable
     - corepack prepare pnpm@latest --activate
+    - pnpm config set store-dir $PNPM_STORE_PATH
+  script:
+    # 1. Chuẩn bị thư mục deploy (runner có sudo thì dùng, không có thì vẫn chạy tiếp)
+    - sudo -n mkdir -p $DEPLOY_DIR || mkdir -p $DEPLOY_DIR
+    - sudo -n chown -R "$(id -un)":"$(id -gn)" $DEPLOY_DIR || true
+
+    # 2. Copy artifact vào thư mục (xóa bản cũ trước để tránh file rác)
+    - rm -rf "$DEPLOY_DIR/.next" "$DEPLOY_DIR/public"
+    - cp -r ./.next "$DEPLOY_DIR/"
+    - cp -r ./public "$DEPLOY_DIR/"
+    - cp package.json "$DEPLOY_DIR/"
+    - cp pnpm-lock.yaml "$DEPLOY_DIR/"
+    - cp ecosystem.config.js "$DEPLOY_DIR/"
+
+    # 3. Cài đặt dependency production và chạy bằng PM2
+    - cd $DEPLOY_DIR
     - pnpm install --prod --frozen-lockfile
-    
-    # 5. Khởi động ứng dụng
-    - pm2 start ecosystem.config.js --env production
+
+    # 4. Start/reload idempotent
+    - pm2 startOrReload ecosystem.config.js --env production
     - pm2 save
     - pm2 status
   only:
