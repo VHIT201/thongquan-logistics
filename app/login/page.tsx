@@ -4,9 +4,9 @@ import { useState } from "react"
 import { useRouter } from "next/navigation"
 import { Mail, Shield, Clock, BarChart3, User, Lock } from "lucide-react"
 import Image from "next/image"
-import { login } from "@/lib/api"
 import { getErrorMessage } from "@/lib/get-error-message"
 import { useAuthStore } from "@/lib/stores/auth-store"
+import { useAuthLoginMutation } from "@/hooks/use-auth-queries"
 
 export default function LoginPage() {
   const router = useRouter()
@@ -17,15 +17,19 @@ export default function LoginPage() {
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
+  const loginMutation = useAuthLoginMutation()
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     setError(null)
     setLoading(true)
     try {
-      const res = await login(email, password)
-      const accessToken = res.data?.accessToken
-      const refreshToken = res.data?.refreshToken
-      const user = res.data?.user
+      const res = await loginMutation.mutateAsync({ email, password })
+      // API response wrapper: { data: { accessToken, user }, meta, errors }
+      const apiData = res?.data ?? res
+      const accessToken = apiData?.accessToken
+      const refreshToken = apiData?.refreshToken
+      const user = apiData?.user
       if (accessToken && user && typeof window !== "undefined") {
         localStorage.setItem("token", accessToken)
         if (refreshToken) localStorage.setItem("refreshToken", refreshToken)
@@ -163,7 +167,7 @@ export default function LoginPage() {
                 />
                 Ghi nhớ đăng nhập
               </label>
-              <a href="#" className="text-sm font-medium text-primary hover:text-primary-500">
+              <a href="/forgot-password" className="text-sm font-medium text-primary hover:text-primary-500 cursor-pointer">
                 Quên mật khẩu?
               </a>
             </div>

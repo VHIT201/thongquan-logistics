@@ -24,10 +24,13 @@ import {
   ClipboardList,
   Inbox,
   Webhook,
+  ClipboardCheck,
+  Monitor,
 } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { useAuth } from "@/hooks/use-auth"
 import { useAuthStore } from "@/lib/stores/auth-store"
+import { usePermissions } from "@/hooks/use-permission"
 import TourButton from "@/components/tour-button"
 import {
   Breadcrumb,
@@ -56,24 +59,8 @@ type NavItem = {
   href: string
   label: string
   icon: LucideIcon
+  permission?: string
 }
-
-const navItems: NavItem[] = [
-  { href: "/", label: "Dashboard", icon: LayoutDashboard },
-  { href: "/mail-accounts", label: "Tài khoản Email", icon: Inbox },
-  { href: "/emails", label: "Email", icon: Mail },
-  { href: "/analysis-results", label: "Kết quả AI", icon: ClipboardList },
-  // { href: "/webhooks", label: "Webhooks", icon: Webhook },
-  { href: "/reports", label: "Báo cáo", icon: BarChart3 },
-]
-
-const adminItems: NavItem[] = [
-  { href: "/admin", label: "Admin Tổng", icon: Shield },
-  { href: "/admin/users", label: "Tài khoản", icon: Users },
-  { href: "/admin/settings", label: "Cấu hình", icon: Settings },
-  { href: "/admin/logs", label: "Logs", icon: FileText },
-  { href: "/admin/templates", label: "Templates", icon: FileCode },
-]
 
 const getBreadcrumbItems = (pathname: string) => {
   if (pathname === "/") return [{ label: "Dashboard", href: "/" }]
@@ -153,7 +140,30 @@ const getBreadcrumbItems = (pathname: string) => {
         { label: "Templates", href: "#" },
       ]
     }
-
+    if (pathname.includes("/permissions")) {
+      return [
+        { label: "Quản trị", href: "#" },
+        { label: "Quyền hạn", href: "#" },
+      ]
+    }
+    if (pathname.includes("/roles")) {
+      return [
+        { label: "Quản trị", href: "#" },
+        { label: "Vai trò", href: "#" },
+      ]
+    }
+    if (pathname.includes("/assignments")) {
+      return [
+        { label: "Quản trị", href: "#" },
+        { label: "Phân công", href: "#" },
+      ]
+    }
+    if (pathname.includes("/ai-usage")) {
+      return [
+        { label: "Quản trị", href: "#" },
+        { label: "AI Usage", href: "#" },
+      ]
+    }
     return [{ label: "Quản trị", href: "#" }]
   }
 
@@ -182,6 +192,38 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
   const { logout } = useAuth()
   const authUser = useAuthStore((s) => s.user)
   const isAdmin = useAuthStore((s) => s.isAdmin)()
+  const { codes: apiPermissionCodes } = usePermissions([])
+
+  const userPermissions = apiPermissionCodes.length > 0
+    ? apiPermissionCodes
+    : (authUser?.permissions ?? [])
+
+  const baseNavItems: NavItem[] = [
+    { href: "/", label: "Dashboard", icon: LayoutDashboard },
+    { href: "/mail-accounts", label: "Tài khoản Email", icon: Inbox, permission: "mail.read" },
+    { href: "/analysis-results", label: "Kết quả AI", icon: ClipboardList, permission: "mail.read" },
+    { href: "/templates", label: "Templates", icon: FileCode },
+    { href: "/reports", label: "Báo cáo", icon: BarChart3, permission: "report.view" },
+    { href: "/sessions", label: "Quản lý phiên", icon: Monitor },
+  ]
+
+  const navItems: NavItem[] = [
+    ...baseNavItems.slice(0, 2),
+    { href: "/emails", label: "Email", icon: Mail, permission: "mail.read" },
+    ...baseNavItems.slice(2),
+  ]
+
+  const adminItems: NavItem[] = [
+    { href: "/admin", label: "Admin Tổng", icon: Shield },
+    { href: "/admin/users", label: "Tài khoản", icon: Users },
+    { href: "/admin/permissions", label: "Quyền hạn", icon: Shield },
+    { href: "/admin/roles", label: "Vai trò", icon: User },
+    { href: "/admin/assignments", label: "Phân công", icon: ClipboardCheck },
+    { href: "/admin/ai-usage", label: "AI Usage", icon: BarChart3 },
+    { href: "/admin/settings", label: "Cấu hình", icon: Settings },
+    { href: "/admin/logs", label: "Logs", icon: FileText },
+    { href: "/admin/templates", label: "Templates", icon: FileCode },
+  ]
 
   useEffect(() => {
     setMounted(true)
@@ -196,7 +238,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     if (!hasHydrated) return
     if (!isAdmin && pathname.startsWith("/admin")) {
-      router.replace("/user")
+      router.replace("/login")
     }
   }, [hasHydrated, isAdmin, pathname, router])
 
@@ -204,20 +246,15 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
     logout()
   }
 
+  const [navMounted, setNavMounted] = useState(false)
+  useEffect(() => {
+    setNavMounted(true)
+  }, [])
+
   const renderNavItem = (item: NavItem) => {
     const active = pathname === item.href || pathname.startsWith(item.href + "/")
-    const navItem = (
-      <Link
-        key={item.href}
-        href={item.href}
-        className={cn(
-          "group relative flex min-h-11 items-center gap-3 rounded-[10px] border border-transparent px-3 py-2.5 text-sm font-medium transition-all duration-200",
-          collapsed && "justify-center px-0",
-          active
-            ? "z-30 border-white/10 bg-white/10 text-white"
-            : "text-neutral-100 hover:bg-white/10 hover:text-white"
-        )}
-      >
+    const linkContent = (
+      <>
         {active && (
           <span
             aria-hidden
@@ -227,7 +264,6 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
             )}
           />
         )}
-
         <item.icon
           className={cn(
             "h-5 w-5 shrink-0",
@@ -235,8 +271,31 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
           )}
         />
         {!collapsed && <span>{item.label}</span>}
+      </>
+    )
 
-      </Link>
+    const linkClass = cn(
+      "group relative flex min-h-11 items-center gap-3 rounded-[10px] border border-transparent px-3 py-2.5 text-sm font-medium transition-all duration-200 cursor-pointer",
+      collapsed && "justify-center px-0",
+      active
+        ? "z-30 border-white/10 bg-white/10 text-white"
+        : "text-neutral-100 hover:bg-white/10 hover:text-white"
+    )
+
+    const handleNavClick = (e: React.MouseEvent<HTMLAnchorElement>) => {
+      e.preventDefault()
+      router.push(item.href)
+    }
+
+    const navItem = (
+      <a
+        key={item.href}
+        href={item.href}
+        {...(navMounted ? { onClick: handleNavClick } : {})}
+        className={linkClass}
+      >
+        {linkContent}
+      </a>
     )
 
     if (collapsed) {
@@ -278,7 +337,17 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
 
             <ScrollArea className="flex-1">
               <nav className="space-y-1.5 p-3">
-                {navItems.map(renderNavItem)}
+                {navItems.map((item) => {
+                  if (!navMounted) {
+                    return <a key={item.href} href={item.href} className="hidden" />
+                  }
+                  const hidden = isAdmin && item.label === "Email"
+                  const noPermission = item.permission && !userPermissions.includes(item.permission) && !isAdmin
+                  if (hidden || noPermission) {
+                    return <a key={item.href} href={item.href} className="hidden" />
+                  }
+                  return renderNavItem(item)
+                })}
 
                 {mounted && hasHydrated && isAdmin && (
                   <>
@@ -300,7 +369,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
                   <button
                     onClick={() => setCollapsed(!collapsed)}
                     className={cn(
-                      "flex min-h-11 w-full items-center gap-3 rounded-[10px] px-3 py-2.5 text-sm font-medium text-neutral-100 transition-all duration-200 hover:bg-white/10 hover:text-white",
+                      "flex min-h-11 w-full items-center gap-3 rounded-[10px] px-3 py-2.5 text-sm font-medium text-neutral-100 transition-all duration-200 hover:bg-white/10 hover:text-white cursor-pointer",
                       collapsed && "justify-center px-0"
                     )}
                   >
@@ -313,23 +382,6 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
                 </TooltipContent>
               </Tooltip>
 
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <button
-                    onClick={handleLogout}
-                    className={cn(
-                      "flex min-h-11 w-full items-center gap-3 rounded-[10px] px-3 py-2.5 text-sm font-medium text-accent transition-all duration-200 hover:bg-accent/10",
-                      collapsed && "justify-center px-0"
-                    )}
-                  >
-                    <LogOut className="h-5 w-5 shrink-0" />
-                    {!collapsed && "Đăng xuất"}
-                  </button>
-                </TooltipTrigger>
-                <TooltipContent side="right">
-                  <p>Đăng xuất</p>
-                </TooltipContent>
-              </Tooltip>
             </div>
           </aside>
 
@@ -344,7 +396,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
                         {index === breadcrumbItems.length - 1 ? (
                           <BreadcrumbPage className="text-neutral-300 font-medium">{item.label}</BreadcrumbPage>
                         ) : (
-                          <BreadcrumbLink href={item.href} className="hover:text-neutral-300 transition-colors">{item.label}</BreadcrumbLink>
+                          <BreadcrumbLink href={item.href} className="hover:text-neutral-300 transition-colors cursor-pointer">{item.label}</BreadcrumbLink>
                         )}
                       </BreadcrumbItem>
                     </React.Fragment>
@@ -355,7 +407,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
               <div className="flex items-center gap-3">
                 <DropdownMenu>
                   <DropdownMenuTrigger asChild>
-                    <button className="relative rounded-full bg-neutral-50 p-2.5 transition-colors hover:bg-neutral-100">
+                    <button className="relative rounded-full bg-neutral-50 p-2.5 transition-colors hover:bg-neutral-100 cursor-pointer">
                       <Bell className="h-5 w-5 text-neutral-300" />
                       <span className="absolute -top-0.5 -right-0.5 flex h-4 w-4 items-center justify-center rounded-full bg-accent text-[10px] font-bold text-white ring-2 ring-white">
                         3
@@ -405,7 +457,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
                       </div>
                     </DropdownMenuItem>
                     <DropdownMenuSeparator />
-                    <DropdownMenuItem className="justify-center text-primary">
+                    <DropdownMenuItem className="justify-center text-primary cursor-pointer">
                       Xem tất cả thông báo
                     </DropdownMenuItem>
                   </DropdownMenuContent>
@@ -413,7 +465,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
 
                 <DropdownMenu>
                   <DropdownMenuTrigger asChild>
-                    <button className="flex items-center gap-2.5 rounded-full border border-neutral-100 bg-white px-2 py-1.5 transition-colors hover:bg-neutral-50">
+                    <button className="flex items-center gap-2.5 rounded-full border border-neutral-100 bg-white px-2 py-1.5 transition-colors hover:bg-neutral-50 cursor-pointer">
                       <Avatar className="h-8 w-8">
                         <AvatarFallback className="bg-primary-50 text-primary text-xs font-semibold">
                           {authUser?.fullName
@@ -442,13 +494,21 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
                       </Link>
                     </DropdownMenuItem>
                     <DropdownMenuItem asChild>
-                      <Link href="/admin/settings" className="flex cursor-pointer items-center">
-                        <SettingsIcon className="mr-2 h-4 w-4 text-primary" />
-                        <span>Cài đặt</span>
+                      <Link href="/sessions" className="flex cursor-pointer items-center">
+                        <Monitor className="mr-2 h-4 w-4 text-primary" />
+                        <span>Quản lý phiên</span>
                       </Link>
                     </DropdownMenuItem>
+                    {isAdmin && (
+                      <DropdownMenuItem asChild>
+                        <Link href="/admin/settings" className="flex cursor-pointer items-center">
+                          <SettingsIcon className="mr-2 h-4 w-4 text-primary" />
+                          <span>Cài đặt hệ thống</span>
+                        </Link>
+                      </DropdownMenuItem>
+                    )}
                     <DropdownMenuSeparator />
-                    <DropdownMenuItem onClick={handleLogout} className="text-accent">
+                    <DropdownMenuItem onClick={handleLogout} className="text-accent cursor-pointer">
                       <LogOut className="mr-2 h-4 w-4" />
                       <span>Đăng xuất</span>
                     </DropdownMenuItem>

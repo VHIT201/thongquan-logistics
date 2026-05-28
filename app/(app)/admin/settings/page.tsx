@@ -1,4 +1,5 @@
 "use client"
+// ADMIN ROUTE: Cấu hình hệ thống (Gmail sync, AI prompt, thông báo) — chỉ admin
 
 import { Suspense, useMemo, useState } from "react"
 import { useSearchParams } from "next/navigation"
@@ -205,12 +206,12 @@ function SettingsContent() {
       const response = await oauthMutation.mutateAsync({ redirectUri, state })
 
       if (!response?.authUrl) {
-        throw new Error("Khong lay duoc duong dan OAuth.")
+        throw new Error("Không lấy được đường dẫn OAuth.")
       }
 
       window.location.href = response.authUrl
     } catch (error) {
-      setActionError(getErrorMessage(error, "Ket noi Gmail that bai."))
+      setActionError(getErrorMessage(error, "Kết nối Gmail thất bại."))
     }
   }
 
@@ -219,9 +220,9 @@ function SettingsContent() {
       setActionError(null)
       setActionMessage(null)
       await triggerSyncMutation.mutateAsync()
-      setActionMessage("Da gui yeu cau dong bo. He thong dang cap nhat trang thai.")
+      setActionMessage("Đã gửi yêu cầu đồng bộ. Hệ thống đang cập nhật trạng thái.")
     } catch (error) {
-      setActionError(getErrorMessage(error, "Khong the bat dau dong bo email."))
+      setActionError(getErrorMessage(error, "Không thể bắt đầu đồng bộ email."))
     }
   }
 
@@ -230,9 +231,9 @@ function SettingsContent() {
       setActionError(null)
       setActionMessage(null)
       await triggerSyncDirectMutation.mutateAsync()
-      setActionMessage("Da chay dong bo truc tiep thanh cong.")
+      setActionMessage("Đã chạy đồng bộ trực tiếp thành công.")
     } catch (error) {
-      setActionError(getErrorMessage(error, "Khong the chay dong bo truc tiep."))
+      setActionError(getErrorMessage(error, "Không thể chạy đồng bộ trực tiếp."))
     }
   }
 
@@ -243,7 +244,7 @@ function SettingsContent() {
 
   return (
     <div className="space-y-6">
-      <h1 className="text-2xl font-bold text-blue-900">Cau hinh He thong</h1>
+      <h1 className="text-2xl font-bold text-blue-900">Cấu hình Hệ thống</h1>
 
       <div
         id="tour-settings-gmail"
@@ -251,19 +252,19 @@ function SettingsContent() {
       >
         <div className="flex items-center gap-2">
           <Mail className="h-5 w-5 text-blue-600" />
-          <h2 className="text-lg font-semibold text-blue-900">Tai khoan Gmail</h2>
+          <h2 className="text-lg font-semibold text-blue-900">Tài khoản Gmail</h2>
         </div>
 
         {searchParams.get("connected") === "1" && (
           <div className="flex items-center gap-2 rounded-lg bg-green-50 p-3 text-sm text-green-700">
-            <CheckCircle className="h-4 w-4" /> Ket noi Gmail thanh cong.
+            <CheckCircle className="h-4 w-4" /> Kết nối Gmail thành công.
           </div>
         )}
 
         {accountsError && (
           <div className="flex items-center gap-2 rounded-lg bg-red-50 p-3 text-sm text-red-700">
             <AlertTriangle className="h-4 w-4" />
-            {getErrorMessage(accountsError, "Khong tai duoc danh sach tai khoan.")}
+            {getErrorMessage(accountsError, "Không tải được danh sách tài khoản.")}
           </div>
         )}
 
@@ -280,16 +281,16 @@ function SettingsContent() {
         )}
 
         {loadingAccounts ? (
-          <p className="text-sm text-blue-700">Dang tai tai khoan...</p>
+          <p className="text-sm text-blue-700">Đang tải tài khoản...</p>
         ) : activeAccount ? (
           <div className="space-y-3">
             <div className="flex items-center gap-2 rounded-lg bg-green-50 p-3 text-sm text-green-700">
-              <CheckCircle className="h-4 w-4" /> Da ket noi: {activeAccount.emailAddress}
+              <CheckCircle className="h-4 w-4" /> Đã kết nối: {activeAccount.emailAddress}
             </div>
             <div className="rounded-lg border border-blue-200 bg-blue-50/40 p-3 text-sm text-blue-700">
-              <p className="font-medium">Trang thai dong bo: {syncStatus || "idle"}</p>
+              <p className="font-medium">Trạng thái đồng bộ: {syncStatus || "idle"}</p>
               <p className="mt-1 text-xs text-blue-600">
-                Da dong bo: {syncStatusQuery.data?.syncedMessages ?? 0} /{" "}
+                Đã đồng bộ: {syncStatusQuery.data?.syncedMessages ?? 0} /{" "}
                 {syncStatusQuery.data?.totalMessages ?? 0}
               </p>
             </div>
@@ -300,7 +301,7 @@ function SettingsContent() {
                 className="flex items-center gap-2 rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-50"
               >
                 <RefreshCw className={cn("h-4 w-4", currentlySyncing && "animate-spin")} />
-                {currentlySyncing ? "Dang dong bo..." : "Dong bo ngay"}
+                {currentlySyncing ? "Đang đồng bộ..." : "Đồng bộ ngay"}
               </button>
               <button
                 onClick={handleSyncDirect}
@@ -310,7 +311,7 @@ function SettingsContent() {
                 <RefreshCw
                   className={cn("h-4 w-4", triggerSyncDirectMutation.isPending && "animate-spin")}
                 />
-                {triggerSyncDirectMutation.isPending ? "Dang sync direct..." : "Sync direct"}
+                {triggerSyncDirectMutation.isPending ? "Đang sync direct..." : "Sync direct"}
               </button>
             </div>
           </div>
@@ -321,7 +322,7 @@ function SettingsContent() {
             className="flex items-center gap-2 rounded-lg border border-blue-200 px-4 py-2 text-sm font-medium text-blue-700 hover:bg-blue-50 disabled:opacity-50"
           >
             <Mail className="h-4 w-4" />
-            {oauthMutation.isPending ? "Dang tao link OAuth..." : "Ket noi tai khoan Gmail"}
+            {oauthMutation.isPending ? "Đang tạo link OAuth..." : "Kết nối tài khoản Gmail"}
           </button>
         )}
       </div>
@@ -337,7 +338,7 @@ function SettingsContent() {
 
         <div>
           <label className="mb-1 block text-sm font-medium text-blue-700">
-            Prompt boc tach mac dinh
+            Prompt bóc tách mặc định
           </label>
           <textarea
             value={aiPrompt}
@@ -349,7 +350,7 @@ function SettingsContent() {
 
         <div>
           <label className="mb-1 block text-sm font-medium text-blue-700">
-            Pattern loc tieu de (Regex)
+            Pattern lọc tiêu đề (Regex)
           </label>
           <input
             type="text"
@@ -357,7 +358,7 @@ function SettingsContent() {
             className="w-full rounded-lg border border-blue-200 px-3 py-2 text-sm outline-none focus:border-blue-500 bg-blue-50/50 focus:bg-white transition-colors"
           />
           <p className="mt-1 text-xs text-blue-500">
-            Chi xu ly email co tieu de khop voi pattern nay
+            Chỉ xử lý email có tiêu đề khớp với pattern này
           </p>
         </div>
 
@@ -365,8 +366,8 @@ function SettingsContent() {
           onClick={handleSavePrompt}
           className="flex items-center gap-2 rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700"
         >
-          {saved ? <CheckCircle className="h-4 w-4" /> : "Luu cau hinh"}
-          {saved && " Da luu"}
+          {saved ? <CheckCircle className="h-4 w-4" /> : "Lưu cấu hình"}
+          {saved && " Đã lưu"}
         </button>
 
         <div className="rounded-lg border border-blue-200 bg-blue-50/40 p-4 space-y-3">
@@ -376,14 +377,14 @@ function SettingsContent() {
           </div>
 
           {(aiUsersCurrentMonthQuery.isPending || aiUsersQuery.isPending) && (
-            <p className="text-sm text-blue-700">Dang tai usage...</p>
+            <p className="text-sm text-blue-700">Đang tải usage...</p>
           )}
 
           {(aiUsersCurrentMonthQuery.error || aiUsersQuery.error) && (
             <p className="text-sm text-red-700">
               {getErrorMessage(
                 aiUsersCurrentMonthQuery.error || aiUsersQuery.error,
-                "Khong tai duoc OpenAI usage."
+                "Không tải được OpenAI usage."
               )}
             </p>
           )}
@@ -394,19 +395,19 @@ function SettingsContent() {
             !aiUsersQuery.error && (
               <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
                 <div className="rounded-lg border border-blue-100 bg-white p-3">
-                  <p className="text-xs text-blue-600">Requests thang nay</p>
+                  <p className="text-xs text-blue-600">Requests tháng này</p>
                   <p className="text-lg font-semibold text-blue-900">
                     {monthUsageSummary.totalRequests.toLocaleString("vi-VN")}
                   </p>
                 </div>
                 <div className="rounded-lg border border-blue-100 bg-white p-3">
-                  <p className="text-xs text-blue-600">Tokens thang nay</p>
+                  <p className="text-xs text-blue-600">Tokens tháng này</p>
                   <p className="text-lg font-semibold text-blue-900">
                     {monthUsageSummary.totalTokens.toLocaleString("vi-VN")}
                   </p>
                 </div>
                 <div className="rounded-lg border border-blue-100 bg-white p-3">
-                  <p className="text-xs text-blue-600">Cost thang nay (USD)</p>
+                  <p className="text-xs text-blue-600">Cost tháng này (USD)</p>
                   <p className="text-lg font-semibold text-blue-900">
                     {monthUsageSummary.totalCost.toLocaleString("en-US", {
                       maximumFractionDigits: 4,
@@ -416,7 +417,7 @@ function SettingsContent() {
                 <div className="rounded-lg border border-blue-100 bg-white p-3">
                   <div className="flex items-center gap-1 text-xs text-blue-600">
                     <Users className="h-3 w-3" />
-                    User co usage (all-time)
+                    User có usage (all-time)
                   </div>
                   <p className="text-lg font-semibold text-blue-900">
                     {totalUsageSummary.activeUsers.toLocaleString("vi-VN")}
@@ -432,7 +433,7 @@ function SettingsContent() {
 
 export default function SettingsPage() {
   return (
-    <Suspense fallback={<div className="text-sm text-blue-700">Dang tai...</div>}>
+    <Suspense fallback={<div className="text-sm text-blue-700">Đang tải...</div>}>
       <SettingsContent />
     </Suspense>
   )

@@ -6,6 +6,7 @@ import { getLogisticsPlatformAPI } from "@/lib/generated/mail-connector/endpoint
 import type { CreateTemplateRequest } from "@/lib/generated/mail-connector/model/createTemplateRequest"
 import type { CreateWebhookSubscriptionRequest } from "@/lib/generated/mail-connector/model/createWebhookSubscriptionRequest"
 import type { GetApiV1AiOpenaiUsageUserUserIdParams } from "@/lib/generated/mail-connector/model/getApiV1AiOpenaiUsageUserUserIdParams"
+import type { GetApiV1AiOpenaiUsageParams } from "@/lib/generated/mail-connector/model/getApiV1AiOpenaiUsageParams"
 import type { GetApiV1AiOpenaiUsageUsersParams } from "@/lib/generated/mail-connector/model/getApiV1AiOpenaiUsageUsersParams"
 import type { GetApiV1MailAnalysisResultsParams } from "@/lib/generated/mail-connector/model/getApiV1MailAnalysisResultsParams"
 import type { GetApiV1MailMessagesParams } from "@/lib/generated/mail-connector/model/getApiV1MailMessagesParams"
@@ -81,6 +82,9 @@ export const mailQueryKeys = {
   aiUsageUsers: (params?: GetApiV1AiOpenaiUsageUsersParams) =>
     ["ai-openai-usage-users", params] as const,
   aiUsageUsersCurrentMonth: ["ai-openai-usage-users-current-month"] as const,
+  aiUsage: (params?: GetApiV1AiOpenaiUsageParams) => ["ai-openai-usage", params] as const,
+  aiUsageCurrentMonth: ["ai-openai-usage-current-month"] as const,
+  processingJobs: (messageId: string) => ["mail-processing-jobs", messageId] as const,
 }
 
 export function useMailAccountsQuery() {
@@ -167,10 +171,14 @@ export function useTriggerSyncDirectMutation(accountId: string | null) {
 
   return useMutation({
     mutationFn: () =>
-      mailApi.postApiV1MailAccountsIdSyncDirect(accountId as string, {
-        syncType: "MANUAL_RESYNC",
-        folderIds: ["INBOX"],
-      }),
+      mailApi.postApiV1MailAccountsIdSyncDirect(
+        accountId as string,
+        {
+          syncType: "MANUAL_RESYNC",
+          folderIds: ["INBOX"],
+        },
+        { params: { downloadAttachments: true } }
+      ),
     onSuccess: () => {
       if (accountId) {
         void queryClient.invalidateQueries({ queryKey: mailQueryKeys.syncStatus(accountId) })
@@ -205,7 +213,6 @@ export function useMailMessagesQuery(params: {
 
   return useQuery({
     queryKey: mailQueryKeys.messages(queryParams),
-    enabled: Boolean(params.accountId),
     queryFn: () => mailApi.getApiV1MailMessages(queryParams),
   })
 }
@@ -590,6 +597,94 @@ export function useAiOpenaiUsageUsersCurrentMonthQuery() {
     queryFn: async () => {
       const response = await mailApi.getApiV1AiOpenaiUsageUsersCurrentMonth()
       return response.data as unknown
+    },
+  })
+}
+
+export function useAiOpenaiUsageQuery(params?: GetApiV1AiOpenaiUsageParams) {
+  return useQuery({
+    queryKey: mailQueryKeys.aiUsage(params),
+    queryFn: async () => {
+      const response = await mailApi.getApiV1AiOpenaiUsage(params)
+      return response.data as unknown
+    },
+  })
+}
+
+export function useAiOpenaiUsageCurrentMonthQuery() {
+  return useQuery({
+    queryKey: mailQueryKeys.aiUsageCurrentMonth,
+    queryFn: async () => {
+      const response = await mailApi.getApiV1AiOpenaiUsageCurrentMonth()
+      return response.data as unknown
+    },
+  })
+}
+
+export function useTriggerPipelineMutation() {
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: async (messageId: string) => {
+      const response = await mailApi.postApiV1MailMessagesIdTriggerPipeline(messageId)
+      return response.data
+    },
+    onSuccess: (_, messageId) => {
+      void queryClient.invalidateQueries({ queryKey: mailQueryKeys.message(messageId) })
+      void queryClient.invalidateQueries({ queryKey: mailQueryKeys.processingJobs(messageId) })
+    },
+  })
+}
+
+export function useNormalizeMailMutation() {
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: async (messageId: string) => {
+      const response = await mailApi.postApiV1MailMessagesIdNormalize(messageId)
+      return response.data
+    },
+    onSuccess: (_, messageId) => {
+      void queryClient.invalidateQueries({ queryKey: mailQueryKeys.message(messageId) })
+    },
+  })
+}
+
+export function useClassifyMailMutation() {
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: async (messageId: string) => {
+      const response = await mailApi.postApiV1MailMessagesIdClassify(messageId)
+      return response.data
+    },
+    onSuccess: (_, messageId) => {
+      void queryClient.invalidateQueries({ queryKey: mailQueryKeys.message(messageId) })
+    },
+  })
+}
+
+export function useExtractMailMutation() {
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: async (messageId: string) => {
+      const response = await mailApi.postApiV1MailMessagesIdExtract(messageId)
+      return response.data
+    },
+    onSuccess: (_, messageId) => {
+      void queryClient.invalidateQueries({ queryKey: mailQueryKeys.message(messageId) })
+    },
+  })
+}
+
+export function useMailMessageProcessingJobsQuery(messageId: string | null) {
+  return useQuery({
+    queryKey: messageId ? mailQueryKeys.processingJobs(messageId) : ["mail-processing-jobs", "none"],
+    enabled: Boolean(messageId),
+    queryFn: async () => {
+      const response = await mailApi.getApiV1MailMessagesIdProcessingJobs(messageId)
+      return response.data
     },
   })
 }

@@ -1,4 +1,5 @@
 "use client"
+// USER ROUTE: Quản lý tài khoản email — user quản lý kết nối tài khoản mail
 
 import { Suspense, useState } from "react"
 import { useRouter } from "next/navigation"

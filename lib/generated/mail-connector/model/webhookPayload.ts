@@ -7,10 +7,8 @@
 
 export interface WebhookPayload {
   /** @nullable */
-  event?: string | null;
+  eventType?: string | null;
   eventId?: string;
-  occurredAt?: string;
-  /** @nullable */
-  correlationId?: string | null;
+  timestamp?: string;
   data?: unknown;
 }

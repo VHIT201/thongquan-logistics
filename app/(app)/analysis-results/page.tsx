@@ -1,4 +1,5 @@
 "use client"
+// USER ROUTE: Xem kết quả AI xử lý email (phân loại, trích xuất) — user
 
 import { useState } from "react"
 import Link from "next/link"

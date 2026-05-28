@@ -1,4 +1,5 @@
 "use client"
+// USER ROUTE: Hồ sơ cá nhân — user quản lý thông tin và đổi mật khẩu
 
 import { useState } from "react"
 import {

@@ -1,4 +1,5 @@
 "use client"
+// ADMIN ROUTE: Quản lý tài khoản người dùng — chỉ admin
 
 import { useState } from "react"
 import {
@@ -40,6 +41,7 @@ import {
   useDeleteUserMutation,
   useRestoreUserMutation,
   useResetUserPasswordMutation,
+  useUserPermissionsQuery,
   type UserDto,
 } from "@/hooks/use-user-queries"
 
@@ -138,6 +140,60 @@ const buildUsageSummary = (value: unknown): UsageSummary => {
       return accumulator
     },
     { totalRequests: 0, totalTokens: 0, totalCost: 0 }
+  )
+}
+
+type PermissionItem = {
+  id?: string
+  code?: string
+  name?: string
+  module?: string
+}
+
+function UserPermissionsSection({ userId }: { userId: string }) {
+  const permissionsQuery = useUserPermissionsQuery(userId)
+
+  const permissions: PermissionItem[] = (() => {
+    const raw = permissionsQuery.data
+    if (Array.isArray(raw)) return raw as PermissionItem[]
+    if (raw && typeof raw === "object" && "data" in raw) {
+      const d = raw as Record<string, unknown>
+      if (Array.isArray(d.data)) return d.data as PermissionItem[]
+    }
+    return []
+  })()
+
+  const grouped = permissions.reduce<Record<string, PermissionItem[]>>((acc, item) => {
+    const mod = item.module ?? "khác"
+    if (!acc[mod]) acc[mod] = []
+    acc[mod].push(item)
+    return acc
+  }, {})
+
+  return (
+    <div className="space-y-2 rounded-lg border border-neutral-100 bg-neutral-50 p-3">
+      <Label className="text-neutral-300">Quyền hạn</Label>
+      {permissionsQuery.isPending && (
+        <p className="text-xs text-neutral-200">Đang tải...</p>
+      )}
+      {!permissionsQuery.isPending && permissions.length === 0 && (
+        <p className="text-xs text-neutral-200">Không có quyền nào.</p>
+      )}
+      <div className="space-y-2">
+        {Object.entries(grouped).map(([module, items]) => (
+          <div key={module}>
+            <p className="text-[10px] font-semibold uppercase tracking-wide text-neutral-400">{module}</p>
+            <div className="flex flex-wrap gap-1 mt-1">
+              {items.map((item, i) => (
+                <Badge key={i} variant="outline" className="bg-white text-[10px] text-neutral-600">
+                  {item.code ?? "—"}
+                </Badge>
+              ))}
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
   )
 }
 
@@ -591,6 +647,9 @@ export default function AdminUsersPage() {
               />
               <Label className="mb-0 text-neutral-300">Kích hoạt tài khoản</Label>
             </div>
+            {modalMode === "edit" && selectedUser && (
+              <UserPermissionsSection userId={selectedUser.id} />
+            )}
             <div className="flex justify-end gap-2 pt-2">
               <Button variant="outline" onClick={() => setModalOpen(false)}>
                 Hủy

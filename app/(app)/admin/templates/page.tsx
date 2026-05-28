@@ -1,4 +1,5 @@
 "use client"
+// ADMIN ROUTE: Quản lý template nhận diện và bóc tách email — chỉ admin
 
 import { useMemo, useState } from "react"
 import Link from "next/link"

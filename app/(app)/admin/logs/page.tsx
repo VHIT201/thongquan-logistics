@@ -1,4 +1,5 @@
 "use client"
+// ADMIN ROUTE: Xem logs và lỗi hệ thống — chỉ admin
 
 import { useState } from "react"
 import { AlertTriangle, Info, XCircle, Filter } from "lucide-react"

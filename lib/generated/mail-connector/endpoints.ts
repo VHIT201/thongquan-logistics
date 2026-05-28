@@ -7,14 +7,17 @@
 import type {
   ApproveRequest,
   AssignPermissionsRequest,
+  AssignRequest,
   BatchCompleteUploadRequest,
   BatchDownloadUrlRequest,
   BatchInitiateUploadRequest,
   ChangePasswordRequest,
   CompleteRequest,
   ConfirmPasswordResetCommand,
+  ConfirmRequest,
   ConnectAccountRequest,
   CreateAnalysisResultRequest,
+  CreateConversationRequest,
   CreateMailAccountRequest,
   CreatePermissionRequest,
   CreateRoleRequest,
@@ -24,6 +27,8 @@ import type {
   DocumentProcessingRequest,
   ExchangeTokenRequest,
   ExecuteImportRequest,
+  GetApiV1AiChatConversationsByEntityParams,
+  GetApiV1AiChatConversationsParams,
   GetApiV1AiOpenaiUsageParams,
   GetApiV1AiOpenaiUsageUserUserIdParams,
   GetApiV1AiOpenaiUsageUsersParams,
@@ -42,6 +47,8 @@ import type {
   GetApiV1WebhookSubscriptionsParams,
   GetOauthCallbackParams,
   InitiateUploadRequest,
+  LinkAttachmentRequest,
+  LinkEntityRequest,
   LoginCommand,
   LogoutAllRequest,
   LogoutCommand,
@@ -50,18 +57,19 @@ import type {
   PreviewImportRequest,
   ProcessMultipleDocumentsRequest,
   ReassignRequest,
-  RefreshLockRequest,
   RefreshMailTokenRequest,
   RefreshTokenCommand,
   RejectRequest,
   ResetPasswordRequest,
   ReviewRequest,
   RevokeSessionRequest,
+  SendMessageRequest,
   SendPasswordResetOtpCommand,
   TestWebhookRequest,
   TriggerSyncDto,
   UnassignRequest,
   UpdateAnalysisResultFieldsRequest,
+  UpdateConversationRequest,
   UpdateFileMetadataRequest,
   UpdateMailAccountDto,
   UpdatePermissionRequest,
@@ -211,6 +219,37 @@ const getApiAttachmentReviewsMailConnectorAttachmentId = (
       options);
     }
   
+const postApiV1AiChatConversationsConversationIdAttachments = (
+    conversationId: string,
+    linkAttachmentRequest: BodyType<LinkAttachmentRequest>,
+ options?: SecondParameter<typeof mailConnectorInstance<void>>,) => {
+      return mailConnectorInstance<void>(
+      {url: `/api/v1/ai-chat/conversations/${conversationId}/attachments`, method: 'POST',
+      headers: {'Content-Type': 'application/json', },
+      data: linkAttachmentRequest
+    },
+      options);
+    }
+  
+const getApiV1AiChatConversationsConversationIdAttachments = (
+    conversationId: string,
+ options?: SecondParameter<typeof mailConnectorInstance<void>>,) => {
+      return mailConnectorInstance<void>(
+      {url: `/api/v1/ai-chat/conversations/${conversationId}/attachments`, method: 'GET'
+    },
+      options);
+    }
+  
+const deleteApiV1AiChatConversationsConversationIdAttachmentsId = (
+    conversationId: string,
+    id: string,
+ options?: SecondParameter<typeof mailConnectorInstance<void>>,) => {
+      return mailConnectorInstance<void>(
+      {url: `/api/v1/ai-chat/conversations/${conversationId}/attachments/${id}`, method: 'DELETE'
+    },
+      options);
+    }
+  
 const postApiV1AuthLogin = (
     loginCommand: BodyType<LoginCommand>,
  options?: SecondParameter<typeof mailConnectorInstance<void>>,) => {
@@ -294,6 +333,109 @@ const postApiV1AuthForgotPasswordConfirmReset = (
       {url: `/api/v1/auth/forgot-password/confirm-reset`, method: 'POST',
       headers: {'Content-Type': 'application/json', },
       data: confirmPasswordResetCommand
+    },
+      options);
+    }
+  
+const getApiV1AiChatConversationsConversationIdMessages = (
+    conversationId: string,
+ options?: SecondParameter<typeof mailConnectorInstance<void>>,) => {
+      return mailConnectorInstance<void>(
+      {url: `/api/v1/ai-chat/conversations/${conversationId}/messages`, method: 'GET'
+    },
+      options);
+    }
+  
+const postApiV1AiChatConversationsConversationIdMessages = (
+    conversationId: string,
+    sendMessageRequest: BodyType<SendMessageRequest>,
+ options?: SecondParameter<typeof mailConnectorInstance<void>>,) => {
+      return mailConnectorInstance<void>(
+      {url: `/api/v1/ai-chat/conversations/${conversationId}/messages`, method: 'POST',
+      headers: {'Content-Type': 'application/json', },
+      data: sendMessageRequest
+    },
+      options);
+    }
+  
+const postApiV1AiChatConversations = (
+    createConversationRequest: BodyType<CreateConversationRequest>,
+ options?: SecondParameter<typeof mailConnectorInstance<void>>,) => {
+      return mailConnectorInstance<void>(
+      {url: `/api/v1/ai-chat/conversations`, method: 'POST',
+      headers: {'Content-Type': 'application/json', },
+      data: createConversationRequest
+    },
+      options);
+    }
+  
+const getApiV1AiChatConversations = (
+    params?: GetApiV1AiChatConversationsParams,
+ options?: SecondParameter<typeof mailConnectorInstance<void>>,) => {
+      return mailConnectorInstance<void>(
+      {url: `/api/v1/ai-chat/conversations`, method: 'GET',
+        params
+    },
+      options);
+    }
+  
+const getApiV1AiChatConversationsId = (
+    id: string,
+ options?: SecondParameter<typeof mailConnectorInstance<void>>,) => {
+      return mailConnectorInstance<void>(
+      {url: `/api/v1/ai-chat/conversations/${id}`, method: 'GET'
+    },
+      options);
+    }
+  
+const putApiV1AiChatConversationsId = (
+    id: string,
+    updateConversationRequest: BodyType<UpdateConversationRequest>,
+ options?: SecondParameter<typeof mailConnectorInstance<void>>,) => {
+      return mailConnectorInstance<void>(
+      {url: `/api/v1/ai-chat/conversations/${id}`, method: 'PUT',
+      headers: {'Content-Type': 'application/json', },
+      data: updateConversationRequest
+    },
+      options);
+    }
+  
+const deleteApiV1AiChatConversationsId = (
+    id: string,
+ options?: SecondParameter<typeof mailConnectorInstance<void>>,) => {
+      return mailConnectorInstance<void>(
+      {url: `/api/v1/ai-chat/conversations/${id}`, method: 'DELETE'
+    },
+      options);
+    }
+  
+const getApiV1AiChatConversationsByEntity = (
+    params?: GetApiV1AiChatConversationsByEntityParams,
+ options?: SecondParameter<typeof mailConnectorInstance<void>>,) => {
+      return mailConnectorInstance<void>(
+      {url: `/api/v1/ai-chat/conversations/by-entity`, method: 'GET',
+        params
+    },
+      options);
+    }
+  
+const postApiV1AiChatConversationsIdArchive = (
+    id: string,
+ options?: SecondParameter<typeof mailConnectorInstance<void>>,) => {
+      return mailConnectorInstance<void>(
+      {url: `/api/v1/ai-chat/conversations/${id}/archive`, method: 'POST'
+    },
+      options);
+    }
+  
+const postApiV1AiChatConversationsIdLinkEntity = (
+    id: string,
+    linkEntityRequest: BodyType<LinkEntityRequest>,
+ options?: SecondParameter<typeof mailConnectorInstance<void>>,) => {
+      return mailConnectorInstance<void>(
+      {url: `/api/v1/ai-chat/conversations/${id}/link-entity`, method: 'POST',
+      headers: {'Content-Type': 'application/json', },
+      data: linkEntityRequest
     },
       options);
     }
@@ -668,98 +810,101 @@ const postApiV1MailAccountsIdSyncDirect = (
       options);
     }
   
-const postApiMailAssignmentsMailConnectorMessageIdAssign = (
+const postApiV1MailAssignmentsMailConnectorMessageIdAssign = (
     mailConnectorMessageId: string,
+    assignRequest: BodyType<AssignRequest>,
  options?: SecondParameter<typeof mailConnectorInstance<void>>,) => {
       return mailConnectorInstance<void>(
-      {url: `/api/mail-assignments/${mailConnectorMessageId}/assign`, method: 'POST'
+      {url: `/api/v1/mail-assignments/${mailConnectorMessageId}/assign`, method: 'POST',
+      headers: {'Content-Type': 'application/json', },
+      data: assignRequest
     },
       options);
     }
   
-const deleteApiMailAssignmentsMailConnectorMessageIdUnassign = (
+const deleteApiV1MailAssignmentsMailConnectorMessageIdUnassign = (
     mailConnectorMessageId: string,
     unassignRequest: BodyType<UnassignRequest>,
  options?: SecondParameter<typeof mailConnectorInstance<void>>,) => {
       return mailConnectorInstance<void>(
-      {url: `/api/mail-assignments/${mailConnectorMessageId}/unassign`, method: 'DELETE',
+      {url: `/api/v1/mail-assignments/${mailConnectorMessageId}/unassign`, method: 'DELETE',
       headers: {'Content-Type': 'application/json', },
       data: unassignRequest
     },
       options);
     }
   
-const getApiMailAssignmentsMy = (
+const getApiV1MailAssignmentsMy = (
     
  options?: SecondParameter<typeof mailConnectorInstance<void>>,) => {
       return mailConnectorInstance<void>(
-      {url: `/api/mail-assignments/my`, method: 'GET'
+      {url: `/api/v1/mail-assignments/my`, method: 'GET'
     },
       options);
     }
   
-const getApiMailAssignmentsMailConnectorMessageIdStatus = (
+const getApiV1MailAssignmentsMailConnectorMessageIdStatus = (
     mailConnectorMessageId: string,
  options?: SecondParameter<typeof mailConnectorInstance<void>>,) => {
       return mailConnectorInstance<void>(
-      {url: `/api/mail-assignments/${mailConnectorMessageId}/status`, method: 'GET'
+      {url: `/api/v1/mail-assignments/${mailConnectorMessageId}/status`, method: 'GET'
     },
       options);
     }
   
-const putApiMailAssignmentsMailConnectorMessageIdStatus = (
+const putApiV1MailAssignmentsMailConnectorMessageIdStatus = (
     mailConnectorMessageId: string,
     updateStatusRequest: BodyType<UpdateStatusRequest>,
  options?: SecondParameter<typeof mailConnectorInstance<void>>,) => {
       return mailConnectorInstance<void>(
-      {url: `/api/mail-assignments/${mailConnectorMessageId}/status`, method: 'PUT',
+      {url: `/api/v1/mail-assignments/${mailConnectorMessageId}/status`, method: 'PUT',
       headers: {'Content-Type': 'application/json', },
       data: updateStatusRequest
     },
       options);
     }
   
-const postApiMailAssignmentsMailConnectorMessageIdReassign = (
+const postApiV1MailAssignmentsMailConnectorMessageIdReassign = (
     mailConnectorMessageId: string,
     reassignRequest: BodyType<ReassignRequest>,
  options?: SecondParameter<typeof mailConnectorInstance<void>>,) => {
       return mailConnectorInstance<void>(
-      {url: `/api/mail-assignments/${mailConnectorMessageId}/reassign`, method: 'POST',
+      {url: `/api/v1/mail-assignments/${mailConnectorMessageId}/reassign`, method: 'POST',
       headers: {'Content-Type': 'application/json', },
       data: reassignRequest
     },
       options);
     }
   
-const postApiMailAssignmentsMailConnectorMessageIdComplete = (
+const postApiV1MailAssignmentsMailConnectorMessageIdConfirm = (
+    mailConnectorMessageId: string,
+    confirmRequest: BodyType<ConfirmRequest>,
+ options?: SecondParameter<typeof mailConnectorInstance<void>>,) => {
+      return mailConnectorInstance<void>(
+      {url: `/api/v1/mail-assignments/${mailConnectorMessageId}/confirm`, method: 'POST',
+      headers: {'Content-Type': 'application/json', },
+      data: confirmRequest
+    },
+      options);
+    }
+  
+const postApiV1MailAssignmentsMailConnectorMessageIdComplete = (
     mailConnectorMessageId: string,
     completeRequest: BodyType<CompleteRequest>,
  options?: SecondParameter<typeof mailConnectorInstance<void>>,) => {
       return mailConnectorInstance<void>(
-      {url: `/api/mail-assignments/${mailConnectorMessageId}/complete`, method: 'POST',
+      {url: `/api/v1/mail-assignments/${mailConnectorMessageId}/complete`, method: 'POST',
       headers: {'Content-Type': 'application/json', },
       data: completeRequest
     },
       options);
     }
   
-const postApiMailAssignmentsMailConnectorMessageIdRefreshLock = (
-    mailConnectorMessageId: string,
-    refreshLockRequest: BodyType<RefreshLockRequest>,
- options?: SecondParameter<typeof mailConnectorInstance<void>>,) => {
-      return mailConnectorInstance<void>(
-      {url: `/api/mail-assignments/${mailConnectorMessageId}/refresh-lock`, method: 'POST',
-      headers: {'Content-Type': 'application/json', },
-      data: refreshLockRequest
-    },
-      options);
-    }
-  
-const getApiMailAssignmentsByStatusStatus = (
+const getApiV1MailAssignmentsByStatusStatus = (
     status: string,
  options?: SecondParameter<typeof mailConnectorInstance<void>>,) => {
       return mailConnectorInstance<void>(
-      {url: `/api/mail-assignments/by-status/${status}`, method: 'GET'
+      {url: `/api/v1/mail-assignments/by-status/${status}`, method: 'GET'
     },
       options);
     }
@@ -1471,7 +1616,7 @@ const postApiV1WebhookSubscriptionsIdTest = (
       options);
     }
   
-return {getApiV1AiOpenaiUsage,getApiV1AiOpenaiUsageCurrentMonth,getApiV1AiOpenaiUsageUserUserId,getApiV1AiOpenaiUsageUserUserIdCurrentMonth,getApiV1AiOpenaiUsageUsers,getApiV1AiOpenaiUsageUsersCurrentMonth,putApiAttachmentReviewsMailConnectorAttachmentIdApprove,putApiAttachmentReviewsMailConnectorAttachmentIdReject,getApiAttachmentReviewsByMessageMailConnectorMessageId,getApiAttachmentReviewsByStatusStatus,getApiAttachmentReviewsMy,postApiAttachmentReviewsMailConnectorAttachmentIdReset,getApiAttachmentReviewsMailConnectorAttachmentId,postApiV1AuthLogin,postApiV1AuthRefresh,postApiV1AuthLogout,getApiV1AuthSessions,postApiV1AuthSessionsIdRevoke,postApiV1AuthLogoutAll,postApiV1AuthForgotPasswordSendOtp,postApiV1AuthForgotPasswordConfirmReset,postApiV1DocumentProcessorProcess,postApiV1DocumentProcessorProcessMultiple,getApiV1MailAnalysisResults,postApiV1MailAnalysisResults,getApiV1MailAnalysisResultsId,putApiV1MailAnalysisResultsIdFields,postApiImportUpload,postApiImportValidateMapping,postApiImportPreview,postApiImportExecute,getApiImportHistory,getApiImportSchema,postApiV1FilesInitiateUpload,postApiV1FilesIdCompleteUpload,postApiV1FilesIdAbortUpload,getApiV1Files,getApiV1FilesId,deleteApiV1FilesId,getApiV1FilesIdDownloadUrl,getApiV1FilesQuota,postApiV1FilesBatchInitiateUpload,postApiV1FilesBatchCompleteUpload,patchApiV1FilesIdMetadata,postApiV1FilesIdRestore,postApiV1FilesBatchDownloadUrl,getApiV1MailAccounts,postApiV1MailAccounts,getApiV1MailAccountsId,putApiV1MailAccountsId,deleteApiV1MailAccountsId,postApiV1MailAccountsConnect,getApiV1MailAccountsIdSyncStatus,postApiV1MailAccountsIdSync,postApiV1MailAccountsIdSyncDirect,postApiMailAssignmentsMailConnectorMessageIdAssign,deleteApiMailAssignmentsMailConnectorMessageIdUnassign,getApiMailAssignmentsMy,getApiMailAssignmentsMailConnectorMessageIdStatus,putApiMailAssignmentsMailConnectorMessageIdStatus,postApiMailAssignmentsMailConnectorMessageIdReassign,postApiMailAssignmentsMailConnectorMessageIdComplete,postApiMailAssignmentsMailConnectorMessageIdRefreshLock,getApiMailAssignmentsByStatusStatus,postApiV1MailAuthOauthUrl,postApiV1MailAuthExchangeToken,postApiV1MailAuthRefreshToken,getApiV1MailMessages,getApiV1MailMessagesId,getApiV1MailMessagesIdAttachments,getApiV1MailMessagesMessageIdAttachmentsAttachmentIdDownload,getApiV1MailMessagesMessageIdAttachmentsAttachmentIdContent,getApiV1MailMessagesMessageIdAttachmentsAttachmentIdExtractText,getApiV1MailMessagesMessageIdAttachmentsAttachmentIdPreview,getApiV1MailMessagesMessageIdAttachmentsAttachmentIdPresignedUrl,getApiV1MailMessagesMessageIdAttachmentsAttachmentIdProxy,postApiV1MailMessagesIdProcess,postApiV1MailMessagesIdTriggerPipeline,postApiV1MailMessagesIdNormalize,postApiV1MailMessagesIdClassify,postApiV1MailMessagesIdExtract,getApiV1MailMessagesIdProcessingJobs,getApiV1MailTemplates,postApiV1MailTemplates,getApiV1MailTemplatesId,putApiV1MailTemplatesId,deleteApiV1MailTemplatesId,getOauthCallback,getApiV1OrderDrafts,getApiV1OrderDraftsId,postApiV1OrderDraftsIdApproveL1,postApiV1OrderDraftsIdRejectL1,postApiV1OrderDraftsIdConfirm,postApiV1OrderDraftsIdReject,getApiV1OrderDraftsExport,getApiV1Permissions,postApiV1Permissions,getApiV1PermissionsModules,getApiV1PermissionsId,putApiV1PermissionsId,deleteApiV1PermissionsId,postApiV1PermissionsIdRestore,getApiV1Roles,postApiV1Roles,getApiV1RolesId,putApiV1RolesId,deleteApiV1RolesId,postApiV1RolesIdRestore,getApiV1RolesIdPermissions,postApiV1RolesIdPermissions,putApiV1RolesIdPermissions,deleteApiV1RolesIdPermissionsPermissionId,getApiV1UsersMe,putApiV1UsersMe,getApiV1Users,postApiV1Users,getApiV1UsersId,putApiV1UsersId,deleteApiV1UsersId,postApiV1UsersIdRestore,patchApiV1UsersIdStatus,postApiV1UsersMeChangePassword,postApiV1UsersIdResetPassword,putApiV1UsersIdRoles,getApiV1UsersIdPermissions,getApiV1UsersMePermissions,postApiV1WebhooksMailconnector,getApiV1WebhookSubscriptions,postApiV1WebhookSubscriptions,getApiV1WebhookSubscriptionsId,putApiV1WebhookSubscriptionsId,deleteApiV1WebhookSubscriptionsId,postApiV1WebhookSubscriptionsIdTest}};
+return {getApiV1AiOpenaiUsage,getApiV1AiOpenaiUsageCurrentMonth,getApiV1AiOpenaiUsageUserUserId,getApiV1AiOpenaiUsageUserUserIdCurrentMonth,getApiV1AiOpenaiUsageUsers,getApiV1AiOpenaiUsageUsersCurrentMonth,putApiAttachmentReviewsMailConnectorAttachmentIdApprove,putApiAttachmentReviewsMailConnectorAttachmentIdReject,getApiAttachmentReviewsByMessageMailConnectorMessageId,getApiAttachmentReviewsByStatusStatus,getApiAttachmentReviewsMy,postApiAttachmentReviewsMailConnectorAttachmentIdReset,getApiAttachmentReviewsMailConnectorAttachmentId,postApiV1AiChatConversationsConversationIdAttachments,getApiV1AiChatConversationsConversationIdAttachments,deleteApiV1AiChatConversationsConversationIdAttachmentsId,postApiV1AuthLogin,postApiV1AuthRefresh,postApiV1AuthLogout,getApiV1AuthSessions,postApiV1AuthSessionsIdRevoke,postApiV1AuthLogoutAll,postApiV1AuthForgotPasswordSendOtp,postApiV1AuthForgotPasswordConfirmReset,getApiV1AiChatConversationsConversationIdMessages,postApiV1AiChatConversationsConversationIdMessages,postApiV1AiChatConversations,getApiV1AiChatConversations,getApiV1AiChatConversationsId,putApiV1AiChatConversationsId,deleteApiV1AiChatConversationsId,getApiV1AiChatConversationsByEntity,postApiV1AiChatConversationsIdArchive,postApiV1AiChatConversationsIdLinkEntity,postApiV1DocumentProcessorProcess,postApiV1DocumentProcessorProcessMultiple,getApiV1MailAnalysisResults,postApiV1MailAnalysisResults,getApiV1MailAnalysisResultsId,putApiV1MailAnalysisResultsIdFields,postApiImportUpload,postApiImportValidateMapping,postApiImportPreview,postApiImportExecute,getApiImportHistory,getApiImportSchema,postApiV1FilesInitiateUpload,postApiV1FilesIdCompleteUpload,postApiV1FilesIdAbortUpload,getApiV1Files,getApiV1FilesId,deleteApiV1FilesId,getApiV1FilesIdDownloadUrl,getApiV1FilesQuota,postApiV1FilesBatchInitiateUpload,postApiV1FilesBatchCompleteUpload,patchApiV1FilesIdMetadata,postApiV1FilesIdRestore,postApiV1FilesBatchDownloadUrl,getApiV1MailAccounts,postApiV1MailAccounts,getApiV1MailAccountsId,putApiV1MailAccountsId,deleteApiV1MailAccountsId,postApiV1MailAccountsConnect,getApiV1MailAccountsIdSyncStatus,postApiV1MailAccountsIdSync,postApiV1MailAccountsIdSyncDirect,postApiV1MailAssignmentsMailConnectorMessageIdAssign,deleteApiV1MailAssignmentsMailConnectorMessageIdUnassign,getApiV1MailAssignmentsMy,getApiV1MailAssignmentsMailConnectorMessageIdStatus,putApiV1MailAssignmentsMailConnectorMessageIdStatus,postApiV1MailAssignmentsMailConnectorMessageIdReassign,postApiV1MailAssignmentsMailConnectorMessageIdConfirm,postApiV1MailAssignmentsMailConnectorMessageIdComplete,getApiV1MailAssignmentsByStatusStatus,postApiV1MailAuthOauthUrl,postApiV1MailAuthExchangeToken,postApiV1MailAuthRefreshToken,getApiV1MailMessages,getApiV1MailMessagesId,getApiV1MailMessagesIdAttachments,getApiV1MailMessagesMessageIdAttachmentsAttachmentIdDownload,getApiV1MailMessagesMessageIdAttachmentsAttachmentIdContent,getApiV1MailMessagesMessageIdAttachmentsAttachmentIdExtractText,getApiV1MailMessagesMessageIdAttachmentsAttachmentIdPreview,getApiV1MailMessagesMessageIdAttachmentsAttachmentIdPresignedUrl,getApiV1MailMessagesMessageIdAttachmentsAttachmentIdProxy,postApiV1MailMessagesIdProcess,postApiV1MailMessagesIdTriggerPipeline,postApiV1MailMessagesIdNormalize,postApiV1MailMessagesIdClassify,postApiV1MailMessagesIdExtract,getApiV1MailMessagesIdProcessingJobs,getApiV1MailTemplates,postApiV1MailTemplates,getApiV1MailTemplatesId,putApiV1MailTemplatesId,deleteApiV1MailTemplatesId,getOauthCallback,getApiV1OrderDrafts,getApiV1OrderDraftsId,postApiV1OrderDraftsIdApproveL1,postApiV1OrderDraftsIdRejectL1,postApiV1OrderDraftsIdConfirm,postApiV1OrderDraftsIdReject,getApiV1OrderDraftsExport,getApiV1Permissions,postApiV1Permissions,getApiV1PermissionsModules,getApiV1PermissionsId,putApiV1PermissionsId,deleteApiV1PermissionsId,postApiV1PermissionsIdRestore,getApiV1Roles,postApiV1Roles,getApiV1RolesId,putApiV1RolesId,deleteApiV1RolesId,postApiV1RolesIdRestore,getApiV1RolesIdPermissions,postApiV1RolesIdPermissions,putApiV1RolesIdPermissions,deleteApiV1RolesIdPermissionsPermissionId,getApiV1UsersMe,putApiV1UsersMe,getApiV1Users,postApiV1Users,getApiV1UsersId,putApiV1UsersId,deleteApiV1UsersId,postApiV1UsersIdRestore,patchApiV1UsersIdStatus,postApiV1UsersMeChangePassword,postApiV1UsersIdResetPassword,putApiV1UsersIdRoles,getApiV1UsersIdPermissions,getApiV1UsersMePermissions,postApiV1WebhooksMailconnector,getApiV1WebhookSubscriptions,postApiV1WebhookSubscriptions,getApiV1WebhookSubscriptionsId,putApiV1WebhookSubscriptionsId,deleteApiV1WebhookSubscriptionsId,postApiV1WebhookSubscriptionsIdTest}};
 export type GetApiV1AiOpenaiUsageResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getLogisticsPlatformAPI>['getApiV1AiOpenaiUsage']>>>
 export type GetApiV1AiOpenaiUsageCurrentMonthResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getLogisticsPlatformAPI>['getApiV1AiOpenaiUsageCurrentMonth']>>>
 export type GetApiV1AiOpenaiUsageUserUserIdResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getLogisticsPlatformAPI>['getApiV1AiOpenaiUsageUserUserId']>>>
@@ -1485,6 +1630,9 @@ export type GetApiAttachmentReviewsByStatusStatusResult = NonNullable<Awaited<Re
 export type GetApiAttachmentReviewsMyResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getLogisticsPlatformAPI>['getApiAttachmentReviewsMy']>>>
 export type PostApiAttachmentReviewsMailConnectorAttachmentIdResetResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getLogisticsPlatformAPI>['postApiAttachmentReviewsMailConnectorAttachmentIdReset']>>>
 export type GetApiAttachmentReviewsMailConnectorAttachmentIdResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getLogisticsPlatformAPI>['getApiAttachmentReviewsMailConnectorAttachmentId']>>>
+export type PostApiV1AiChatConversationsConversationIdAttachmentsResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getLogisticsPlatformAPI>['postApiV1AiChatConversationsConversationIdAttachments']>>>
+export type GetApiV1AiChatConversationsConversationIdAttachmentsResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getLogisticsPlatformAPI>['getApiV1AiChatConversationsConversationIdAttachments']>>>
+export type DeleteApiV1AiChatConversationsConversationIdAttachmentsIdResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getLogisticsPlatformAPI>['deleteApiV1AiChatConversationsConversationIdAttachmentsId']>>>
 export type PostApiV1AuthLoginResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getLogisticsPlatformAPI>['postApiV1AuthLogin']>>>
 export type PostApiV1AuthRefreshResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getLogisticsPlatformAPI>['postApiV1AuthRefresh']>>>
 export type PostApiV1AuthLogoutResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getLogisticsPlatformAPI>['postApiV1AuthLogout']>>>
@@ -1493,6 +1641,16 @@ export type PostApiV1AuthSessionsIdRevokeResult = NonNullable<Awaited<ReturnType
 export type PostApiV1AuthLogoutAllResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getLogisticsPlatformAPI>['postApiV1AuthLogoutAll']>>>
 export type PostApiV1AuthForgotPasswordSendOtpResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getLogisticsPlatformAPI>['postApiV1AuthForgotPasswordSendOtp']>>>
 export type PostApiV1AuthForgotPasswordConfirmResetResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getLogisticsPlatformAPI>['postApiV1AuthForgotPasswordConfirmReset']>>>
+export type GetApiV1AiChatConversationsConversationIdMessagesResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getLogisticsPlatformAPI>['getApiV1AiChatConversationsConversationIdMessages']>>>
+export type PostApiV1AiChatConversationsConversationIdMessagesResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getLogisticsPlatformAPI>['postApiV1AiChatConversationsConversationIdMessages']>>>
+export type PostApiV1AiChatConversationsResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getLogisticsPlatformAPI>['postApiV1AiChatConversations']>>>
+export type GetApiV1AiChatConversationsResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getLogisticsPlatformAPI>['getApiV1AiChatConversations']>>>
+export type GetApiV1AiChatConversationsIdResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getLogisticsPlatformAPI>['getApiV1AiChatConversationsId']>>>
+export type PutApiV1AiChatConversationsIdResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getLogisticsPlatformAPI>['putApiV1AiChatConversationsId']>>>
+export type DeleteApiV1AiChatConversationsIdResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getLogisticsPlatformAPI>['deleteApiV1AiChatConversationsId']>>>
+export type GetApiV1AiChatConversationsByEntityResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getLogisticsPlatformAPI>['getApiV1AiChatConversationsByEntity']>>>
+export type PostApiV1AiChatConversationsIdArchiveResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getLogisticsPlatformAPI>['postApiV1AiChatConversationsIdArchive']>>>
+export type PostApiV1AiChatConversationsIdLinkEntityResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getLogisticsPlatformAPI>['postApiV1AiChatConversationsIdLinkEntity']>>>
 export type PostApiV1DocumentProcessorProcessResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getLogisticsPlatformAPI>['postApiV1DocumentProcessorProcess']>>>
 export type PostApiV1DocumentProcessorProcessMultipleResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getLogisticsPlatformAPI>['postApiV1DocumentProcessorProcessMultiple']>>>
 export type GetApiV1MailAnalysisResultsResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getLogisticsPlatformAPI>['getApiV1MailAnalysisResults']>>>
@@ -1527,15 +1685,15 @@ export type PostApiV1MailAccountsConnectResult = NonNullable<Awaited<ReturnType<
 export type GetApiV1MailAccountsIdSyncStatusResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getLogisticsPlatformAPI>['getApiV1MailAccountsIdSyncStatus']>>>
 export type PostApiV1MailAccountsIdSyncResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getLogisticsPlatformAPI>['postApiV1MailAccountsIdSync']>>>
 export type PostApiV1MailAccountsIdSyncDirectResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getLogisticsPlatformAPI>['postApiV1MailAccountsIdSyncDirect']>>>
-export type PostApiMailAssignmentsMailConnectorMessageIdAssignResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getLogisticsPlatformAPI>['postApiMailAssignmentsMailConnectorMessageIdAssign']>>>
-export type DeleteApiMailAssignmentsMailConnectorMessageIdUnassignResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getLogisticsPlatformAPI>['deleteApiMailAssignmentsMailConnectorMessageIdUnassign']>>>
-export type GetApiMailAssignmentsMyResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getLogisticsPlatformAPI>['getApiMailAssignmentsMy']>>>
-export type GetApiMailAssignmentsMailConnectorMessageIdStatusResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getLogisticsPlatformAPI>['getApiMailAssignmentsMailConnectorMessageIdStatus']>>>
-export type PutApiMailAssignmentsMailConnectorMessageIdStatusResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getLogisticsPlatformAPI>['putApiMailAssignmentsMailConnectorMessageIdStatus']>>>
-export type PostApiMailAssignmentsMailConnectorMessageIdReassignResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getLogisticsPlatformAPI>['postApiMailAssignmentsMailConnectorMessageIdReassign']>>>
-export type PostApiMailAssignmentsMailConnectorMessageIdCompleteResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getLogisticsPlatformAPI>['postApiMailAssignmentsMailConnectorMessageIdComplete']>>>
-export type PostApiMailAssignmentsMailConnectorMessageIdRefreshLockResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getLogisticsPlatformAPI>['postApiMailAssignmentsMailConnectorMessageIdRefreshLock']>>>
-export type GetApiMailAssignmentsByStatusStatusResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getLogisticsPlatformAPI>['getApiMailAssignmentsByStatusStatus']>>>
+export type PostApiV1MailAssignmentsMailConnectorMessageIdAssignResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getLogisticsPlatformAPI>['postApiV1MailAssignmentsMailConnectorMessageIdAssign']>>>
+export type DeleteApiV1MailAssignmentsMailConnectorMessageIdUnassignResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getLogisticsPlatformAPI>['deleteApiV1MailAssignmentsMailConnectorMessageIdUnassign']>>>
+export type GetApiV1MailAssignmentsMyResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getLogisticsPlatformAPI>['getApiV1MailAssignmentsMy']>>>
+export type GetApiV1MailAssignmentsMailConnectorMessageIdStatusResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getLogisticsPlatformAPI>['getApiV1MailAssignmentsMailConnectorMessageIdStatus']>>>
+export type PutApiV1MailAssignmentsMailConnectorMessageIdStatusResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getLogisticsPlatformAPI>['putApiV1MailAssignmentsMailConnectorMessageIdStatus']>>>
+export type PostApiV1MailAssignmentsMailConnectorMessageIdReassignResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getLogisticsPlatformAPI>['postApiV1MailAssignmentsMailConnectorMessageIdReassign']>>>
+export type PostApiV1MailAssignmentsMailConnectorMessageIdConfirmResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getLogisticsPlatformAPI>['postApiV1MailAssignmentsMailConnectorMessageIdConfirm']>>>
+export type PostApiV1MailAssignmentsMailConnectorMessageIdCompleteResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getLogisticsPlatformAPI>['postApiV1MailAssignmentsMailConnectorMessageIdComplete']>>>
+export type GetApiV1MailAssignmentsByStatusStatusResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getLogisticsPlatformAPI>['getApiV1MailAssignmentsByStatusStatus']>>>
 export type PostApiV1MailAuthOauthUrlResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getLogisticsPlatformAPI>['postApiV1MailAuthOauthUrl']>>>
 export type PostApiV1MailAuthExchangeTokenResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getLogisticsPlatformAPI>['postApiV1MailAuthExchangeToken']>>>
 export type PostApiV1MailAuthRefreshTokenResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getLogisticsPlatformAPI>['postApiV1MailAuthRefreshToken']>>>

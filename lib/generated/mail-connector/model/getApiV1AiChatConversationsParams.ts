@@ -5,7 +5,7 @@
  * OpenAPI spec version: v1
  */
 
-export interface RefreshLockRequest {
-  /** @nullable */
-  lockToken?: string | null;
-}
+export type GetApiV1AiChatConversationsParams = {
+tenantId?: string;
+createdBy?: string;
+};

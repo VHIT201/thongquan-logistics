@@ -1,4 +1,5 @@
 "use client"
+// USER ROUTE: Dashboard chính — user/admin đều xem
 
 import { useState } from "react"
 import Link from "next/link"

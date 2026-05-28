@@ -1,8 +1,10 @@
 "use client"
+// USER ROUTE: Xem báo cáo và import dữ liệu — user
 
 import Link from "next/link"
 import { FileSpreadsheet, TrendingUp, Package, DollarSign } from "lucide-react"
 import dayjs from "dayjs"
+import { PermissionGuard } from "@/components/permission-guard"
 
 const reports = [
   { id: "1", invoiceNumber: "INV-001", sender: "ABC Logistics", amount: 12500000, currency: "VND", date: "2026-05-20", status: "completed", importedAt: "2026-05-21T10:00:00Z" },
@@ -14,18 +16,21 @@ const totalAmount = reports.reduce((sum, r) => sum + (r.amount || 0), 0)
 
 export default function ReportsPage() {
   return (
-    <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-bold text-neutral-300">Báo cáo Tổng</h1>
-        <Link
-          id="tour-reports-import-btn"
-          href="/reports/import"
-          className="flex items-center gap-2 rounded-lg bg-primary px-4 py-2 text-sm font-medium text-white hover:bg-primary-500"
-        >
-          <FileSpreadsheet className="h-4 w-4" />
-          Import dữ liệu mới
-        </Link>
-      </div>
+    <PermissionGuard permission="report.view">
+      <div className="space-y-6">
+        <div className="flex items-center justify-between">
+          <h1 className="text-2xl font-bold text-neutral-300">Báo cáo Tổng</h1>
+          <PermissionGuard permission="report.export">
+            <Link
+              id="tour-reports-import-btn"
+              href="/reports/import"
+              className="flex items-center gap-2 rounded-lg bg-primary px-4 py-2 text-sm font-medium text-white hover:bg-primary-500"
+            >
+              <FileSpreadsheet className="h-4 w-4" />
+              Import dữ liệu mới
+            </Link>
+          </PermissionGuard>
+        </div>
 
       <div id="tour-reports-stats" className="grid grid-cols-1 gap-4 sm:grid-cols-3">
         <div className="rounded-xl border border-neutral-100 bg-white p-5">
@@ -98,6 +103,7 @@ export default function ReportsPage() {
           </tbody>
         </table>
       </div>
-    </div>
+      </div>
+    </PermissionGuard>
   )
 }

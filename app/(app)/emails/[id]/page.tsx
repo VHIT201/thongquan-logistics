@@ -1,29 +1,63 @@
 "use client"
 
 import { useEffect, useMemo, useRef, useState } from "react"
-import mammoth from "mammoth"
 import Link from "next/link"
 import { useParams } from "next/navigation"
-import { ArrowLeft, Bot, Paperclip, Send, User, X } from "lucide-react"
+import { ArrowLeft, Bot, Paperclip, Send, User, X, Play, Sparkles, Tag, FileSearch } from "lucide-react"
 import dayjs from "dayjs"
+import { toast } from "sonner"
 import { getErrorMessage } from "@/lib/get-error-message"
+import { usePermission } from "@/hooks/use-permission"
+import { useAuthStore, getTenantIdFromToken } from "@/lib/stores/auth-store"
+import {
+  useMailAssignmentStatusQuery,
+  useAssignMailMutation,
+  useReassignMailMutation,
+  useConfirmMailAssignmentMutation,
+  useCompleteMailAssignmentMutation,
+} from "@/hooks/use-mail-assignments-queries"
+import { useUsersQuery } from "@/hooks/use-user-queries"
 import { MAIL_CONNECTOR_AXIOS } from "@/lib/orval/mail-connector-mutator"
 import { FileAttachmentItem } from "@/components/file-attachment-item"
 import { AttachmentViewerModal } from "@/components/attachment-viewer-modal"
 import { FileViewerModal } from "@/components/ui/file-viewer-modal"
 import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog"
+import { Button } from "@/components/ui/button"
+import {
   ExtractionResultModal,
   type ExtractionPreviewSources,
 } from "@/components/extraction-result-modal"
+import {
+  TemplateResultModal,
+  type ExtractionPreviewSources as TemplatePreviewSources,
+} from "@/components/template-result-modal"
 import {
   useAttachmentContentQuery,
   useAttachmentExtractTextQuery,
   useDownloadAttachmentMutation,
   useEmailTemplatesQuery,
+  useCreateEmailTemplateMutation,
   useMailMessageQuery,
-  useProcessDocumentsMutation,
+  useTriggerPipelineMutation,
+  useNormalizeMailMutation,
+  useClassifyMailMutation,
+  useExtractMailMutation,
 } from "@/hooks/use-mail-queries"
 import { getLogisticsPlatformAPI } from "@/lib/generated/mail-connector/endpoints"
+import {
+  useGetAiChatConversationByEntityQuery,
+  useCreateAiChatConversationMutation,
+  useLinkAiChatEntityMutation,
+  useGetAiChatMessagesQuery,
+  useLinkAiChatAttachmentMutation,
+  useSendAiChatMessageMutation,
+  type AiChatMessage,
+} from "@/hooks/use-ai-chat-queries"
 
 const mailApi = getLogisticsPlatformAPI()
 const API_BASE =
@@ -59,52 +93,6 @@ function resolvePresignedPreview(response: unknown): ExtractionPreviewSources | 
   return null
 }
 
-function extractTextFromApiResponse(payload: unknown): string {
-  if (typeof payload === "string") return payload
-  if (!payload || typeof payload !== "object") return ""
-
-  const top = payload as Record<string, unknown>
-  const nested =
-    top.data && typeof top.data === "object" ? (top.data as Record<string, unknown>) : null
-
-  const candidates: unknown[] = [
-    top.text,
-    top.content,
-    top.body,
-    top.extractedText,
-    top.result,
-    top.value,
-    nested?.text,
-    nested?.content,
-    nested?.body,
-    nested?.extractedText,
-    nested?.result,
-    nested?.value,
-  ]
-
-  for (const candidate of candidates) {
-    if (typeof candidate === "string" && candidate.trim()) return candidate
-  }
-  return ""
-}
-
-function extractResultStringFromProcessResponse(payload: unknown): string | null {
-  if (!payload || typeof payload !== "object") {
-    return typeof payload === "string" ? payload : null
-  }
-
-  const top = payload as Record<string, unknown>
-  const nested =
-    top.data && typeof top.data === "object" ? (top.data as Record<string, unknown>) : null
-  const candidates: unknown[] = [top.result, nested?.result, top.data]
-
-  for (const candidate of candidates) {
-    if (typeof candidate === "string" && candidate.trim()) return candidate
-  }
-
-  return null
-}
-
 type TemplateItem = {
   id?: string | null
   templateCode?: string | null
@@ -118,37 +106,13 @@ type ChatMessage = {
   id: string
   role: "user" | "assistant"
   content: string
+  displayContent?: string
   result?: string | null
   isLoading?: boolean
-}
-
-function buildChatPrompt(userPrompt: string) {
-  return [
-    "Bạn là hệ thống hỗ trợ bóc tách chứng từ logistics.",
-    "Trả lời trực tiếp bằng văn bản tự nhiên, không bắt buộc JSON.",
-    "Có thể liệt kê thông tin, giải thích hoặc trích xuất theo yêu cầu người dùng.",
-    `Yêu cầu: ${userPrompt}`,
-  ].join(" ")
-}
-
-function buildTemplatePrompt(template: TemplateItem) {
-  const templateName = [template.templateCode, template.templateName].filter(Boolean).join(" - ")
-  const expectedFields = template.expectedFields ?? {}
-  const fieldsDescription =
-    Object.keys(expectedFields).length > 0 ? JSON.stringify(expectedFields) : "{}"
-
-  return [
-    "Bạn là hệ thống bóc tách chứng từ logistics.",
-    "Trả về DUY NHẤT JSON hợp lệ, không markdown, không giải thích.",
-    "Định dạng bắt buộc: một mảng object (array of objects).",
-    "Nếu chỉ có 1 bản ghi thì vẫn trả về mảng gồm 1 object.",
-    "Bóc tách theo template đã chọn, giữ nguyên key field theo expectedFields.",
-    "Nếu thiếu dữ liệu cho trường nào thì để chuỗi rỗng.",
-    "Không trả về base64, không hướng dẫn decode, không thêm ghi chú ngoài JSON.",
-    `Template đang áp dụng: ${templateName || "N/A"}.`,
-    `Mô tả template: ${template.description || "N/A"}.`,
-    `Expected fields JSON: ${fieldsDescription}.`,
-  ].join(" ")
+  inputTokens?: number | null
+  outputTokens?: number | null
+  totalTokens?: number | null
+  finishReason?: string | null
 }
 
 export default function EmailDetailPage() {
@@ -157,8 +121,53 @@ export default function EmailDetailPage() {
 
   const messageQuery = useMailMessageQuery(messageId)
   const templatesQuery = useEmailTemplatesQuery()
-  const processDocumentsMutation = useProcessDocumentsMutation()
   const downloadAttachmentMutation = useDownloadAttachmentMutation(messageId)
+  const triggerPipelineMutation = useTriggerPipelineMutation()
+  const normalizeMailMutation = useNormalizeMailMutation()
+  const classifyMailMutation = useClassifyMailMutation()
+  const extractMailMutation = useExtractMailMutation()
+
+  // AI Chat hooks
+  const conversationByEntityQuery = useGetAiChatConversationByEntityQuery(
+    messageId ? { entityType: "mail_message", entityId: messageId } : null
+  )
+  const createConversationMutation = useCreateAiChatConversationMutation()
+  const linkEntityMutation = useLinkAiChatEntityMutation()
+  const linkAttachmentMutation = useLinkAiChatAttachmentMutation()
+  const sendMessageMutation = useSendAiChatMessageMutation()
+  const messagesQuery = useGetAiChatMessagesQuery(
+    conversationByEntityQuery.data?.id ?? null
+  )
+
+  const { has: canProcessMailPermission } = usePermission("mail.process")
+  const currentUser = useAuthStore((s) => s.user)
+  const isAdmin = useAuthStore((s) => s.isAdmin)()
+
+  const assignmentStatusQuery = useMailAssignmentStatusQuery(messageId)
+  const assignMutation = useAssignMailMutation()
+  const reassignMutation = useReassignMailMutation()
+  const confirmMutation = useConfirmMailAssignmentMutation()
+  const completeMutation = useCompleteMailAssignmentMutation()
+
+  const assignmentData = assignmentStatusQuery.data as Record<string, unknown> | undefined
+  const assignedToUserId = assignmentData?.assignedToUserId as string | undefined
+  const assignmentStatus = assignmentData?.status as string | undefined
+  const isAssignedToMe = assignedToUserId === currentUser?.userId
+  const canProcessMail = canProcessMailPermission && (isAdmin || isAssignedToMe)
+
+  const [reassignModalOpen, setReassignModalOpen] = useState(false)
+  const [selectedReassignUserId, setSelectedReassignUserId] = useState("")
+
+  const usersQuery = useUsersQuery({ page: 1, pageSize: 100 })
+  const userList = (() => {
+    const raw = usersQuery.data
+    if (Array.isArray(raw)) return raw
+    if (raw && typeof raw === "object" && "data" in raw) {
+      const d = raw as unknown as Record<string, unknown>
+      if (Array.isArray(d.data)) return d.data
+    }
+    return []
+  })()
 
   const [contentMode, setContentMode] = useState<"auto" | "text" | "html">("auto")
   const [selectedAttachmentId, setSelectedAttachmentId] = useState<string | null>(null)
@@ -175,16 +184,25 @@ export default function EmailDetailPage() {
   const [extractionResult, setExtractionResult] = useState<string | null>(null)
   const [extractionPreview, setExtractionPreview] = useState<ExtractionPreviewSources | null>(null)
   const [extractionFileName, setExtractionFileName] = useState<string | null>(null)
+  const [templateResultOpen, setTemplateResultOpen] = useState(false)
+  const [templateExtractedData, setTemplateExtractedData] = useState<Record<string, string>>({})
 
   const [aiMode, setAiMode] = useState<"chat" | "template">("chat")
   const [selectedTemplateId, setSelectedTemplateId] = useState("")
   const [promptError, setPromptError] = useState<string | null>(null)
+  const [showCreateTemplate, setShowCreateTemplate] = useState(false)
+  const [newTemplateCode, setNewTemplateCode] = useState("")
+  const [newTemplateName, setNewTemplateName] = useState("")
+  const [newTemplateFields, setNewTemplateFields] = useState("{}")
+  const createTemplateMutation = useCreateEmailTemplateMutation()
 
   const [processedHtml, setProcessedHtml] = useState("")
   const [chatMessages, setChatMessages] = useState<ChatMessage[]>([])
   const [chatInput, setChatInput] = useState("")
-  const [chatLoading, setChatLoading] = useState(false)
   const chatEndRef = useRef<HTMLDivElement>(null)
+  const chatLoading = sendMessageMutation.isPending || linkAttachmentMutation.isPending
+
+  const tenantId = useMemo(() => getTenantIdFromToken(), [])
 
   const templates = useMemo(
     () =>
@@ -194,6 +212,11 @@ export default function EmailDetailPage() {
           : Boolean(template.isActive)
       ),
     [templatesQuery.data]
+  )
+
+  const selectedTemplate = useMemo(
+    () => templates.find((template) => template.id === selectedTemplateId) ?? null,
+    [templates, selectedTemplateId]
   )
 
   const emailData = messageQuery.data
@@ -282,6 +305,98 @@ export default function EmailDetailPage() {
     void processInlineImages()
   }, [htmlContent, attachments, messageId])
 
+  // Conversation initialization: find existing or create new
+  const [conversationId, setConversationId] = useState<string | null>(null)
+  const hasAttemptedCreate = useRef(false)
+
+  useEffect(() => {
+    if (conversationByEntityQuery.data?.id) {
+      setConversationId(conversationByEntityQuery.data.id)
+      return
+    }
+    if (conversationByEntityQuery.isLoading) return
+
+    if (!hasAttemptedCreate.current && messageId && currentUser?.userId) {
+      hasAttemptedCreate.current = true
+      createConversationMutation.mutate(
+        {
+          title: emailData?.subject || `Email ${messageId}`,
+          createdBy: currentUser.userId,
+          idempotencyKey: `email:${messageId}`,
+          ...(tenantId ? { tenantId } : {}),
+        },
+        {
+          onSuccess: (newConv) => {
+            const newId = newConv.id
+            setConversationId(newId)
+            linkEntityMutation.mutate({
+              conversationId: newId,
+              payload: { entityType: "mail_message", entityId: messageId },
+            })
+          },
+        }
+      )
+    }
+  }, [
+    conversationByEntityQuery.data,
+    conversationByEntityQuery.isLoading,
+    messageId,
+    currentUser?.userId,
+    emailData?.subject,
+    createConversationMutation,
+    linkEntityMutation,
+  ])
+
+  function parseAiDisplayContent(raw: string): { display: string; result: string | null } {
+    try {
+      const parsed = JSON.parse(raw) as Record<string, unknown>
+      if (parsed.fields && Array.isArray(parsed.fields)) {
+        const lines = (parsed.fields as Array<{ name?: string; value?: string }>)
+          .map((f) => `${f.name ?? ""}: ${f.value ?? ""}`)
+        const summary = typeof parsed.summary === "string" ? parsed.summary : ""
+        return {
+          display: [...lines, summary].filter(Boolean).join("\n"),
+          result: JSON.stringify(parsed),
+        }
+      }
+      if (typeof parsed.summary === "string") {
+        return { display: parsed.summary, result: JSON.stringify(parsed) }
+      }
+      return { display: JSON.stringify(parsed, null, 2), result: JSON.stringify(parsed) }
+    } catch {
+      return { display: raw, result: null }
+    }
+  }
+
+  // Sync BE messages to local chat state
+  useEffect(() => {
+    if (!messagesQuery.data) return
+    const mapped: ChatMessage[] = messagesQuery.data.map((msg: AiChatMessage) => {
+      let displayContent = msg.content
+      let result: string | null = null
+      if (msg.role === "assistant") {
+        const parsed = parseAiDisplayContent(msg.content)
+        displayContent = parsed.display
+        if (aiMode === "template") {
+          result = parsed.result
+        }
+      }
+      return {
+        id: msg.id,
+        role: msg.role as "user" | "assistant",
+        content: msg.content,
+        displayContent,
+        result,
+        isLoading: false,
+        inputTokens: msg.inputTokens,
+        outputTokens: msg.outputTokens,
+        totalTokens: msg.totalTokens,
+        finishReason: msg.finishReason,
+      }
+    })
+    setChatMessages(mapped)
+  }, [messagesQuery.data, aiMode])
+
   useEffect(() => {
     chatEndRef.current?.scrollIntoView({ behavior: "smooth" })
   }, [chatMessages])
@@ -305,92 +420,77 @@ export default function EmailDetailPage() {
       return
     }
 
-    const selectedTemplate =
-      templates.find((template) => template.id === selectedTemplateId) ?? null
     if (aiMode === "template" && !selectedTemplate) {
       setPromptError("Vui lòng chọn template để bóc tách.")
+      return
+    }
+
+    if (!conversationId) {
+      setPromptError("Chưa có conversation. Vui lòng thử lại.")
       return
     }
 
     setPromptError(null)
     setChatInput("")
 
+    // Optimistically add user message
     const userMsg: ChatMessage = {
       id: crypto.randomUUID(),
       role: "user",
       content: text,
     }
-    const aiMsg: ChatMessage = {
-      id: crypto.randomUUID(),
-      role: "assistant",
-      content: "",
-      isLoading: true,
-    }
-
-    setChatMessages((prev) => [...prev, userMsg, aiMsg])
-    setChatLoading(true)
+    setChatMessages((prev) => [...prev, userMsg])
 
     try {
       setExtractionPreview(null)
 
-      const files = await Promise.all(
+      // Link attachments to conversation
+      const linkedAttachments = await Promise.all(
         Array.from(selectedForAI).map(async (attachmentId) => {
           const attachment = attachments.find((a) => a.id === attachmentId)
           if (!attachment) throw new Error(`Attachment ${attachmentId} not found`)
 
-          const mimeType = attachment.contentType || "application/octet-stream"
-          let aiContent = ""
-
-          if (mimeType.includes("pdf")) {
-            const extractTextResponse = await MAIL_CONNECTOR_AXIOS.get(
-              `/api/v1/mail-messages/${messageId}/attachments/${attachmentId}/extract-text`
-            )
-            aiContent = extractTextFromApiResponse(extractTextResponse.data)
-          } else {
-            const contentResponse = await MAIL_CONNECTOR_AXIOS.get(
-              `/api/v1/mail-messages/${messageId}/attachments/${attachmentId}/content`
-            )
-            aiContent = extractTextFromApiResponse(contentResponse.data)
-          }
-
-          if (mimeType.includes("wordprocessingml") && aiContent) {
-            try {
-              const byteCharacters = atob(aiContent)
-              const byteNumbers = new Array(byteCharacters.length)
-              for (let i = 0; i < byteCharacters.length; i += 1) {
-                byteNumbers[i] = byteCharacters.charCodeAt(i)
-              }
-              const byteArray = new Uint8Array(byteNumbers)
-              const arrayBuffer = byteArray.buffer
-              const extractResult = await mammoth.extractRawText({ arrayBuffer })
-              aiContent = extractResult.value
-            } catch (error) {
-              console.error("Error extracting text from DOCX:", error)
-            }
-          }
-
-          return {
-            fileName: attachment.fileName,
-            content: aiContent,
-            type: "text",
-            mimeType,
-          }
+          const linked = await linkAttachmentMutation.mutateAsync({
+            conversationId,
+            payload: {
+              source: "mailconnector",
+              messageId,
+              attachmentId,
+              fileName: attachment.fileName,
+              contentType: attachment.contentType,
+              fileSize: attachment.fileSize,
+              ...(tenantId ? { tenantId } : {}),
+              createdBy: currentUser?.userId || "",
+            },
+          })
+          return linked.id
         })
       )
 
-      const extractionPrompt =
-        aiMode === "template" && selectedTemplate
-          ? buildTemplatePrompt(selectedTemplate)
-          : buildChatPrompt(text)
+      // Build message: append expected fields when in template mode
+      let aiMessage = text
+      if (aiMode === "template" && selectedTemplate?.expectedFields) {
+        const fieldsDescription = Object.entries(selectedTemplate.expectedFields)
+          .map(([key, desc]) => `- ${key}: ${desc}`)
+          .join("\n")
+        aiMessage = `${text}\n\nTrích xuất dữ liệu theo các trường sau và trả về JSON với các key tương ứng:\n${fieldsDescription}`
+      }
 
-      const result = await processDocumentsMutation.mutateAsync({
-        files,
-        prompt: extractionPrompt,
-        model: "gpt-4",
+      // Send message — assistant response will sync via messagesQuery refetch
+      await sendMessageMutation.mutateAsync({
+        conversationId,
+        payload: {
+          message: aiMessage,
+          selectedAttachmentIds: linkedAttachments.filter(Boolean),
+          provider: "openai",
+          model: "deepseek/deepseek-v4-flash-20260423",
+          responseFormat: aiMode === "template" ? "json" : "text",
+          ...(tenantId ? { tenantId } : {}),
+          createdBy: currentUser?.userId || "",
+        },
       })
 
-      const resultStr = extractResultStringFromProcessResponse(result)
-
+      // For template mode, set preview from first selected attachment
       if (aiMode === "template") {
         const firstAttachmentId = Array.from(selectedForAI)[0]
         const firstAttachment = attachments.find((a) => a.id === firstAttachmentId)
@@ -405,46 +505,41 @@ export default function EmailDetailPage() {
           setExtractionPreview(resolvePresignedPreview(presignedResponse))
           setExtractionFileName(firstAttachment.fileName)
         }
-
-        setChatMessages((prev) =>
-          prev.map((msg) =>
-            msg.id === aiMsg.id
-              ? {
-                  ...msg,
-                  content: resultStr
-                    ? "Đã bóc tách xong theo template. Bạn có thể mở chi tiết bên dưới."
-                    : "Không tìm thấy dữ liệu phù hợp.",
-                  result: resultStr,
-                  isLoading: false,
-                }
-              : msg
-          )
-        )
-      } else {
-        setChatMessages((prev) =>
-          prev.map((msg) =>
-            msg.id === aiMsg.id
-              ? { ...msg, content: resultStr || "Không có phản hồi.", isLoading: false }
-              : msg
-          )
-        )
       }
     } catch (error) {
-      setChatMessages((prev) =>
-        prev.map((msg) =>
-          msg.id === aiMsg.id
-            ? { ...msg, content: getErrorMessage(error, "Gửi AI bóc tách thất bại."), isLoading: false }
-            : msg
-        )
-      )
-    } finally {
-      setChatLoading(false)
+      setChatMessages((prev) => [
+        ...prev,
+        {
+          id: crypto.randomUUID(),
+          role: "assistant",
+          content: getErrorMessage(error, "Gửi AI thất bại."),
+        },
+      ])
     }
   }
 
   const openExtractionDetail = (result: string) => {
-    setExtractionResult(result)
-    setExtractionResultOpen(true)
+    if (aiMode === "template") {
+      try {
+        const parsed = JSON.parse(result) as Record<string, unknown>
+        const flat: Record<string, string> = {}
+        for (const [key, value] of Object.entries(parsed)) {
+          flat[key] = value === null || value === undefined ? "" : String(value)
+        }
+        setTemplateExtractedData(flat)
+        setTemplateResultOpen(true)
+      } catch {
+        setExtractionResult(result)
+        setExtractionResultOpen(true)
+      }
+    } else {
+      setExtractionResult(result)
+      setExtractionResultOpen(true)
+    }
+  }
+
+  const handleTemplateDataChange = (data: Record<string, string>) => {
+    setTemplateExtractedData(data)
   }
 
   const handleShowAttachmentExtractText = (attachmentId: string | undefined) => {
@@ -591,15 +686,110 @@ export default function EmailDetailPage() {
                   ? dayjs(emailData.receivedAt).format("DD/MM/YYYY HH:mm")
                   : "--"}
               </span>
+              {assignmentStatusQuery.isPending && (
+                <span className="text-neutral-300">...</span>
+              )}
+              {assignedToUserId && !assignmentStatusQuery.isPending && (
+                <>
+                  <span className="hidden sm:inline">|</span>
+                  <span className="inline-flex items-center gap-1 rounded-full bg-blue-50 px-2 py-0.5 text-[10px] font-medium text-blue-700">
+                    Đang xử lý
+                  </span>
+                </>
+              )}
+              {!assignedToUserId && !assignmentStatusQuery.isPending && (
+                <>
+                  <span className="hidden sm:inline">|</span>
+                  <span className="inline-flex items-center gap-1 rounded-full bg-neutral-100 px-2 py-0.5 text-[10px] font-medium text-neutral-500">
+                    Chưa phân công
+                  </span>
+                </>
+              )}
+              {isAssignedToMe && assignmentStatus === "assigned" && (
+                <button
+                  onClick={() => confirmMutation.mutate({ messageId, payload: {} })}
+                  disabled={confirmMutation.isPending}
+                  className="inline-flex items-center gap-1 rounded-full bg-blue-50 px-2 py-0.5 text-[10px] font-medium text-blue-700 hover:bg-blue-100 disabled:opacity-50"
+                >
+                  {confirmMutation.isPending ? "..." : "Xác nhận"}
+                </button>
+              )}
+              {isAssignedToMe && assignmentStatus === "confirmed" && (
+                <button
+                  onClick={() => completeMutation.mutate({ messageId, payload: {} })}
+                  disabled={completeMutation.isPending}
+                  className="inline-flex items-center gap-1 rounded-full bg-green-50 px-2 py-0.5 text-[10px] font-medium text-green-700 hover:bg-green-100 disabled:opacity-50"
+                >
+                  {completeMutation.isPending ? "..." : "Hoàn thành"}
+                </button>
+              )}
+              {isAdmin && (
+                <button
+                  onClick={() => {
+                    setSelectedReassignUserId(assignedToUserId ?? "")
+                    setReassignModalOpen(true)
+                  }}
+                  className="inline-flex items-center gap-1 rounded-full bg-amber-50 px-2 py-0.5 text-[10px] font-medium text-amber-700 hover:bg-amber-100"
+                >
+                  Giao việc
+                </button>
+              )}
+              {!isAssignedToMe && !assignedToUserId && !isAdmin && (
+                <button
+                  onClick={() => assignMutation.mutate({ messageId })}
+                  disabled={assignMutation.isPending}
+                  className="inline-flex items-center gap-1 rounded-full bg-primary-50 px-2 py-0.5 text-[10px] font-medium text-primary hover:bg-primary-100 disabled:opacity-50"
+                >
+                  {assignMutation.isPending ? "..." : "Nhận xử lý"}
+                </button>
+              )}
             </div>
           </div>
 
-          <Link
-            href={`/emails/${messageId}/extract`}
-            className="ml-auto inline-flex items-center rounded-lg border border-primary/20 bg-primary/5 px-3 py-1.5 text-xs font-semibold text-primary hover:bg-primary/10"
-          >
-            Trích xuất
-          </Link>
+          <div className="ml-auto flex items-center gap-2">
+            {canProcessMail && (
+              <>
+                <button
+                  onClick={() => triggerPipelineMutation.mutate(messageId)}
+                  disabled={triggerPipelineMutation.isPending}
+                  className="inline-flex items-center gap-1 rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-1.5 text-xs font-semibold text-emerald-700 hover:bg-emerald-100 disabled:opacity-50"
+                >
+                  <Play className="h-3 w-3" />
+                  {triggerPipelineMutation.isPending ? "..." : "Pipeline"}
+                </button>
+                <button
+                  onClick={() => normalizeMailMutation.mutate(messageId)}
+                  disabled={normalizeMailMutation.isPending}
+                  className="inline-flex items-center gap-1 rounded-lg border border-blue-200 bg-blue-50 px-3 py-1.5 text-xs font-semibold text-blue-700 hover:bg-blue-100 disabled:opacity-50"
+                >
+                  <Sparkles className="h-3 w-3" />
+                  {normalizeMailMutation.isPending ? "..." : "Normalize"}
+                </button>
+                <button
+                  onClick={() => classifyMailMutation.mutate(messageId)}
+                  disabled={classifyMailMutation.isPending}
+                  className="inline-flex items-center gap-1 rounded-lg border border-purple-200 bg-purple-50 px-3 py-1.5 text-xs font-semibold text-purple-700 hover:bg-purple-100 disabled:opacity-50"
+                >
+                  <Tag className="h-3 w-3" />
+                  {classifyMailMutation.isPending ? "..." : "Classify"}
+                </button>
+                <button
+                  onClick={() => extractMailMutation.mutate(messageId)}
+                  disabled={extractMailMutation.isPending}
+                  className="inline-flex items-center gap-1 rounded-lg border border-amber-200 bg-amber-50 px-3 py-1.5 text-xs font-semibold text-amber-700 hover:bg-amber-100 disabled:opacity-50"
+                >
+                  <FileSearch className="h-3 w-3" />
+                  {extractMailMutation.isPending ? "..." : "Extract"}
+                </button>
+              </>
+            )}
+            <Link
+              href={`/emails/${messageId}/extract`}
+              className="inline-flex items-center rounded-lg border border-primary/20 bg-primary/5 px-3 py-1.5 text-xs font-semibold text-primary hover:bg-primary/10"
+            >
+              Trích xuất
+            </Link>
+          </div>
         </div>
       </section>
 
@@ -756,24 +946,113 @@ export default function EmailDetailPage() {
                 </button>
 
               {aiMode === "template" && (
-                <select
-                  value={selectedTemplateId}
-                  onChange={(event) => {
-                    setSelectedTemplateId(event.target.value)
-                    setPromptError(null)
-                  }}
-                  disabled={templatesQuery.isPending}
-                  className="ml-auto rounded-md border border-neutral-200 px-2 py-1 text-[11px] text-neutral-700 outline-none focus:border-primary"
-                >
-                  <option value="">-- Chọn template --</option>
-                  {templates.map((template) => (
-                    <option key={template.id || template.templateCode || "unknown"} value={template.id || ""}>
-                      {[template.templateCode, template.templateName].filter(Boolean).join(" - ") || "Template"}
-                    </option>
-                  ))}
-                </select>
+                <>
+                  <select
+                    value={selectedTemplateId}
+                    onChange={(event) => {
+                      setSelectedTemplateId(event.target.value)
+                      setPromptError(null)
+                    }}
+                    disabled={templatesQuery.isPending}
+                    className="ml-auto rounded-md border border-neutral-200 px-2 py-1 text-[11px] text-neutral-700 outline-none focus:border-primary"
+                  >
+                    <option value="">-- Chọn template --</option>
+                    {templates.map((template) => (
+                      <option key={template.id || template.templateCode || "unknown"} value={template.id || ""}>
+                        {[template.templateCode, template.templateName].filter(Boolean).join(" - ") || "Template"}
+                      </option>
+                    ))}
+                  </select>
+                  <button
+                    type="button"
+                    onClick={() => setShowCreateTemplate((s) => !s)}
+                    className="rounded-md px-2 py-1 text-[11px] font-medium text-neutral-600 hover:bg-neutral-100"
+                    title="Tạo template mới"
+                  >
+                    +
+                  </button>
+                </>
               )}
             </div>
+
+            {aiMode === "template" && showCreateTemplate && (
+              <div className="border-t border-neutral-100 bg-neutral-50/50 px-3 py-2 space-y-1.5">
+                <p className="text-[11px] font-medium text-neutral-500">Tạo template mới</p>
+                <input
+                  type="text"
+                  placeholder="Mã template"
+                  value={newTemplateCode}
+                  onChange={(e) => setNewTemplateCode(e.target.value)}
+                  className="w-full rounded-md border border-neutral-200 px-2 py-1 text-[11px] text-neutral-800 outline-none focus:border-primary"
+                />
+                <input
+                  type="text"
+                  placeholder="Tên template"
+                  value={newTemplateName}
+                  onChange={(e) => setNewTemplateName(e.target.value)}
+                  className="w-full rounded-md border border-neutral-200 px-2 py-1 text-[11px] text-neutral-800 outline-none focus:border-primary"
+                />
+                <textarea
+                  placeholder='Expected fields JSON, ví dụ {"invoiceNumber":"Mã hóa đơn"}'
+                  value={newTemplateFields}
+                  onChange={(e) => setNewTemplateFields(e.target.value)}
+                  rows={2}
+                  className="w-full rounded-md border border-neutral-200 px-2 py-1 font-mono text-[10px] text-neutral-800 outline-none focus:border-primary"
+                />
+                <div className="flex gap-1.5">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setShowCreateTemplate(false)
+                      setNewTemplateCode("")
+                      setNewTemplateName("")
+                      setNewTemplateFields("{}")
+                    }}
+                    className="rounded-md px-2 py-1 text-[11px] text-neutral-500 hover:bg-neutral-100"
+                  >
+                    Hủy
+                  </button>
+                  <button
+                    type="button"
+                    disabled={createTemplateMutation.isPending || !newTemplateCode.trim() || !newTemplateName.trim()}
+                    onClick={async () => {
+                      try {
+                        let expectedFields: Record<string, string> = {}
+                        try {
+                          expectedFields = JSON.parse(newTemplateFields || "{}")
+                          if (typeof expectedFields !== "object" || Array.isArray(expectedFields)) {
+                            throw new Error("Expected fields phải là object JSON.")
+                          }
+                        } catch {
+                          setPromptError("Expected fields JSON không hợp lệ.")
+                          return
+                        }
+                        const result = await createTemplateMutation.mutateAsync({
+                          templateCode: newTemplateCode.trim(),
+                          templateName: newTemplateName.trim(),
+                          expectedFields,
+                        })
+                        const createdId = (result as { id?: string | null })?.id || null
+                        if (createdId) {
+                          setSelectedTemplateId(createdId)
+                        }
+                        setShowCreateTemplate(false)
+                        setNewTemplateCode("")
+                        setNewTemplateName("")
+                        setNewTemplateFields("{}")
+                        setPromptError(null)
+                        toast.success("Đã tạo template mới.")
+                      } catch (err) {
+                        setPromptError(getErrorMessage(err, "Tạo template thất bại."))
+                      }
+                    }}
+                    className="rounded-md bg-primary px-2.5 py-1 text-[11px] font-medium text-white hover:bg-primary-500 disabled:opacity-40"
+                  >
+                    {createTemplateMutation.isPending ? "Đang tạo..." : "Tạo"}
+                  </button>
+                </div>
+              </div>
+            )}
           </div>
 
           <div className="min-h-0 flex-1 overflow-y-auto bg-neutral-50/70 px-3 py-3 space-y-2">
@@ -812,11 +1091,26 @@ export default function EmailDetailPage() {
                         <span className="h-1.5 w-1.5 animate-bounce rounded-full bg-neutral-300" style={{ animationDelay: "300ms" }} />
                       </div>
                     ) : (
-                      <>{msg.content}</>
+                      <pre className="whitespace-pre-wrap font-sans">{msg.displayContent ?? msg.content}</pre>
                     )}
                   </div>
 
-                  {msg.result && (
+                  {msg.role === "assistant" && (msg.totalTokens || msg.inputTokens || msg.outputTokens) && (
+                    <div className="flex items-center gap-2 text-[10px] text-neutral-400">
+                      <span>🪙 {msg.totalTokens ?? 0} tokens</span>
+                      {msg.inputTokens !== null && msg.inputTokens !== undefined && (
+                        <span>in: {msg.inputTokens}</span>
+                      )}
+                      {msg.outputTokens !== null && msg.outputTokens !== undefined && (
+                        <span>out: {msg.outputTokens}</span>
+                      )}
+                      {msg.finishReason && (
+                        <span>· {msg.finishReason}</span>
+                      )}
+                    </div>
+                  )}
+
+                  {msg.result && aiMode === "template" && (
                     <button
                       onClick={() => openExtractionDetail(String(msg.result))}
                       className="inline-flex items-center gap-1 rounded-md border border-primary/20 bg-primary/5 px-2 py-1 text-[11px] font-medium text-primary hover:bg-primary/10"
@@ -833,6 +1127,23 @@ export default function EmailDetailPage() {
                 )}
               </div>
             ))}
+
+            {chatLoading && (
+              <div className="flex justify-start gap-1.5">
+                <div className="mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-primary-50">
+                  <Bot className="h-3 w-3 text-primary" />
+                </div>
+                <div className="max-w-[82%]">
+                  <div className="rounded-xl rounded-bl-md border border-neutral-100 bg-white px-2.5 py-1.5 text-xs leading-relaxed text-neutral-700">
+                    <div className="flex items-center gap-1 py-0.5">
+                      <span className="h-1.5 w-1.5 animate-bounce rounded-full bg-neutral-300" style={{ animationDelay: "0ms" }} />
+                      <span className="h-1.5 w-1.5 animate-bounce rounded-full bg-neutral-300" style={{ animationDelay: "150ms" }} />
+                      <span className="h-1.5 w-1.5 animate-bounce rounded-full bg-neutral-300" style={{ animationDelay: "300ms" }} />
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )}
 
             <div ref={chatEndRef} />
           </div>
@@ -909,6 +1220,89 @@ export default function EmailDetailPage() {
         preview={extractionPreview}
         fileName={extractionFileName}
       />
+
+      <TemplateResultModal
+        open={templateResultOpen}
+        onOpenChange={setTemplateResultOpen}
+        fields={selectedTemplate?.expectedFields ?? {}}
+        data={templateExtractedData}
+        onDataChange={handleTemplateDataChange}
+        preview={extractionPreview as TemplatePreviewSources | null}
+        fileName={extractionFileName}
+      />
+
+      {/* Admin Reassign Dialog */}
+      <Dialog open={reassignModalOpen} onOpenChange={setReassignModalOpen}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle className="text-black">Giao việc xử lý mail</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-3 py-2">
+            <p className="text-sm text-neutral-300">
+              Chọn người dùng để giao việc xử lý email này.
+            </p>
+            <div className="max-h-[300px] space-y-1 overflow-y-auto">
+              {usersQuery.isPending && (
+                <p className="text-sm text-neutral-200">Đang tải danh sách...</p>
+              )}
+              {userList.map((item: unknown) => {
+                const u = item as Record<string, unknown>
+                const uid = String(u.id ?? "")
+                return (
+                  <button
+                    key={uid}
+                    onClick={() => setSelectedReassignUserId(uid)}
+                    className={`flex w-full items-center gap-3 rounded-lg border px-3 py-2 text-left text-sm transition-colors ${
+                      selectedReassignUserId === uid
+                        ? "border-primary bg-primary-50 text-primary"
+                        : "border-neutral-100 text-neutral-300 hover:bg-neutral-50"
+                    }`}
+                  >
+                    <div className={`flex h-4 w-4 items-center justify-center rounded-full border ${
+                      selectedReassignUserId === uid
+                        ? "border-primary bg-primary"
+                        : "border-neutral-300"
+                    }`}>
+                      {selectedReassignUserId === uid && (
+                        <span className="block h-1.5 w-1.5 rounded-full bg-white" />
+                      )}
+                    </div>
+                    <div className="flex-1">
+                      <p className="font-medium">{String(u.fullName ?? u.email ?? "—")}</p>
+                      <p className="text-xs text-neutral-200">{String(u.email ?? "")}</p>
+                    </div>
+                  </button>
+                )
+              })}
+            </div>
+            <div className="flex justify-end gap-2 pt-2">
+              <Button variant="outline" onClick={() => setReassignModalOpen(false)}>
+                Hủy
+              </Button>
+              <Button
+                onClick={() => {
+                  if (!selectedReassignUserId) return
+                  reassignMutation.mutate(
+                    {
+                      messageId,
+                      payload: { toUserId: selectedReassignUserId },
+                    },
+                    {
+                      onSuccess: () => {
+                        toast.success("Đã giao việc thành công.")
+                        setReassignModalOpen(false)
+                      },
+                    }
+                  )
+                }}
+                disabled={!selectedReassignUserId || reassignMutation.isPending}
+              >
+                {reassignMutation.isPending ? "..." : "Xác nhận giao"}
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }

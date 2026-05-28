@@ -7,6 +7,4 @@
 
 export interface ReassignRequest {
   toUserId?: string;
-  /** @nullable */
-  lockToken?: string | null;
 }

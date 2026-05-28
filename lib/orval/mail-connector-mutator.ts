@@ -74,6 +74,12 @@ MAIL_CONNECTOR_AXIOS.interceptors.response.use(
       return Promise.reject(error)
     }
 
+    // Skip refresh if user is not logged in (no token) — e.g., login page
+    const token = localStorage.getItem("token")
+    if (!token) {
+      return Promise.reject(error)
+    }
+
     originalRequest._retry = true
 
     if (isRefreshing) {

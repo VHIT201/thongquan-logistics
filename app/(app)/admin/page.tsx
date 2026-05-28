@@ -1,4 +1,5 @@
 "use client"
+// ADMIN ROUTE: Admin dashboard tổng — chỉ admin
 
 import Link from "next/link"
 import {
@@ -10,6 +11,7 @@ import {
   AlertTriangle,
   Activity,
   FileCode,
+  ClipboardCheck,
 } from "lucide-react"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 
@@ -22,6 +24,33 @@ const adminCards = [
     color: "text-primary",
     bg: "bg-primary-50",
     count: "3 tài khoản",
+  },
+  {
+    href: "/admin/permissions",
+    title: "Quyền hạn",
+    description: "Quản lý danh sách quyền hạn (permissions) theo module",
+    icon: Shield,
+    color: "text-purple-600",
+    bg: "bg-purple-50",
+    count: "Permission CRUD",
+  },
+  {
+    href: "/admin/roles",
+    title: "Vai trò",
+    description: "Quản lý vai trò (roles) và gán quyền",
+    icon: Users,
+    color: "text-blue-600",
+    bg: "bg-blue-50",
+    count: "Role CRUD",
+  },
+  {
+    href: "/admin/assignments",
+    title: "Phân công",
+    description: "Quản lý phân công xử lý email cho nhân viên",
+    icon: ClipboardCheck,
+    color: "text-teal-600",
+    bg: "bg-teal-50",
+    count: "Assignments",
   },
   {
     href: "/admin/settings",
@@ -40,6 +69,15 @@ const adminCards = [
     color: "text-amber-600",
     bg: "bg-amber-50",
     count: "4 bản ghi",
+  },
+  {
+    href: "/admin/ai-usage",
+    title: "AI Usage",
+    description: "Theo dõi chi phí và token sử dụng AI theo user và thời gian",
+    icon: TrendingUp,
+    color: "text-cyan-600",
+    bg: "bg-cyan-50",
+    count: "Analytics",
   },
   {
     href: "/admin/templates",

@@ -7,5 +7,5 @@
 
 export interface UnassignRequest {
   /** @nullable */
-  lockToken?: string | null;
+  userId?: string | null;
 }
