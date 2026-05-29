@@ -94,6 +94,17 @@ export function TemplateResultModal({
 
     const ws = XLSX.utils.aoa_to_sheet([headers, values])
 
+    // Style header row: light blue background + bold blue text
+    const headerStyle = {
+      fill: { patternType: 'solid' as const, fgColor: { rgb: 'DBEAFE' } },
+      font: { bold: true, color: { rgb: '1E40AF' } },
+    }
+    for (let i = 0; i < headers.length; i++) {
+      const cellRef = XLSX.utils.encode_cell({ r: 0, c: i })
+      if (!ws[cellRef]) continue
+      ws[cellRef].s = headerStyle
+    }
+
     // Auto-fit column widths
     const colWidths = headers.map((h, i) => {
       const headerLen = String(h).length
@@ -105,7 +116,7 @@ export function TemplateResultModal({
 
     const wb = XLSX.utils.book_new()
     XLSX.utils.book_append_sheet(wb, ws, "Bóc tách")
-    XLSX.writeFile(wb, `boc-tach-${Date.now()}.xlsx`)
+    XLSX.writeFile(wb, `boc-tach-${Date.now()}.xlsx`, { cellStyles: true })
 
     onExport?.()
   }
@@ -143,12 +154,12 @@ export function TemplateResultModal({
         typeof rawData.url === "string" ? rawData.url : null
       const googleViewerUrlFromApi =
         typeof rawData.googleViewerUrl === "string" ? rawData.googleViewerUrl : null
-      const officeViewerUrl =
+      const officeViewerUrlFromApi =
         typeof rawData.officeViewerUrl === "string" ? rawData.officeViewerUrl : null
       const proxyUrl =
         typeof rawData.proxyUrl === "string" ? rawData.proxyUrl : null
 
-      if (!rawUrl && !googleViewerUrlFromApi && !officeViewerUrl && !proxyUrl) {
+      if (!rawUrl && !googleViewerUrlFromApi && !officeViewerUrlFromApi && !proxyUrl) {
         toast.error("Không có URL preview cho file này.")
         return
       }
@@ -158,18 +169,20 @@ export function TemplateResultModal({
       const isOfficeFile =
         ct.includes("word") || ct.includes("excel") || ct.includes("powerpoint") ||
         ct.includes("document") || ct.includes("sheet") || ct.includes("presentation")
+
+      // Luôn dùng presigned rawUrl làm base — Google/Office viewer cần URL public không cần auth
+      // proxyUrl từ API yêu cầu auth header, iframe không tự gửi được
       const googleViewerUrl =
-        googleViewerUrlFromApi ||
-        (isOfficeFile && rawUrl
+        isOfficeFile && rawUrl
           ? `https://docs.google.com/viewer?url=${encodeURIComponent(rawUrl)}&embedded=true`
-          : null)
+          : null
 
       setAttachmentPreview({
         url: rawUrl,
         expiresAt: typeof rawData.expiresAt === "string" ? rawData.expiresAt : null,
         googleViewerUrl,
-        officeViewerUrl,
-        proxyUrl,
+        officeViewerUrl: null,
+        proxyUrl: null,
       })
     } catch {
       toast.error("Không thể tải preview file.")

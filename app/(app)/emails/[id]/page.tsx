@@ -21,6 +21,7 @@ import { useUsersQuery } from "@/hooks/use-user-queries"
 import { MAIL_CONNECTOR_AXIOS } from "@/lib/orval/mail-connector-mutator"
 import { FileAttachmentItem } from "@/components/file-attachment-item"
 import { AttachmentViewerModal } from "@/components/attachment-viewer-modal"
+import { FileViewerModal } from "@/components/ui/file-viewer-modal"
 import {
   Dialog,
   DialogContent,
@@ -174,6 +175,12 @@ export default function EmailDetailPage() {
   const [selectedAttachmentId, setSelectedAttachmentId] = useState<string | null>(null)
   const [attachmentViewMode, setAttachmentViewMode] = useState<"extract" | "content">("extract")
   const [selectedForAI, setSelectedForAI] = useState<Set<string>>(new Set())
+
+  const [fileViewerOpen, setFileViewerOpen] = useState(false)
+  const [fileViewerUrl, setFileViewerUrl] = useState("")
+  const [fileViewerName, setFileViewerName] = useState("")
+  const [fileViewerType, setFileViewerType] = useState("")
+  const [fileViewerAttachmentId, setFileViewerAttachmentId] = useState<string | undefined>(undefined)
 
   const [extractionResultOpen, setExtractionResultOpen] = useState(false)
   const [extractionResult, setExtractionResult] = useState<string | null>(null)
@@ -575,7 +582,7 @@ export default function EmailDetailPage() {
     }
   }
 
-  const openExtractionDetail = (result: string) => {
+  const openExtractionDetail = async (result: string) => {
     if (aiMode === "template") {
       try {
         const parsed = JSON.parse(result) as Record<string, unknown>
@@ -587,6 +594,49 @@ export default function EmailDetailPage() {
           }
         }
         setTemplateExtractedData(flat)
+
+        // Fetch fresh presigned URL for the first selected attachment
+        const firstAttachmentId = Array.from(selectedForAI)[0]
+        const firstAttachment = attachments.find((a) => a.id === firstAttachmentId)
+        if (firstAttachmentId && firstAttachment) {
+          try {
+            const response = await MAIL_CONNECTOR_AXIOS.get(
+              `/api/v1/mail-messages/${messageId}/attachments/${firstAttachmentId}/presigned-url`
+            )
+            const data =
+              response.data && typeof response.data === "object"
+                ? (response.data as Record<string, unknown>)
+                : null
+            const nestedData =
+              data?.data && typeof data.data === "object"
+                ? (data.data as Record<string, unknown>)
+                : null
+            const rawUrl =
+              typeof (nestedData ?? data)?.url === "string"
+                ? ((nestedData ?? data)?.url as string)
+                : null
+
+            if (rawUrl) {
+              const ct = (firstAttachment.contentType ?? "").toLowerCase()
+              const isOfficeFile =
+                ct.includes("word") || ct.includes("excel") || ct.includes("powerpoint") ||
+                ct.includes("document") || ct.includes("sheet") || ct.includes("presentation")
+              setExtractionPreview({
+                url: isOfficeFile ? null : rawUrl,
+                expiresAt: null,
+                googleViewerUrl: isOfficeFile
+                  ? `https://docs.google.com/viewer?url=${encodeURIComponent(rawUrl)}&embedded=true`
+                  : null,
+                officeViewerUrl: null,
+                proxyUrl: null,
+              })
+              setExtractionFileName(firstAttachment.fileName)
+            }
+          } catch {
+            // Preview không load được, modal vẫn mở — auto-fetch sẽ xử lý
+          }
+        }
+
         setTemplateResultOpen(true)
       } catch {
         setExtractionResult(result)
@@ -657,20 +707,15 @@ export default function EmailDetailPage() {
         contentType?.toLowerCase().includes("sheet") ||
         contentType?.toLowerCase().includes("presentation")
 
-      const previewUrl = isOfficeFile
-        ? `https://docs.google.com/viewer?url=${encodeURIComponent(presignedUrl)}&embedded=true`
-        : presignedUrl
-
-      setExtractionPreview({
-        url: previewUrl,
-        expiresAt: null,
-        googleViewerUrl: null,
-        officeViewerUrl: null,
-        proxyUrl: null,
-      })
-      setExtractionFileName(fileName || "")
-      setTemplateExtractedData({})
-      setTemplateResultOpen(true)
+      if (isOfficeFile) {
+        setFileViewerUrl(`https://docs.google.com/viewer?url=${encodeURIComponent(presignedUrl)}&embedded=true`)
+      } else {
+        setFileViewerUrl(presignedUrl)
+      }
+      setFileViewerName(fileName || "")
+      setFileViewerType(contentType || "")
+      setFileViewerAttachmentId(attachmentId)
+      setFileViewerOpen(true)
     } catch (error) {
       alert(getErrorMessage(error, "Không thể xem trước tệp."))
     }
@@ -1185,7 +1230,7 @@ export default function EmailDetailPage() {
 
                   {msg.result && aiMode === "template" && (
                     <button
-                      onClick={() => openExtractionDetail(String(msg.result))}
+                      onClick={() => void openExtractionDetail(String(msg.result))}
                       className="inline-flex cursor-pointer items-center gap-1 rounded-md border border-primary/20 bg-primary/5 px-2 py-1 text-[11px] font-medium text-primary hover:bg-primary/10"
                     >
                       Xem chi tiết
@@ -1270,6 +1315,19 @@ export default function EmailDetailPage() {
           attachmentViewMode === "extract"
             ? (attachmentExtractTextQuery.data ?? null)
             : (attachmentContentQuery.data ?? null)
+        }
+      />
+
+      <FileViewerModal
+        open={fileViewerOpen}
+        onOpenChange={setFileViewerOpen}
+        fileUrl={fileViewerUrl}
+        fileName={fileViewerName}
+        fileType={fileViewerType}
+        downloadUrl={
+          fileViewerAttachmentId
+            ? `${API_BASE}/mail-messages/${messageId}/attachments/${fileViewerAttachmentId}/download`
+            : undefined
         }
       />
 
