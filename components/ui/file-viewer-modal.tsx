@@ -141,16 +141,16 @@ export function FileViewerModal({ open, onOpenChange, fileUrl, fileName, fileTyp
             <div className="flex items-center gap-2">
               <button
                 onClick={handleDownload}
-                className="flex items-center gap-2 px-3 py-1.5 text-sm text-gray-700 rounded-md hover:bg-gray-100 transition-colors"
+                className="cursor-pointer flex items-center gap-2 px-3 py-1.5 text-sm text-gray-700 rounded-md hover:bg-gray-100 transition-colors"
               >
                 <Download className="h-4 w-4" />
                 Tải xuống
               </button>
               <button
                 onClick={() => onOpenChange(false)}
-                className="flex items-center gap-2 px-3 py-1.5 text-sm text-gray-700 rounded-md hover:bg-gray-100 transition-colors"
+                className="cursor-pointer flex items-center gap-1 rounded-md border border-neutral-200 bg-white px-2.5 py-1.5 text-sm font-medium text-neutral-600 shadow-sm hover:bg-neutral-100 hover:text-black"
               >
-                <X className="h-4 w-4" />
+                <X className="h-3.5 w-3.5" />
                 Đóng
               </button>
             </div>

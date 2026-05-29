@@ -35,6 +35,13 @@ export function AttachmentViewerModal({
             <DialogTitle className="text-sm font-semibold text-neutral-300 truncate pr-4">
               {title}
             </DialogTitle>
+            <button
+              onClick={() => onOpenChange(false)}
+              className="cursor-pointer flex items-center gap-1 rounded-md border border-neutral-200 bg-white px-2.5 py-1 text-[11px] font-medium text-neutral-600 shadow-sm hover:bg-neutral-100 hover:text-black"
+            >
+              <X className="h-3.5 w-3.5" />
+              Đóng
+            </button>
           </div>
         </DialogHeader>
 

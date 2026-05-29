@@ -1,6 +1,7 @@
 "use client"
 
 import { useEffect, useMemo, useState } from "react"
+import { X } from "lucide-react"
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 
 type ViewerMode = "auto" | "google" | "office" | "proxy" | "direct"
@@ -215,12 +216,23 @@ export function ExtractionResultModal({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="h-[94vh] max-w-[96vw] p-0">
         <DialogHeader className="border-b p-4">
-          <DialogTitle className="text-black">Kết quả bóc tách thông tin logistics</DialogTitle>
-          {fileName ? (
-            <p className="text-sm text-neutral-600">
-              Tệp: <span className="font-medium">{fileName}</span>
-            </p>
-          ) : null}
+          <div className="flex items-center justify-between">
+            <div>
+              <DialogTitle className="text-black">Kết quả bóc tách thông tin logistics</DialogTitle>
+              {fileName ? (
+                <p className="text-sm text-neutral-600">
+                  Tệp: <span className="font-medium">{fileName}</span>
+                </p>
+              ) : null}
+            </div>
+            <button
+              onClick={() => onOpenChange(false)}
+              className="cursor-pointer flex items-center gap-1 rounded-md border border-neutral-200 bg-white px-2.5 py-1 text-[11px] font-medium text-neutral-600 shadow-sm hover:bg-neutral-100 hover:text-black"
+            >
+              <X className="h-3.5 w-3.5" />
+              Đóng
+            </button>
+          </div>
         </DialogHeader>
 
         <div className="grid h-[calc(94vh-88px)] grid-cols-1 md:grid-cols-[minmax(460px,45%)_1fr]">

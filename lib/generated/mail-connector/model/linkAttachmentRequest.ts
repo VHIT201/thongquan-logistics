@@ -24,6 +24,8 @@ export interface LinkAttachmentRequest {
   storageBucket?: string | null;
   /** @nullable */
   storagePath?: string | null;
-  tenantId?: string;
-  createdBy?: string;
+  /** @nullable */
+  tenantId?: string | null;
+  /** @nullable */
+  createdBy?: string | null;
 }

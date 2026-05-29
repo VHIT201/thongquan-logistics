@@ -15,12 +15,12 @@ import {
   useReassignMailMutation,
   useConfirmMailAssignmentMutation,
   useCompleteMailAssignmentMutation,
+  useUpdateMailAssignmentStatusMutation,
 } from "@/hooks/use-mail-assignments-queries"
 import { useUsersQuery } from "@/hooks/use-user-queries"
 import { MAIL_CONNECTOR_AXIOS } from "@/lib/orval/mail-connector-mutator"
 import { FileAttachmentItem } from "@/components/file-attachment-item"
 import { AttachmentViewerModal } from "@/components/attachment-viewer-modal"
-import { FileViewerModal } from "@/components/ui/file-viewer-modal"
 import {
   Dialog,
   DialogContent,
@@ -148,6 +148,7 @@ export default function EmailDetailPage() {
   const reassignMutation = useReassignMailMutation()
   const confirmMutation = useConfirmMailAssignmentMutation()
   const completeMutation = useCompleteMailAssignmentMutation()
+  const updateStatusMutation = useUpdateMailAssignmentStatusMutation()
 
   const assignmentData = assignmentStatusQuery.data as Record<string, unknown> | undefined
   const assignedToUserId = assignmentData?.assignedToUserId as string | undefined
@@ -173,12 +174,6 @@ export default function EmailDetailPage() {
   const [selectedAttachmentId, setSelectedAttachmentId] = useState<string | null>(null)
   const [attachmentViewMode, setAttachmentViewMode] = useState<"extract" | "content">("extract")
   const [selectedForAI, setSelectedForAI] = useState<Set<string>>(new Set())
-
-  const [fileViewerOpen, setFileViewerOpen] = useState(false)
-  const [fileViewerUrl, setFileViewerUrl] = useState("")
-  const [fileViewerName, setFileViewerName] = useState("")
-  const [fileViewerType, setFileViewerType] = useState("")
-  const [fileViewerAttachmentId, setFileViewerAttachmentId] = useState<string | undefined>(undefined)
 
   const [extractionResultOpen, setExtractionResultOpen] = useState(false)
   const [extractionResult, setExtractionResult] = useState<string | null>(null)
@@ -607,6 +602,14 @@ export default function EmailDetailPage() {
     setTemplateExtractedData(data)
   }
 
+  const handleExported = () => {
+    if (!messageId) return
+    updateStatusMutation.mutate({
+      messageId,
+      payload: { status: "Exported", notes: "Exported via AI extraction result" },
+    })
+  }
+
   const handleShowAttachmentExtractText = (attachmentId: string | undefined) => {
     if (!attachmentId) return
     setAttachmentViewMode("extract")
@@ -654,17 +657,20 @@ export default function EmailDetailPage() {
         contentType?.toLowerCase().includes("sheet") ||
         contentType?.toLowerCase().includes("presentation")
 
-      if (isOfficeFile) {
-        const googleDocsUrl = `https://docs.google.com/viewer?url=${encodeURIComponent(presignedUrl)}&embedded=true`
-        setFileViewerUrl(googleDocsUrl)
-      } else {
-        setFileViewerUrl(presignedUrl)
-      }
+      const previewUrl = isOfficeFile
+        ? `https://docs.google.com/viewer?url=${encodeURIComponent(presignedUrl)}&embedded=true`
+        : presignedUrl
 
-      setFileViewerName(fileName || "")
-      setFileViewerType(contentType || "")
-      setFileViewerAttachmentId(attachmentId)
-      setFileViewerOpen(true)
+      setExtractionPreview({
+        url: previewUrl,
+        expiresAt: null,
+        googleViewerUrl: null,
+        officeViewerUrl: null,
+        proxyUrl: null,
+      })
+      setExtractionFileName(fileName || "")
+      setTemplateExtractedData({})
+      setTemplateResultOpen(true)
     } catch (error) {
       alert(getErrorMessage(error, "Không thể xem trước tệp."))
     }
@@ -755,7 +761,7 @@ export default function EmailDetailPage() {
                 <button
                   onClick={() => confirmMutation.mutate({ messageId, payload: {} })}
                   disabled={confirmMutation.isPending}
-                  className="inline-flex items-center gap-1 rounded-full bg-blue-50 px-2 py-0.5 text-[10px] font-medium text-blue-700 hover:bg-blue-100 disabled:opacity-50"
+                  className="inline-flex cursor-pointer items-center gap-1 rounded-full bg-blue-50 px-2 py-0.5 text-[10px] font-medium text-blue-700 hover:bg-blue-100 disabled:cursor-not-allowed disabled:opacity-50"
                 >
                   {confirmMutation.isPending ? "..." : "Xác nhận"}
                 </button>
@@ -764,7 +770,7 @@ export default function EmailDetailPage() {
                 <button
                   onClick={() => completeMutation.mutate({ messageId, payload: {} })}
                   disabled={completeMutation.isPending}
-                  className="inline-flex items-center gap-1 rounded-full bg-green-50 px-2 py-0.5 text-[10px] font-medium text-green-700 hover:bg-green-100 disabled:opacity-50"
+                  className="inline-flex cursor-pointer items-center gap-1 rounded-full bg-green-50 px-2 py-0.5 text-[10px] font-medium text-green-700 hover:bg-green-100 disabled:cursor-not-allowed disabled:opacity-50"
                 >
                   {completeMutation.isPending ? "..." : "Hoàn thành"}
                 </button>
@@ -775,7 +781,7 @@ export default function EmailDetailPage() {
                     setSelectedReassignUserId(assignedToUserId ?? "")
                     setReassignModalOpen(true)
                   }}
-                  className="inline-flex items-center gap-1 rounded-full bg-amber-50 px-2 py-0.5 text-[10px] font-medium text-amber-700 hover:bg-amber-100"
+                  className="inline-flex cursor-pointer items-center gap-1 rounded-full bg-amber-50 px-2 py-0.5 text-[10px] font-medium text-amber-700 hover:bg-amber-100"
                 >
                   Giao việc
                 </button>
@@ -784,7 +790,7 @@ export default function EmailDetailPage() {
                 <button
                   onClick={() => assignMutation.mutate({ messageId })}
                   disabled={assignMutation.isPending}
-                  className="inline-flex items-center gap-1 rounded-full bg-primary-50 px-2 py-0.5 text-[10px] font-medium text-primary hover:bg-primary-100 disabled:opacity-50"
+                  className="inline-flex cursor-pointer items-center gap-1 rounded-full bg-primary-50 px-2 py-0.5 text-[10px] font-medium text-primary hover:bg-primary-100 disabled:cursor-not-allowed disabled:opacity-50"
                 >
                   {assignMutation.isPending ? "..." : "Nhận xử lý"}
                 </button>
@@ -798,7 +804,7 @@ export default function EmailDetailPage() {
                 <button
                   onClick={() => triggerPipelineMutation.mutate(messageId)}
                   disabled={triggerPipelineMutation.isPending}
-                  className="inline-flex items-center gap-1 rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-1.5 text-xs font-semibold text-emerald-700 hover:bg-emerald-100 disabled:opacity-50"
+                  className="inline-flex cursor-pointer items-center gap-1 rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-1.5 text-xs font-semibold text-emerald-700 hover:bg-emerald-100 disabled:cursor-not-allowed disabled:opacity-50"
                 >
                   <Play className="h-3 w-3" />
                   {triggerPipelineMutation.isPending ? "..." : "Pipeline"}
@@ -806,7 +812,7 @@ export default function EmailDetailPage() {
                 <button
                   onClick={() => normalizeMailMutation.mutate(messageId)}
                   disabled={normalizeMailMutation.isPending}
-                  className="inline-flex items-center gap-1 rounded-lg border border-blue-200 bg-blue-50 px-3 py-1.5 text-xs font-semibold text-blue-700 hover:bg-blue-100 disabled:opacity-50"
+                  className="inline-flex cursor-pointer items-center gap-1 rounded-lg border border-blue-200 bg-blue-50 px-3 py-1.5 text-xs font-semibold text-blue-700 hover:bg-blue-100 disabled:cursor-not-allowed disabled:opacity-50"
                 >
                   <Sparkles className="h-3 w-3" />
                   {normalizeMailMutation.isPending ? "..." : "Normalize"}
@@ -814,7 +820,7 @@ export default function EmailDetailPage() {
                 <button
                   onClick={() => classifyMailMutation.mutate(messageId)}
                   disabled={classifyMailMutation.isPending}
-                  className="inline-flex items-center gap-1 rounded-lg border border-purple-200 bg-purple-50 px-3 py-1.5 text-xs font-semibold text-purple-700 hover:bg-purple-100 disabled:opacity-50"
+                  className="inline-flex cursor-pointer items-center gap-1 rounded-lg border border-purple-200 bg-purple-50 px-3 py-1.5 text-xs font-semibold text-purple-700 hover:bg-purple-100 disabled:cursor-not-allowed disabled:opacity-50"
                 >
                   <Tag className="h-3 w-3" />
                   {classifyMailMutation.isPending ? "..." : "Classify"}
@@ -822,7 +828,7 @@ export default function EmailDetailPage() {
                 <button
                   onClick={() => extractMailMutation.mutate(messageId)}
                   disabled={extractMailMutation.isPending}
-                  className="inline-flex items-center gap-1 rounded-lg border border-amber-200 bg-amber-50 px-3 py-1.5 text-xs font-semibold text-amber-700 hover:bg-amber-100 disabled:opacity-50"
+                  className="inline-flex cursor-pointer items-center gap-1 rounded-lg border border-amber-200 bg-amber-50 px-3 py-1.5 text-xs font-semibold text-amber-700 hover:bg-amber-100 disabled:cursor-not-allowed disabled:opacity-50"
                 >
                   <FileSearch className="h-3 w-3" />
                   {extractMailMutation.isPending ? "..." : "Extract"}
@@ -889,7 +895,7 @@ export default function EmailDetailPage() {
                 <div className="inline-flex items-center rounded-lg border border-neutral-200 bg-neutral-50 p-1 text-[11px]">
                   <button
                     onClick={() => setContentMode("auto")}
-                    className={`rounded px-2.5 py-1 font-medium transition ${
+                    className={`cursor-pointer rounded px-2.5 py-1 font-medium transition ${
                       contentMode === "auto" ? "bg-primary text-white" : "text-neutral-600 hover:bg-neutral-100"
                     }`}
                   >
@@ -897,7 +903,7 @@ export default function EmailDetailPage() {
                   </button>
                   <button
                     onClick={() => setContentMode("text")}
-                    className={`rounded px-2.5 py-1 font-medium transition ${
+                    className={`cursor-pointer rounded px-2.5 py-1 font-medium transition ${
                       contentMode === "text" ? "bg-primary text-white" : "text-neutral-600 hover:bg-neutral-100"
                     }`}
                   >
@@ -905,7 +911,7 @@ export default function EmailDetailPage() {
                   </button>
                   <button
                     onClick={() => setContentMode("html")}
-                    className={`rounded px-2.5 py-1 font-medium transition ${
+                    className={`cursor-pointer rounded px-2.5 py-1 font-medium transition ${
                       contentMode === "html" ? "bg-primary text-white" : "text-neutral-600 hover:bg-neutral-100"
                     }`}
                   >
@@ -950,7 +956,7 @@ export default function EmailDetailPage() {
               </div>
               <button
                 onClick={() => setChatMessages([])}
-                className="rounded p-1 text-white/80 hover:bg-white/10 hover:text-white"
+                className="cursor-pointer rounded p-1 text-white/80 hover:bg-white/10 hover:text-white"
                 title="Xóa hội thoại"
               >
                 <X className="h-3.5 w-3.5" />
@@ -966,7 +972,7 @@ export default function EmailDetailPage() {
                   setAiMode("chat")
                   setPromptError(null)
                 }}
-                className={`rounded-md px-2.5 py-1 text-[11px] font-medium ${
+                className={`cursor-pointer rounded-md px-2.5 py-1 text-[11px] font-medium ${
                   aiMode === "chat" ? "bg-primary text-white" : "text-neutral-600 hover:bg-neutral-100"
                 }`}
               >
@@ -978,7 +984,7 @@ export default function EmailDetailPage() {
                   setAiMode("template")
                   setPromptError(null)
                 }}
-                className={`rounded-md px-2.5 py-1 text-[11px] font-medium ${
+                className={`cursor-pointer rounded-md px-2.5 py-1 text-[11px] font-medium ${
                   aiMode === "template" ? "bg-primary text-white" : "text-neutral-600 hover:bg-neutral-100"
                 }`}
                 >
@@ -1007,7 +1013,7 @@ export default function EmailDetailPage() {
                   <button
                     type="button"
                     onClick={() => setShowCreateTemplate((s) => !s)}
-                    className="shrink-0 rounded-md px-2 py-1 text-[11px] font-medium text-neutral-600 hover:bg-neutral-100"
+                    className="cursor-pointer shrink-0 rounded-md px-2 py-1 text-[11px] font-medium text-neutral-600 hover:bg-neutral-100"
                     title="Tạo template mới"
                   >
                     +
@@ -1049,7 +1055,7 @@ export default function EmailDetailPage() {
                       setNewTemplateName("")
                       setNewTemplateFields("{}")
                     }}
-                    className="rounded-md px-2 py-1 text-[11px] text-neutral-500 hover:bg-neutral-100"
+                    className="cursor-pointer rounded-md px-2 py-1 text-[11px] text-neutral-500 hover:bg-neutral-100"
                   >
                     Hủy
                   </button>
@@ -1087,7 +1093,7 @@ export default function EmailDetailPage() {
                         setPromptError(getErrorMessage(err, "Tạo template thất bại."))
                       }
                     }}
-                    className="rounded-md bg-primary px-2.5 py-1 text-[11px] font-medium text-white hover:bg-primary-500 disabled:opacity-40"
+                    className="cursor-pointer rounded-md bg-primary px-2.5 py-1 text-[11px] font-medium text-white hover:bg-primary-500 disabled:cursor-not-allowed disabled:opacity-40"
                   >
                     {createTemplateMutation.isPending ? "Đang tạo..." : "Tạo"}
                   </button>
@@ -1180,7 +1186,7 @@ export default function EmailDetailPage() {
                   {msg.result && aiMode === "template" && (
                     <button
                       onClick={() => openExtractionDetail(String(msg.result))}
-                      className="inline-flex items-center gap-1 rounded-md border border-primary/20 bg-primary/5 px-2 py-1 text-[11px] font-medium text-primary hover:bg-primary/10"
+                      className="inline-flex cursor-pointer items-center gap-1 rounded-md border border-primary/20 bg-primary/5 px-2 py-1 text-[11px] font-medium text-primary hover:bg-primary/10"
                     >
                       Xem chi tiết
                     </button>
@@ -1267,19 +1273,6 @@ export default function EmailDetailPage() {
         }
       />
 
-      <FileViewerModal
-        open={fileViewerOpen}
-        onOpenChange={setFileViewerOpen}
-        fileUrl={fileViewerUrl}
-        fileName={fileViewerName}
-        fileType={fileViewerType}
-        downloadUrl={
-          fileViewerAttachmentId
-            ? `${API_BASE}/mail-messages/${messageId}/attachments/${fileViewerAttachmentId}/download`
-            : undefined
-        }
-      />
-
       <ExtractionResultModal
         open={extractionResultOpen}
         onOpenChange={setExtractionResultOpen}
@@ -1296,6 +1289,10 @@ export default function EmailDetailPage() {
         onDataChange={handleTemplateDataChange}
         preview={extractionPreview as TemplatePreviewSources | null}
         fileName={extractionFileName}
+        templates={templates}
+        onExport={handleExported}
+        attachments={attachments}
+        messageId={messageId}
       />
 
       {/* Admin Reassign Dialog */}
@@ -1319,7 +1316,7 @@ export default function EmailDetailPage() {
                   <button
                     key={uid}
                     onClick={() => setSelectedReassignUserId(uid)}
-                    className={`flex w-full items-center gap-3 rounded-lg border px-3 py-2 text-left text-sm transition-colors ${
+                    className={`flex cursor-pointer w-full items-center gap-3 rounded-lg border px-3 py-2 text-left text-sm transition-colors ${
                       selectedReassignUserId === uid
                         ? "border-primary bg-primary-50 text-primary"
                         : "border-neutral-100 text-neutral-300 hover:bg-neutral-50"

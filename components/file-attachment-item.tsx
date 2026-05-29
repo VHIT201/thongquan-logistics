@@ -38,13 +38,19 @@ export function FileAttachmentItem({
   onDownload,
 }: FileAttachmentItemProps) {
   return (
-    <div className="group relative flex flex-col gap-2 rounded-xl border border-neutral-100 bg-white p-3 transition-colors hover:border-neutral-200">
+    <div
+      className={`group relative flex flex-col gap-2 rounded-xl border p-3 transition-colors ${
+        isChecked
+          ? "border-primary/40 bg-primary-50"
+          : "border-neutral-100 bg-white hover:border-neutral-200"
+      }`}
+    >
       {/* Top: checkbox + icon + type */}
       <div className="flex items-start gap-2.5">
         {onCheckChange && (
           <button
             onClick={() => onCheckChange(!isChecked)}
-            className={`mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded border transition-colors ${
+            className={`mt-0.5 flex h-5 w-5 shrink-0 cursor-pointer items-center justify-center rounded border transition-colors ${
               isChecked
                 ? "border-primary bg-primary text-white"
                 : "border-neutral-200 bg-white text-neutral-300 hover:border-primary/50"
@@ -70,18 +76,10 @@ export function FileAttachmentItem({
       <div className="flex items-center justify-between">
         <span className="text-[11px] text-neutral-300">{fileSize}</span>
         <div className="flex items-center gap-1">
-          {/* {onViewExtract && (
-            <button
-              onClick={onViewExtract}
-              className="flex items-center gap-1 rounded-md border border-neutral-100 bg-white px-2 py-1 text-[10px] font-medium text-neutral-400 hover:text-primary hover:border-primary/30 transition-colors"
-            >
-              <FileText className="h-3 w-3" /> Trích
-            </button>
-          )} */}
           {onViewContent && (
             <button
               onClick={onViewContent}
-              className="flex items-center gap-1 rounded-md border border-neutral-100 bg-white px-2 py-1 text-[10px] font-medium text-neutral-400 hover:text-primary hover:border-primary/30 transition-colors"
+              className="flex cursor-pointer items-center gap-1 rounded-md border border-neutral-100 bg-white px-2 py-1 text-[10px] font-medium text-neutral-400 hover:text-primary hover:border-primary/30 transition-colors"
             >
               <Eye className="h-3 w-3" /> Xem
             </button>
@@ -89,7 +87,7 @@ export function FileAttachmentItem({
           {onDownload && (
             <button
               onClick={onDownload}
-              className="flex h-6 w-6 items-center justify-center rounded text-neutral-300 hover:text-primary transition-colors"
+              className="flex h-6 w-6 cursor-pointer items-center justify-center rounded text-neutral-300 hover:text-primary transition-colors"
             >
               <Download className="h-3.5 w-3.5" />
             </button>
