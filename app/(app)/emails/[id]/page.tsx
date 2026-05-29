@@ -621,8 +621,9 @@ export default function EmailDetailPage() {
               const isOfficeFile =
                 ct.includes("word") || ct.includes("excel") || ct.includes("powerpoint") ||
                 ct.includes("document") || ct.includes("sheet") || ct.includes("presentation")
+              const safeUrl = `/api/attachment-proxy?url=${encodeURIComponent(rawUrl)}`
               setExtractionPreview({
-                url: isOfficeFile ? null : rawUrl,
+                url: isOfficeFile ? null : safeUrl,
                 expiresAt: null,
                 googleViewerUrl: isOfficeFile
                   ? `https://docs.google.com/viewer?url=${encodeURIComponent(rawUrl)}&embedded=true`
@@ -707,10 +708,11 @@ export default function EmailDetailPage() {
         contentType?.toLowerCase().includes("sheet") ||
         contentType?.toLowerCase().includes("presentation")
 
+      const safeUrl = `/api/attachment-proxy?url=${encodeURIComponent(presignedUrl)}`
       if (isOfficeFile) {
         setFileViewerUrl(`https://docs.google.com/viewer?url=${encodeURIComponent(presignedUrl)}&embedded=true`)
       } else {
-        setFileViewerUrl(presignedUrl)
+        setFileViewerUrl(safeUrl)
       }
       setFileViewerName(fileName || "")
       setFileViewerType(contentType || "")

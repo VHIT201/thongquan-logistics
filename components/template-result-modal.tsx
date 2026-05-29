@@ -170,15 +170,18 @@ export function TemplateResultModal({
         ct.includes("word") || ct.includes("excel") || ct.includes("powerpoint") ||
         ct.includes("document") || ct.includes("sheet") || ct.includes("presentation")
 
-      // Luôn dùng presigned rawUrl làm base — Google/Office viewer cần URL public không cần auth
-      // proxyUrl từ API yêu cầu auth header, iframe không tự gửi được
+      // Wrap rawUrl qua /api/attachment-proxy để tránh mixed content (HTTP→HTTPS)
+      // Google/Office viewer cần URL public không cần auth — presigned URL là đủ
+      const safeUrl = rawUrl
+        ? `/api/attachment-proxy?url=${encodeURIComponent(rawUrl)}`
+        : null
       const googleViewerUrl =
         isOfficeFile && rawUrl
           ? `https://docs.google.com/viewer?url=${encodeURIComponent(rawUrl)}&embedded=true`
           : null
 
       setAttachmentPreview({
-        url: rawUrl,
+        url: safeUrl,
         expiresAt: typeof rawData.expiresAt === "string" ? rawData.expiresAt : null,
         googleViewerUrl,
         officeViewerUrl: null,
