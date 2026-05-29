@@ -438,7 +438,3 @@ export default function SettingsPage() {
     </Suspense>
   )
 }
-
-function cn(...classes: (string | false | undefined)[]) {
-  return classes.filter(Boolean).join(" ")
-}
