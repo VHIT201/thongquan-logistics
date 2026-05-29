@@ -449,9 +449,7 @@ export default function EmailDetailPage() {
       if (msg.role === "assistant") {
         const parsed = parseAiDisplayContent(msg.content)
         displayContent = parsed.display
-        if (aiMode === "template") {
-          result = parsed.result
-        }
+        result = parsed.result  // always store if JSON parseable
       }
       return {
         id: msg.id,
@@ -583,67 +581,75 @@ export default function EmailDetailPage() {
   }
 
   const openExtractionDetail = async (result: string) => {
-    if (aiMode === "template") {
-      try {
-        const parsed = JSON.parse(result) as Record<string, unknown>
-        const fieldsObj = parsed.fields as Record<string, unknown> | undefined
-        const flat: Record<string, string> = {}
-        if (fieldsObj && typeof fieldsObj === "object" && !Array.isArray(fieldsObj)) {
-          for (const [key, value] of Object.entries(fieldsObj)) {
+    try {
+      const parsed = JSON.parse(result) as Record<string, unknown>
+      const flat: Record<string, string> = {}
+
+      // Handle fields[] array (name/value pairs from AI response)
+      if (parsed.fields && Array.isArray(parsed.fields)) {
+        for (const f of parsed.fields as Array<{ name?: string; value?: unknown }>) {
+          const key = f.name ?? ""
+          if (key) flat[key] = f.value === null || f.value === undefined ? "" : String(f.value)
+        }
+      } else {
+        // Handle fields object or flat object
+        const fieldsObj = (parsed.fields && typeof parsed.fields === "object" && !Array.isArray(parsed.fields))
+          ? (parsed.fields as Record<string, unknown>)
+          : parsed
+        for (const [key, value] of Object.entries(fieldsObj)) {
+          if (key !== "summary" && key !== "missingFields" && key !== "confidence") {
             flat[key] = value === null || value === undefined ? "" : String(value)
           }
         }
-        setTemplateExtractedData(flat)
-
-        // Fetch fresh presigned URL for the first selected attachment
-        const firstAttachmentId = Array.from(selectedForAI)[0]
-        const firstAttachment = attachments.find((a) => a.id === firstAttachmentId)
-        if (firstAttachmentId && firstAttachment) {
-          try {
-            const response = await MAIL_CONNECTOR_AXIOS.get(
-              `/api/v1/mail-messages/${messageId}/attachments/${firstAttachmentId}/presigned-url`
-            )
-            const data =
-              response.data && typeof response.data === "object"
-                ? (response.data as Record<string, unknown>)
-                : null
-            const nestedData =
-              data?.data && typeof data.data === "object"
-                ? (data.data as Record<string, unknown>)
-                : null
-            const rawUrl =
-              typeof (nestedData ?? data)?.url === "string"
-                ? ((nestedData ?? data)?.url as string)
-                : null
-
-            if (rawUrl) {
-              const ct = (firstAttachment.contentType ?? "").toLowerCase()
-              const isOfficeFile =
-                ct.includes("word") || ct.includes("excel") || ct.includes("powerpoint") ||
-                ct.includes("document") || ct.includes("sheet") || ct.includes("presentation")
-              const safeUrl = `/api/attachment-proxy?url=${encodeURIComponent(rawUrl)}`
-              setExtractionPreview({
-                url: isOfficeFile ? null : safeUrl,
-                expiresAt: null,
-                googleViewerUrl: isOfficeFile
-                  ? `https://docs.google.com/viewer?url=${encodeURIComponent(rawUrl)}&embedded=true`
-                  : null,
-                officeViewerUrl: null,
-                proxyUrl: null,
-              })
-              setExtractionFileName(firstAttachment.fileName)
-            }
-          } catch {
-            // Preview không load được, modal vẫn mở — auto-fetch sẽ xử lý
-          }
-        }
-
-        setTemplateResultOpen(true)
-      } catch {
-        setExtractionResult(result)
-        setExtractionResultOpen(true)
       }
-    } else {
+
+      setTemplateExtractedData(flat)
+
+      // Fetch fresh presigned URL for the first selected attachment
+      const firstAttachmentId = Array.from(selectedForAI)[0]
+      const firstAttachment = attachments.find((a) => a.id === firstAttachmentId)
+      if (firstAttachmentId && firstAttachment) {
+        try {
+          const response = await MAIL_CONNECTOR_AXIOS.get(
+            `/api/v1/mail-messages/${messageId}/attachments/${firstAttachmentId}/presigned-url`
+          )
+          const data =
+            response.data && typeof response.data === "object"
+              ? (response.data as Record<string, unknown>)
+              : null
+          const nestedData =
+            data?.data && typeof data.data === "object"
+              ? (data.data as Record<string, unknown>)
+              : null
+          const rawUrl =
+            typeof (nestedData ?? data)?.url === "string"
+              ? ((nestedData ?? data)?.url as string)
+              : null
+
+          if (rawUrl) {
+            const ct = (firstAttachment.contentType ?? "").toLowerCase()
+            const isOfficeFile =
+              ct.includes("word") || ct.includes("excel") || ct.includes("powerpoint") ||
+              ct.includes("document") || ct.includes("sheet") || ct.includes("presentation")
+            const safeUrl = `/api/attachment-proxy?url=${encodeURIComponent(rawUrl)}`
+            setExtractionPreview({
+              url: isOfficeFile ? null : safeUrl,
+              expiresAt: null,
+              googleViewerUrl: isOfficeFile
+                ? `https://docs.google.com/viewer?url=${encodeURIComponent(rawUrl)}&embedded=true`
+                : null,
+              officeViewerUrl: null,
+              proxyUrl: null,
+            })
+            setExtractionFileName(firstAttachment.fileName)
+          }
+        } catch {
+          // Preview không load được, modal vẫn mở
+        }
+      }
+
+      setTemplateResultOpen(true)
+    } catch {
       setExtractionResult(result)
       setExtractionResultOpen(true)
     }
@@ -1230,7 +1236,7 @@ export default function EmailDetailPage() {
                     </div>
                   )}
 
-                  {msg.result && aiMode === "template" && (
+                  {msg.result && (
                     <button
                       onClick={() => void openExtractionDetail(String(msg.result))}
                       className="inline-flex cursor-pointer items-center gap-1 rounded-md border border-primary/20 bg-primary/5 px-2 py-1 text-[11px] font-medium text-primary hover:bg-primary/10"
@@ -1288,14 +1294,14 @@ export default function EmailDetailPage() {
                   }
                 }}
                 disabled={chatLoading}
-                placeholder={aiMode === "chat" ? "Nhập yêu cầu..." : "Enter để bóc template"}
+                placeholder={aiMode === "chat" ? "Nhập yêu cầu..." : "Nhấn Enter để bóc template (không cần nhập nội dung)"}
                 className="flex-1 rounded-lg border border-neutral-200 bg-neutral-50 px-3 py-2 text-xs text-neutral-800 outline-none focus:border-primary focus:bg-white disabled:opacity-50"
               />
               <button
                 onClick={() => {
                   void sendChatMessage()
                 }}
-                disabled={chatLoading || !chatInput.trim()}
+                disabled={chatLoading || (aiMode === "chat" && !chatInput.trim()) || (aiMode === "template" && !selectedTemplate)}
                 className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-primary text-white hover:bg-primary-500 disabled:cursor-not-allowed disabled:opacity-30"
               >
                 <Send className="h-3.5 w-3.5" />
@@ -1344,7 +1350,11 @@ export default function EmailDetailPage() {
       <TemplateResultModal
         open={templateResultOpen}
         onOpenChange={setTemplateResultOpen}
-        fields={selectedTemplate?.expectedFields ?? {}}
+        fields={
+          Object.keys(selectedTemplate?.expectedFields ?? {}).length > 0
+            ? (selectedTemplate?.expectedFields ?? {})
+            : Object.fromEntries(Object.keys(templateExtractedData).map((k) => [k, k]))
+        }
         data={templateExtractedData}
         onDataChange={handleTemplateDataChange}
         preview={extractionPreview as TemplatePreviewSources | null}
