@@ -1,6 +1,6 @@
 "use client"
 
-import { useMemo, useState } from "react"
+import { useEffect, useMemo, useState } from "react"
 import Link from "next/link"
 import { useRouter } from "next/navigation"
 import {
@@ -57,6 +57,15 @@ export default function DraftsPage() {
   const [ragMessages, setRagMessages] = useState<
     { role: "user" | "assistant"; content: string }[]
   >([])
+
+  // Auto-seed dummy data on first visit
+  const [hasSeeded, setHasSeeded] = useState(false)
+  useEffect(() => {
+    if (!hasSeeded && drafts.length === 0) {
+      seedDummyData()
+      setHasSeeded(true)
+    }
+  }, [drafts.length, hasSeeded, seedDummyData])
 
   const filteredDrafts = useMemo(() => {
     let result = searchQuery.trim() ? searchDrafts(searchQuery) : drafts
@@ -129,7 +138,7 @@ export default function DraftsPage() {
         </div>
       </div>
 
-      <div className="grid gap-4 lg:grid-cols-[1fr_380px]">
+      <div className="grid gap-4 xl:grid-cols-[1fr_340px]">
         {/* Left: Drafts list */}
         <div className="space-y-3">
           {/* Search & Filter */}
