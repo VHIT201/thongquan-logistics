@@ -138,49 +138,97 @@ export default function DraftsPage() {
     setRagMessages((prev) => [...prev, { role: "user" as const, content: query }])
 
     const q = query.toLowerCase()
-    const allResults = searchDrafts(query)
-    // Ưu tiên match chính xác soToKhai bằng số trong query
-    const queryNumbers = q.match(/\d+/g) || []
-    const exactMatch = allResults.find((d) => {
-      const soToKhai = d.extractedData.soToKhai?.toLowerCase() || ""
-      return queryNumbers.some((num) => soToKhai.includes(num))
+
+    // ===== SMART SCORING =====
+    const scored = drafts.map((d) => {
+      const data = d.extractedData
+      const text = [
+        data.soToKhai, data.khachHang, data.loaiHang,
+        data.cangXuatNhap, data.trangThaiLoHang,
+        d.extractedText, d.emailSubject,
+      ].filter(Boolean).join(" ").toLowerCase()
+
+      let score = 0
+      const keywords = q.split(/\s+/).filter((w) => w.length > 1)
+      for (const kw of keywords) {
+        if (text.includes(kw)) score += 1
+      }
+
+      // Bonus: soToKhai number match (+10)
+      const nums = q.match(/\d+/g) || []
+      for (const num of nums) {
+        if (data.soToKhai?.toLowerCase().includes(num)) score += 10
+      }
+
+      // Bonus: khachHang exact (+5)
+      if (data.khachHang?.toLowerCase().includes(q)) score += 5
+
+      return { draft: d, score }
     })
-    const firstKeyword = q.split(/\s+/).find((w) => w.length > 1) || ""
-    const relevantDrafts = exactMatch
-      ? [exactMatch]
-      : allResults.filter((d) => {
-          const soToKhai = d.extractedData.soToKhai?.toLowerCase() || ""
-          return soToKhai.includes(firstKeyword)
-        }).slice(0, 1)
+
+    scored.sort((a, b) => b.score - a.score)
+    const topDrafts = scored.filter((s) => s.score > 0).map((s) => s.draft)
+    const best = topDrafts[0]
+
+    // ===== INTENT DETECTION =====
+    const isCount = /bao nhiêu|tổng|có bao nhiêu/.test(q)
+    const isContainer = /container|cont/.test(q)
+    const isCustomer = /khách hàng|tên khách|là ai/.test(q)
+    const isPort = /cảng|port/.test(q)
+    const isStatus = /trạng thái|tình trạng/.test(q)
+    const isCargo = /loại hàng|hàng gì/.test(q)
 
     setTimeout(() => {
-      const hasResults = relevantDrafts.length > 0
-      if (!hasResults) {
+      if (!best) {
         setRagMessages((prev) => [...prev, { role: "assistant", content: "Không tìm thấy hồ sơ nào liên quan." }])
         setRagLoading(false)
         return
       }
 
-      const d = relevantDrafts[0]
-      const data = d.extractedData
+      const data = best.extractedData
       const totalCont =
         (parseInt(data.soContainer20 || "0") || 0) +
         (parseInt(data.soContainer40 || "0") || 0)
 
-      const answer = `📋 **Tờ khai ${data.soToKhai || "—"}**\n\n` +
-        `🏢 Khách hàng: ${data.khachHang || "—"}\n` +
-        `📦 Loại hàng: ${data.loaiHang || "—"}\n` +
-        `🚢 Cảng: ${data.cangXuatNhap || "—"}\n\n` +
-        `📐 **Container:**\n` +
-        `   • 20': ${data.soContainer20 || "0"} chiếc\n` +
-        `   • 40': ${data.soContainer40 || "0"} chiếc\n` +
-        `   → **Tổng: ${totalCont} container**\n\n` +
-        `🚛 Trạng thái: ${data.trangThaiLoHang || "—"}`
+      let answer = ""
 
-      setRagMessages((prev) => [
-        ...prev,
-        { role: "assistant", content: answer },
-      ])
+      // Câu hỏi về container + đếm
+      if (isContainer && isCount) {
+        answer =
+          `📋 **Tờ khai ${data.soToKhai || "—"}**\n\n` +
+          `🏢 ${data.khachHang || "—"}\n` +
+          `📐 Container 20': ${data.soContainer20 || "0"} chiếc\n` +
+          `📐 Container 40': ${data.soContainer40 || "0"} chiếc\n` +
+          `→ **Tổng: ${totalCont} container**`
+      }
+      // Câu hỏi về khách hàng
+      else if (isCustomer) {
+        answer = `🏢 Khách hàng của tờ khai ${data.soToKhai || "—"} là **${data.khachHang || "—"}**`
+      }
+      // Câu hỏi về cảng
+      else if (isPort) {
+        answer = `🚢 Tờ khai ${data.soToKhai || "—"}:\nCảng: **${data.cangXuatNhap || "—"}**`
+      }
+      // Câu hỏi về trạng thái
+      else if (isStatus) {
+        answer = `� Tờ khai ${data.soToKhai || "—"}:\nTrạng thái: **${data.trangThaiLoHang || "—"}**`
+      }
+      // Câu hỏi về loại hàng
+      else if (isCargo) {
+        answer = `📦 Tờ khai ${data.soToKhai || "—"}:\nLoại hàng: **${data.loaiHang || "—"}**`
+      }
+      // Default
+      else {
+        answer =
+          `📋 **Tờ khai ${data.soToKhai || "—"}**\n\n` +
+          `🏢 Khách hàng: ${data.khachHang || "—"}\n` +
+          `📦 Loại hàng: ${data.loaiHang || "—"}\n` +
+          `🚢 Cảng: ${data.cangXuatNhap || "—"}\n\n` +
+          `📐 Container: 20'=${data.soContainer20 || "0"}, 40'=${data.soContainer40 || "0"} → **${totalCont}**\n\n` +
+          `🚛 Trạng thái: ${data.trangThaiLoHang || "—"}`
+      }
+
+      setRagMessages((prev) => [...prev, { role: "assistant", content: answer }])
       setRagLoading(false)
     }, 800)
   }
