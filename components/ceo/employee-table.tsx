@@ -30,25 +30,25 @@ export function EmployeePerformanceTable({ employees, onViewDetail }: Props) {
       whileInView={{ opacity: 1, y: 0, filter: "blur(0px)" }}
       viewport={{ once: true, margin: "-60px" }}
       transition={{ duration: 0.7, ease: [0.32, 0.72, 0, 1] }}
-      className="rounded-2xl bg-white p-5 shadow-[0_2px_24px_-10px_rgba(12,84,156,0.06)] ring-1 ring-zinc-100/80"
+      className="rounded-2xl bg-white p-5 shadow-[0_2px_24px_-10px_rgba(12,84,156,0.06)] ring-1 ring-slate-200"
     >
       <span className="inline-block rounded-full px-2.5 py-0.5 text-[9px] font-semibold uppercase tracking-[0.15em] text-[#0c549c] bg-[#0c549c]/5 mb-1">Nhân sự</span>
-      <h2 className="text-sm font-semibold tracking-tight text-zinc-800">Hiệu suất nhân viên</h2>
-      <p className="text-[11px] text-zinc-500">Theo dõi công việc và hiệu suất từng nhân viên</p>
-      <div className="mt-4 rounded-xl overflow-hidden ring-1 ring-zinc-100/80">
+      <h2 className="text-sm font-semibold tracking-tight text-slate-800">Hiệu suất nhân viên</h2>
+      <p className="text-[11px] text-slate-500">Theo dõi công việc và hiệu suất từng nhân viên</p>
+      <div className="mt-4 rounded-xl overflow-hidden ring-1 ring-slate-200">
         <Table>
           <TableHeader>
-            <TableRow className="bg-zinc-50 hover:bg-zinc-50">
-              <TableHead className="text-[11px] font-medium text-zinc-500">Nhân viên</TableHead>
-              <TableHead className="text-[11px] font-medium text-zinc-500">Phòng ban</TableHead>
-              <TableHead className="text-[11px] font-medium text-zinc-500 text-right tabular-nums">Tổng task</TableHead>
-              <TableHead className="text-[11px] font-medium text-zinc-500 text-right tabular-nums">Hoàn thành</TableHead>
-              <TableHead className="text-[11px] font-medium text-zinc-500 text-right tabular-nums">Đang xử lý</TableHead>
-              <TableHead className="text-[11px] font-medium text-zinc-500 text-right tabular-nums">Quá hạn</TableHead>
-              <TableHead className="text-[11px] font-medium text-zinc-500 text-right tabular-nums">Tỷ lệ</TableHead>
-              <TableHead className="text-[11px] font-medium text-zinc-500 text-right">Thời gian TB</TableHead>
-              <TableHead className="text-[11px] font-medium text-zinc-500">Cảnh báo</TableHead>
-              <TableHead className="text-[11px] font-medium text-zinc-500 w-16 text-right"></TableHead>
+            <TableRow className="bg-slate-50 hover:bg-slate-50">
+              <TableHead className="text-[11px] font-medium text-slate-500">Nhân viên</TableHead>
+              <TableHead className="text-[11px] font-medium text-slate-500">Phòng ban</TableHead>
+              <TableHead className="text-[11px] font-medium text-slate-500 text-right tabular-nums">Tổng task</TableHead>
+              <TableHead className="text-[11px] font-medium text-slate-500 text-right tabular-nums">Hoàn thành</TableHead>
+              <TableHead className="text-[11px] font-medium text-slate-500 text-right tabular-nums">Đang xử lý</TableHead>
+              <TableHead className="text-[11px] font-medium text-slate-500 text-right tabular-nums">Quá hạn</TableHead>
+              <TableHead className="text-[11px] font-medium text-slate-500 text-right tabular-nums">Tỷ lệ</TableHead>
+              <TableHead className="text-[11px] font-medium text-slate-500 text-right">Thời gian TB</TableHead>
+              <TableHead className="text-[11px] font-medium text-slate-500">Cảnh báo</TableHead>
+              <TableHead className="text-[11px] font-medium text-slate-500 w-16 text-right"></TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
@@ -66,20 +66,20 @@ export function EmployeePerformanceTable({ employees, onViewDetail }: Props) {
                   initial="hidden"
                   animate="show"
                   transition={{ delay: i * 0.03 }}
-                  className="border-b border-zinc-100 text-xs transition-colors hover:bg-zinc-50/60 cursor-pointer group"
+                  className="border-b border-slate-100 text-xs transition-colors hover:bg-slate-50/60 cursor-pointer group"
                   onClick={() => onViewDetail(emp)}
                 >
-                  <TableCell className="relative font-medium text-zinc-800">
+                  <TableCell className="relative font-medium text-slate-800">
                     <span className="absolute left-0 top-1/2 -translate-y-1/2 h-4 w-[2px] bg-[#0c549c] scale-y-0 transition-transform duration-200 group-hover:scale-y-100 rounded-r" />
                     {emp.name}
                   </TableCell>
-                  <TableCell className="text-zinc-600">{emp.department}</TableCell>
-                  <TableCell className="text-right text-zinc-600 tabular-nums">{emp.totalTasks}</TableCell>
-                  <TableCell className="text-right text-zinc-600 tabular-nums">{emp.completedTasks}</TableCell>
-                  <TableCell className="text-right text-zinc-600 tabular-nums">{emp.processingTasks}</TableCell>
+                  <TableCell className="text-slate-600">{emp.department}</TableCell>
+                  <TableCell className="text-right text-slate-600 tabular-nums">{emp.totalTasks}</TableCell>
+                  <TableCell className="text-right text-slate-600 tabular-nums">{emp.completedTasks}</TableCell>
+                  <TableCell className="text-right text-slate-600 tabular-nums">{emp.processingTasks}</TableCell>
                   <TableCell className="text-right text-rose-600 tabular-nums">{emp.overdueTasks}</TableCell>
                   <TableCell className="text-right font-medium text-[#0c549c] tabular-nums">{emp.completionRate}%</TableCell>
-                  <TableCell className="text-right text-zinc-600">{emp.averageProcessingTime}</TableCell>
+                  <TableCell className="text-right text-slate-600">{emp.averageProcessingTime}</TableCell>
                   <TableCell>
                     <Badge
                       variant={warning === "Ổn định" ? "secondary" : "destructive"}
