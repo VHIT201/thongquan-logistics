@@ -139,16 +139,19 @@ export default function DraftsPage() {
 
     const q = query.toLowerCase()
     const allResults = searchDrafts(query)
-    // Ưu tiên match chính xác soToKhai
-    const exactMatch = allResults.find((d) =>
-      d.extractedData.soToKhai?.toLowerCase().includes(q.replace(/\s+/g, ""))
-    )
+    // Ưu tiên match chính xác soToKhai bằng số trong query
+    const queryNumbers = q.match(/\d+/g) || []
+    const exactMatch = allResults.find((d) => {
+      const soToKhai = d.extractedData.soToKhai?.toLowerCase() || ""
+      return queryNumbers.some((num) => soToKhai.includes(num))
+    })
     const firstKeyword = q.split(/\s+/).find((w) => w.length > 1) || ""
     const relevantDrafts = exactMatch
       ? [exactMatch]
-      : allResults.filter((d) =>
-          d.extractedData.soToKhai?.toLowerCase().includes(firstKeyword)
-        ).slice(0, 1)
+      : allResults.filter((d) => {
+          const soToKhai = d.extractedData.soToKhai?.toLowerCase() || ""
+          return soToKhai.includes(firstKeyword)
+        }).slice(0, 1)
 
     setTimeout(() => {
       const hasResults = relevantDrafts.length > 0
