@@ -172,80 +172,82 @@ export default function DraftsPage() {
           </div>
 
           {/* Drafts Grid */}
-          {filteredDrafts.length === 0 ? (
-            <div className="flex flex-col items-center justify-center overflow-y-auto rounded-2xl border border-neutral-100 bg-white p-8 text-center">
-              <FileText className="h-10 w-10 text-neutral-300" />
-              <p className="mt-2 text-sm text-neutral-500">
-                {searchQuery || statusFilter !== "all"
-                  ? "Không tìm thấy hồ sơ phù hợp"
-                  : "Chưa có hồ sơ nào được lưu"}
-              </p>
-              <p className="text-xs text-neutral-400">
-                {searchQuery || statusFilter !== "all"
-                  ? "Thử thay đổi bộ lọc"
-                  : 'Bấm "Lưu hồ sơ" trong modal bóc tách để tạo hồ sơ mới'}
-              </p>
-              {!searchQuery && statusFilter === "all" && (
-                <button
-                  onClick={() => {
-                    seedDummyData()
-                    toast.success("Đã tạo 10 hồ sơ mẫu")
-                  }}
-                  className="mt-3 cursor-pointer rounded-md border border-primary bg-primary px-3 py-1.5 text-xs font-medium text-white hover:bg-primary/90"
-                >
-                  Tạo dữ liệu mẫu
-                </button>
-              )}
-            </div>
-          ) : (
-            <div className="grid gap-2 overflow-y-auto sm:grid-cols-2">
-              {filteredDrafts.map((draft) => (
-                <button
-                  key={draft.id}
-                  onClick={() => openDetail(draft)}
-                  className="cursor-pointer rounded-xl border border-neutral-100 bg-white p-4 text-left shadow-sm transition hover:border-primary/30 hover:shadow-md"
-                >
-                  <div className="flex items-start justify-between gap-2">
-                    <div className="min-w-0 flex-1">
-                      <div className="flex items-center gap-2">
-                        <span
-                          className={`inline-flex rounded-full px-2 py-0.5 text-[10px] font-medium ${STATUS_COLORS[draft.status]}`}
-                        >
-                          {STATUS_LABELS[draft.status]}
-                        </span>
-                        <span className="truncate text-sm font-medium text-neutral-800">
-                          {draft.extractedData?.khachHang ||
-                            draft.extractedData?.customer ||
-                            "Không tên"}
-                        </span>
+          <div className="flex-1 min-h-0 overflow-y-auto">
+            {filteredDrafts.length === 0 ? (
+              <div className="flex flex-col items-center justify-center rounded-2xl border border-neutral-100 bg-white p-8 text-center">
+                <FileText className="h-10 w-10 text-neutral-300" />
+                <p className="mt-2 text-sm text-neutral-500">
+                  {searchQuery || statusFilter !== "all"
+                    ? "Không tìm thấy hồ sơ phù hợp"
+                    : "Chưa có hồ sơ nào được lưu"}
+                </p>
+                <p className="text-xs text-neutral-400">
+                  {searchQuery || statusFilter !== "all"
+                    ? "Thử thay đổi bộ lọc"
+                    : 'Bấm "Lưu hồ sơ" trong modal bóc tách để tạo hồ sơ mới'}
+                </p>
+                {!searchQuery && statusFilter === "all" && (
+                  <button
+                    onClick={() => {
+                      seedDummyData()
+                      toast.success("Đã tạo 10 hồ sơ mẫu")
+                    }}
+                    className="mt-3 cursor-pointer rounded-md border border-primary bg-primary px-3 py-1.5 text-xs font-medium text-white hover:bg-primary/90"
+                  >
+                    Tạo dữ liệu mẫu
+                  </button>
+                )}
+              </div>
+            ) : (
+              <div className="grid gap-2 sm:grid-cols-2">
+                {filteredDrafts.map((draft) => (
+                  <button
+                    key={draft.id}
+                    onClick={() => openDetail(draft)}
+                    className="cursor-pointer rounded-xl border border-neutral-100 bg-white p-4 text-left shadow-sm transition hover:border-primary/30 hover:shadow-md"
+                  >
+                    <div className="flex items-start justify-between gap-2">
+                      <div className="min-w-0 flex-1">
+                        <div className="flex items-center gap-2">
+                          <span
+                            className={`inline-flex rounded-full px-2 py-0.5 text-[10px] font-medium ${STATUS_COLORS[draft.status]}`}
+                          >
+                            {STATUS_LABELS[draft.status]}
+                          </span>
+                          <span className="truncate text-sm font-medium text-neutral-800">
+                            {draft.extractedData?.khachHang ||
+                              draft.extractedData?.customer ||
+                              "Không tên"}
+                          </span>
+                        </div>
+                        <p className="mt-1 truncate text-xs text-neutral-500">
+                          {draft.emailSubject || "Không tiêu đề"}
+                        </p>
+                        <div className="mt-2 flex flex-wrap gap-1">
+                          {Object.entries(draft.extractedData)
+                            .slice(0, 3)
+                            .map(([key, value]) => (
+                              <span
+                                key={key}
+                                className="inline-flex rounded bg-neutral-50 px-1.5 py-0.5 text-[10px] text-neutral-500"
+                              >
+                                {key}: {value || "—"}
+                              </span>
+                            ))}
+                        </div>
                       </div>
-                      <p className="mt-1 truncate text-xs text-neutral-500">
-                        {draft.emailSubject || "Không tiêu đề"}
-                      </p>
-                      <div className="mt-2 flex flex-wrap gap-1">
-                        {Object.entries(draft.extractedData)
-                          .slice(0, 3)
-                          .map(([key, value]) => (
-                            <span
-                              key={key}
-                              className="inline-flex rounded bg-neutral-50 px-1.5 py-0.5 text-[10px] text-neutral-500"
-                            >
-                              {key}: {value || "—"}
-                            </span>
-                          ))}
+                      <div className="shrink-0 text-[10px] text-neutral-400">
+                        <div className="flex items-center gap-1">
+                          <Calendar className="h-3 w-3" />
+                          {dayjs(draft.createdAt).format("DD/MM")}
+                        </div>
                       </div>
                     </div>
-                    <div className="shrink-0 text-[10px] text-neutral-400">
-                      <div className="flex items-center gap-1">
-                        <Calendar className="h-3 w-3" />
-                        {dayjs(draft.createdAt).format("DD/MM")}
-                      </div>
-                    </div>
-                  </div>
-                </button>
-              ))}
-            </div>
-          )}
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
         </div>
 
         {/* Right: RAG Chat */}
