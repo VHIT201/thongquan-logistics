@@ -6,6 +6,13 @@ import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select"
+import {
   Table,
   TableBody,
   TableCell,
@@ -62,6 +69,8 @@ export default function CeoPage() {
   const [drawerOpen, setDrawerOpen] = useState(false)
   const [timeFilter, setTimeFilter] = useState("today")
   const [activeTab, setActiveTab] = useState("overview")
+  const [deptFilter, setDeptFilter] = useState("all")
+  const [statusFilter, setStatusFilter] = useState("all")
 
   useEffect(() => {
     setMounted(true)
@@ -97,13 +106,13 @@ export default function CeoPage() {
           </Button>
         </motion.div>
 
-        <motion.div variants={item} className="flex items-center gap-2">
+        <motion.div variants={item} className="flex flex-wrap items-center gap-2">
           {timeOptions.map((opt) => (
             <motion.button
               key={opt.value}
               whileTap={{ scale: 0.97, y: 1 }}
               onClick={() => setTimeFilter(opt.value)}
-              className={`rounded-full px-3.5 py-1.5 text-xs font-medium transition-all duration-500 ease-[cubic-bezier(0.32,0.72,0,1)] ${
+              className={`cursor-pointer rounded-full px-3.5 py-1.5 text-xs font-medium transition-all duration-500 ease-[cubic-bezier(0.32,0.72,0,1)] ${
                 timeFilter === opt.value
                   ? "bg-[#0c549c] text-white shadow-[0_2px_12px_-4px_rgba(12,84,156,0.25)]"
                   : "bg-white text-zinc-600 shadow-[0_2px_12px_-4px_rgba(0,0,0,0.04)] ring-1 ring-zinc-100/80 hover:shadow-[0_4px_16px_-6px_rgba(0,0,0,0.08)]"
@@ -112,6 +121,29 @@ export default function CeoPage() {
               {opt.label}
             </motion.button>
           ))}
+          <Select value={deptFilter} onValueChange={setDeptFilter}>
+            <SelectTrigger className="cursor-pointer h-8 w-40 rounded-full bg-white text-xs shadow-[0_2px_12px_-4px_rgba(0,0,0,0.04)] ring-1 ring-zinc-100/80 border-0">
+              <SelectValue placeholder="Phòng ban" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">Tất cả phòng ban</SelectItem>
+              <SelectItem value="Khai báo hải quan">Khai báo hải quan</SelectItem>
+              <SelectItem value="Chứng từ">Chứng từ</SelectItem>
+              <SelectItem value="Kế toán">Kế toán</SelectItem>
+              <SelectItem value="CSKH">CSKH</SelectItem>
+            </SelectContent>
+          </Select>
+          <Select value={statusFilter} onValueChange={setStatusFilter}>
+            <SelectTrigger className="cursor-pointer h-8 w-36 rounded-full bg-white text-xs shadow-[0_2px_12px_-4px_rgba(0,0,0,0.04)] ring-1 ring-zinc-100/80 border-0">
+              <SelectValue placeholder="Trạng thái" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">Tất cả trạng thái</SelectItem>
+              <SelectItem value="completed">Hoàn thành</SelectItem>
+              <SelectItem value="processing">Đang xử lý</SelectItem>
+              <SelectItem value="overdue">Quá hạn</SelectItem>
+            </SelectContent>
+          </Select>
         </motion.div>
 
         <Tabs value={activeTab} onValueChange={setActiveTab} className="flex-1 flex flex-col gap-6">
@@ -126,7 +158,7 @@ export default function CeoPage() {
                 <TabsTrigger
                   key={t.value}
                   value={t.value}
-                  className="rounded-lg px-4 py-1.5 text-xs font-medium text-zinc-500 transition-all data-[state=active]:bg-[#0c549c] data-[state=active]:text-white data-[state=active]:shadow-[0_2px_12px_-4px_rgba(12,84,156,0.25)]"
+                  className="cursor-pointer rounded-lg px-4 py-1.5 text-xs font-medium text-zinc-500 transition-all data-[state=active]:bg-[#0c549c] data-[state=active]:text-white data-[state=active]:shadow-[0_2px_12px_-4px_rgba(12,84,156,0.25)]"
                 >
                   {t.label}
                 </TabsTrigger>
@@ -247,7 +279,7 @@ export default function CeoPage() {
                       initial={{ opacity: 0, x: -6 }}
                       animate={{ opacity: 1, x: 0 }}
                       transition={{ delay: i * 0.04, type: "spring" as const, stiffness: 120, damping: 20 }}
-                      className="border-b border-zinc-100 text-xs transition-colors hover:bg-zinc-50/60 group"
+                      className="border-b border-zinc-100 text-xs transition-colors hover:bg-zinc-50/60 cursor-pointer group"
                     >
                       <TableCell className="relative font-medium text-zinc-800">
                         <span className="absolute left-0 top-1/2 -translate-y-1/2 h-4 w-[2px] bg-[#0c549c] scale-y-0 transition-transform duration-200 group-hover:scale-y-100 rounded-r" />
@@ -361,7 +393,7 @@ export default function CeoPage() {
                         initial={{ opacity: 0, x: -6 }}
                         animate={{ opacity: 1, x: 0 }}
                         transition={{ delay: i * 0.03, type: "spring" as const, stiffness: 120, damping: 20 }}
-                        className="border-b border-zinc-100 text-xs transition-colors hover:bg-zinc-50/60 group"
+                        className="border-b border-zinc-100 text-xs transition-colors hover:bg-zinc-50/60 cursor-pointer group"
                       >
                         <TableCell className="relative text-zinc-600 tabular-nums">
                           <span className="absolute left-0 top-1/2 -translate-y-1/2 h-4 w-[2px] bg-[#0c549c] scale-y-0 transition-transform duration-200 group-hover:scale-y-100 rounded-r" />

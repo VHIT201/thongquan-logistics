@@ -69,13 +69,13 @@ export function EmployeeDetailDrawer({ employee, open, onOpenChange }: Props) {
 
           <Tabs value={tab} onValueChange={setTab} className="w-full">
             <TabsList className="grid w-full grid-cols-7 h-8 text-[10px]">
-              <TabsTrigger value="tasks" className="text-[10px] px-1">Task đang XL</TabsTrigger>
-              <TabsTrigger value="overdue" className="text-[10px] px-1">Task quá hạn</TabsTrigger>
-              <TabsTrigger value="emails" className="text-[10px] px-1">Email/CT</TabsTrigger>
-              <TabsTrigger value="customers" className="text-[10px] px-1">Khách hàng</TabsTrigger>
-              <TabsTrigger value="stats" className="text-[10px] px-1">Chỉ số</TabsTrigger>
-              <TabsTrigger value="history" className="text-[10px] px-1">Lịch sử</TabsTrigger>
-              <TabsTrigger value="ai" className="text-[10px] px-1">AI</TabsTrigger>
+              <TabsTrigger value="tasks" className="cursor-pointer text-[10px] px-1">Task đang XL</TabsTrigger>
+              <TabsTrigger value="overdue" className="cursor-pointer text-[10px] px-1">Task quá hạn</TabsTrigger>
+              <TabsTrigger value="emails" className="cursor-pointer text-[10px] px-1">Email/CT</TabsTrigger>
+              <TabsTrigger value="customers" className="cursor-pointer text-[10px] px-1">Khách hàng</TabsTrigger>
+              <TabsTrigger value="stats" className="cursor-pointer text-[10px] px-1">Chỉ số</TabsTrigger>
+              <TabsTrigger value="history" className="cursor-pointer text-[10px] px-1">Lịch sử</TabsTrigger>
+              <TabsTrigger value="ai" className="cursor-pointer text-[10px] px-1">AI</TabsTrigger>
             </TabsList>
 
             <TabsContent value="tasks" className="mt-2">
@@ -95,7 +95,7 @@ export function EmployeeDetailDrawer({ employee, open, onOpenChange }: Props) {
                     </TableHeader>
                     <TableBody>
                       {employee.currentTasks.filter(t => t.status !== "overdue").map((task) => (
-                        <TableRow key={task.id} className="text-xs">
+                        <TableRow key={task.id} className="text-xs cursor-pointer">
                           <TableCell className="font-medium text-neutral-700">{task.id}</TableCell>
                           <TableCell className="text-neutral-600">{task.customerName}</TableCell>
                           <TableCell className="text-neutral-600">{task.documentType}</TableCell>
@@ -129,7 +129,7 @@ export function EmployeeDetailDrawer({ employee, open, onOpenChange }: Props) {
                     </TableHeader>
                     <TableBody>
                       {employee.currentTasks.filter(t => t.status === "overdue").map((task) => (
-                        <TableRow key={task.id} className="text-xs">
+                        <TableRow key={task.id} className="text-xs cursor-pointer">
                           <TableCell className="font-medium text-neutral-700">{task.id}</TableCell>
                           <TableCell className="text-neutral-600">{task.customerName}</TableCell>
                           <TableCell className="text-neutral-600">{task.documentType}</TableCell>
@@ -162,7 +162,7 @@ export function EmployeeDetailDrawer({ employee, open, onOpenChange }: Props) {
                     </TableHeader>
                     <TableBody>
                       {employee.emails.map((e, i) => (
-                        <TableRow key={i} className="text-xs">
+                        <TableRow key={i} className="text-xs cursor-pointer">
                           <TableCell className="text-neutral-600">{e.receivedAt}</TableCell>
                           <TableCell className="font-medium text-neutral-700">{e.subject}</TableCell>
                           <TableCell className="text-neutral-600">{e.customerName}</TableCell>
@@ -195,7 +195,7 @@ export function EmployeeDetailDrawer({ employee, open, onOpenChange }: Props) {
                   </TableHeader>
                   <TableBody>
                     {employee.customers.map((c) => (
-                      <TableRow key={c.customerName} className="text-xs">
+                      <TableRow key={c.customerName} className="text-xs cursor-pointer">
                         <TableCell className="font-medium text-neutral-700">{c.customerName}</TableCell>
                         <TableCell className="text-right text-neutral-600">{c.totalEmails}</TableCell>
                         <TableCell className="text-right text-neutral-600">{c.totalTasks}</TableCell>
