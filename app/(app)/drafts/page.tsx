@@ -637,7 +637,7 @@ export default function DraftsPage() {
       </Dialog>
     </div>
 
-    {/* Floating AI Chat Widget — rendered via Portal to document.body */}
+    {/* AI Chat Drawer — rendered via Portal to document.body */}
     <Portal>
       {!chatOpen && (
         <button
@@ -653,147 +653,155 @@ export default function DraftsPage() {
       )}
 
       {chatOpen && (
-        <div className="fixed bottom-6 right-6 z-[9999] flex h-[520px] w-[380px] flex-col overflow-hidden rounded-2xl border border-neutral-200/60 bg-white/95 shadow-2xl shadow-neutral-200/60 backdrop-blur-xl">
-          {/* Header */}
-          <div className="flex shrink-0 items-center justify-between border-b border-neutral-100/60 bg-gradient-to-r from-primary to-primary/90 px-4 py-3">
-            <div className="flex items-center gap-2.5">
-              <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-white/20 backdrop-blur">
-                <Sparkles className="h-3.5 w-3.5 text-white" />
-              </div>
-              <div>
-                <h2 className="text-xs font-bold text-white">AI Tra cứu</h2>
-                <p className="text-[10px] text-white/70">RAG — Tìm kiếm trong hồ sơ</p>
-              </div>
-            </div>
-            <div className="flex items-center gap-1">
-              <button
-                onClick={() => { setRagMessages([]); setRagQuery("") }}
-                className="flex h-6 w-6 cursor-pointer items-center justify-center rounded-md text-white/50 transition hover:bg-white/10 hover:text-white"
-                title="Xóa lịch sử"
-              >
-                <MessageCircle className="h-3 w-3" />
-              </button>
-              <button
-                onClick={() => setChatOpen(false)}
-                className="flex h-6 w-6 cursor-pointer items-center justify-center rounded-md text-white/70 transition hover:bg-white/10 hover:text-white"
-              >
-                <X className="h-4 w-4" />
-              </button>
-            </div>
-          </div>
-
-          {/* Messages */}
-          <div ref={chatScrollRef} className="min-h-0 flex-1 overflow-y-auto px-4 py-3 space-y-3">
-            {ragMessages.length === 0 && (
-              <div className="flex flex-col items-center justify-center py-8 text-center">
-                <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-gradient-to-br from-primary/10 to-primary/5">
-                  <Bot className="h-6 w-6 text-primary/70" />
+        <>
+          {/* Backdrop */}
+          <div
+            onClick={() => setChatOpen(false)}
+            className="fixed inset-0 z-[9998] bg-black/20 backdrop-blur-[2px] transition-opacity"
+          />
+          {/* Drawer */}
+          <div className="fixed right-0 top-0 z-[9999] flex h-full w-[400px] flex-col overflow-hidden border-l border-neutral-200/60 bg-white shadow-2xl shadow-neutral-200/40">
+            {/* Header */}
+            <div className="flex shrink-0 items-center justify-between border-b border-neutral-100/60 bg-gradient-to-r from-primary to-primary/90 px-5 py-3.5">
+              <div className="flex items-center gap-2.5">
+                <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-white/20">
+                  <Sparkles className="h-3.5 w-3.5 text-white" />
                 </div>
-                <p className="mt-3 text-sm font-medium text-neutral-600">
-                  Bắt đầu tra cứu
-                </p>
-                <p className="mt-1 max-w-[220px] text-[11px] leading-relaxed text-neutral-400">
-                  Chọn câu hỏi bên dưới hoặc tự nhập
-                </p>
-                <div className="mt-3 flex flex-wrap justify-center gap-1.5">
-                  {suggestedQuestions.map((q) => (
+                <div>
+                  <h2 className="text-xs font-bold text-white">AI Tra cứu</h2>
+                  <p className="text-[10px] text-white/70">RAG — Tìm kiếm trong hồ sơ</p>
+                </div>
+              </div>
+              <div className="flex items-center gap-1">
+                <button
+                  onClick={() => { setRagMessages([]); setRagQuery("") }}
+                  className="flex h-7 w-7 cursor-pointer items-center justify-center rounded-md text-white/50 transition hover:bg-white/10 hover:text-white"
+                  title="Xóa lịch sử"
+                >
+                  <MessageCircle className="h-3.5 w-3.5" />
+                </button>
+                <button
+                  onClick={() => setChatOpen(false)}
+                  className="flex h-7 w-7 cursor-pointer items-center justify-center rounded-md text-white/70 transition hover:bg-white/10 hover:text-white"
+                >
+                  <X className="h-4 w-4" />
+                </button>
+              </div>
+            </div>
+
+            {/* Messages */}
+            <div ref={chatScrollRef} className="min-h-0 flex-1 overflow-y-auto px-5 py-4 space-y-3">
+              {ragMessages.length === 0 && (
+                <div className="flex flex-col items-center justify-center py-10 text-center">
+                  <div className="flex h-16 w-16 items-center justify-center rounded-2xl bg-gradient-to-br from-primary/10 to-primary/5">
+                    <Bot className="h-7 w-7 text-primary/70" />
+                  </div>
+                  <p className="mt-3 text-sm font-semibold text-neutral-700">
+                    AI Tra cứu hồ sơ
+                  </p>
+                  <p className="mt-1 max-w-[240px] text-[11px] leading-relaxed text-neutral-400">
+                    Chọn câu hỏi bên dưới hoặc tự nhập để bắt đầu
+                  </p>
+                  <div className="mt-4 flex flex-wrap justify-center gap-2">
+                    {suggestedQuestions.map((q) => (
+                      <button
+                        key={q}
+                        onClick={() => { setRagQuery(q); void handleRagSearch() }}
+                        className="cursor-pointer rounded-full border border-neutral-200 bg-white px-3.5 py-1.5 text-[11px] font-medium text-neutral-600 transition hover:border-primary/30 hover:bg-primary/5 hover:text-primary"
+                      >
+                        {q}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
+              {ragMessages.map((msg, i) => (
+                <div
+                  key={i}
+                  className={`flex gap-2 ${
+                    msg.role === "user" ? "justify-end" : "justify-start"
+                  }`}
+                >
+                  <div className="flex max-w-[85%] flex-col">
+                    <div
+                      className={`rounded-2xl px-4 py-2.5 text-[13px] leading-relaxed ${
+                        msg.role === "user"
+                          ? "rounded-br-md bg-neutral-900 text-white shadow-sm"
+                          : "rounded-bl-md border border-neutral-100 bg-white text-neutral-700 shadow-sm"
+                      }`}
+                    >
+                      <pre className="whitespace-pre-wrap font-sans">
+                        {msg.content}
+                      </pre>
+                    </div>
+                    <span className={`mt-1 text-[10px] text-neutral-400 ${msg.role === "user" ? "text-right" : "text-left"}`}>
+                      {dayjs(msg.ts).format("HH:mm")}
+                    </span>
+                  </div>
+                </div>
+              ))}
+              {ragLoading && (
+                <div className="flex items-start gap-2 pl-0">
+                  <div className="flex items-center gap-1.5 rounded-2xl rounded-bl-md border border-neutral-100 bg-white px-4 py-2.5 shadow-sm">
+                    <span
+                      className="h-1.5 w-1.5 animate-bounce rounded-full bg-neutral-300"
+                      style={{ animationDelay: "0ms" }}
+                    />
+                    <span
+                      className="h-1.5 w-1.5 animate-bounce rounded-full bg-neutral-300"
+                      style={{ animationDelay: "150ms" }}
+                    />
+                    <span
+                      className="h-1.5 w-1.5 animate-bounce rounded-full bg-neutral-300"
+                      style={{ animationDelay: "300ms" }}
+                    />
+                    <span className="ml-1 text-[11px] text-neutral-400">AI đang suy nghĩ...</span>
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {/* Input */}
+            <div className="shrink-0 border-t border-neutral-100 bg-white px-5 py-4">
+              <div className="flex items-center gap-2 rounded-xl border border-neutral-200 bg-neutral-50 px-3 py-2.5 transition focus-within:border-primary focus-within:bg-white focus-within:ring-2 focus-within:ring-primary/10">
+                <input
+                  type="text"
+                  value={ragQuery}
+                  onChange={(e) => setRagQuery(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter" && !e.shiftKey) {
+                      e.preventDefault()
+                      void handleRagSearch()
+                    }
+                  }}
+                  disabled={ragLoading}
+                  placeholder="Hỏi về hồ sơ đã lưu..."
+                  className="flex-1 bg-transparent text-sm text-neutral-800 outline-none placeholder:text-neutral-400"
+                />
+                <button
+                  onClick={() => void handleRagSearch()}
+                  disabled={ragLoading || !ragQuery.trim()}
+                  className="flex h-8 w-8 shrink-0 cursor-pointer items-center justify-center rounded-lg bg-neutral-900 text-white shadow-sm transition hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-30"
+                >
+                  <Send className="h-3.5 w-3.5" />
+                </button>
+              </div>
+              {ragMessages.length > 0 && (
+                <div className="mt-2 flex flex-wrap gap-1.5">
+                  {suggestedQuestions.slice(0, 3).map((q) => (
                     <button
                       key={q}
                       onClick={() => { setRagQuery(q); void handleRagSearch() }}
-                      className="cursor-pointer rounded-full border border-neutral-200 bg-white px-3 py-1.5 text-[10px] font-medium text-neutral-600 transition hover:border-primary/30 hover:bg-primary/5 hover:text-primary"
+                      className="cursor-pointer rounded-full border border-neutral-200/60 bg-neutral-50 px-2.5 py-1 text-[10px] text-neutral-500 transition hover:border-primary/30 hover:bg-primary/5 hover:text-primary"
                     >
                       {q}
                     </button>
                   ))}
                 </div>
-              </div>
-            )}
-            {ragMessages.map((msg, i) => (
-              <div
-                key={i}
-                className={`flex gap-2 ${
-                  msg.role === "user" ? "justify-end" : "justify-start"
-                }`}
-              >
-                <div className="flex max-w-[88%] flex-col">
-                  <div
-                    className={`rounded-2xl px-3.5 py-2.5 text-xs leading-relaxed ${
-                      msg.role === "user"
-                        ? "rounded-br-md bg-gradient-to-br from-primary to-primary/90 text-white shadow-md shadow-primary/20"
-                        : "rounded-bl-md border border-neutral-100/80 bg-white/80 text-neutral-700 shadow-sm backdrop-blur-sm"
-                    }`}
-                  >
-                    <pre className="whitespace-pre-wrap font-sans">
-                      {msg.content}
-                    </pre>
-                  </div>
-                  <span className={`mt-0.5 text-[9px] text-neutral-300 ${msg.role === "user" ? "text-right" : "text-left"}`}>
-                    {dayjs(msg.ts).format("HH:mm")}
-                  </span>
-                </div>
-              </div>
-            ))}
-            {ragLoading && (
-              <div className="flex items-start gap-2 pl-0">
-                <div className="flex items-center gap-1.5 rounded-2xl rounded-bl-md border border-neutral-100/80 bg-white/80 px-3.5 py-2.5 shadow-sm">
-                  <span
-                    className="h-1.5 w-1.5 animate-bounce rounded-full bg-neutral-300"
-                    style={{ animationDelay: "0ms" }}
-                  />
-                  <span
-                    className="h-1.5 w-1.5 animate-bounce rounded-full bg-neutral-300"
-                    style={{ animationDelay: "150ms" }}
-                  />
-                  <span
-                    className="h-1.5 w-1.5 animate-bounce rounded-full bg-neutral-300"
-                    style={{ animationDelay: "300ms" }}
-                  />
-                  <span className="ml-1 text-[10px] text-neutral-400">AI đang suy nghĩ...</span>
-                </div>
-              </div>
-            )}
-          </div>
-
-          {/* Input */}
-          <div className="shrink-0 border-t border-neutral-100/60 bg-white/80 px-4 py-3 backdrop-blur">
-            <div className="flex items-center gap-2 rounded-xl border border-neutral-200/80 bg-neutral-50/80 px-3 py-2 transition focus-within:border-primary focus-within:bg-white focus-within:ring-2 focus-within:ring-primary/10">
-              <input
-                type="text"
-                value={ragQuery}
-                onChange={(e) => setRagQuery(e.target.value)}
-                onKeyDown={(e) => {
-                  if (e.key === "Enter" && !e.shiftKey) {
-                    e.preventDefault()
-                    void handleRagSearch()
-                  }
-                }}
-                disabled={ragLoading}
-                placeholder="Hỏi về hồ sơ đã lưu..."
-                className="flex-1 bg-transparent text-xs text-neutral-800 outline-none placeholder:text-neutral-400"
-              />
-              <button
-                onClick={() => void handleRagSearch()}
-                disabled={ragLoading || !ragQuery.trim()}
-                className="flex h-7 w-7 shrink-0 cursor-pointer items-center justify-center rounded-lg bg-gradient-to-br from-primary to-primary/90 text-white shadow-sm transition hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-30"
-              >
-                <Send className="h-3 w-3" />
-              </button>
+              )}
             </div>
-            {ragMessages.length > 0 && (
-              <div className="mt-2 flex flex-wrap gap-1">
-                {suggestedQuestions.slice(0, 3).map((q) => (
-                  <button
-                    key={q}
-                    onClick={() => { setRagQuery(q); void handleRagSearch() }}
-                    className="rounded-full border border-neutral-200/60 bg-neutral-50/80 px-2.5 py-1 text-[9px] text-neutral-500 transition hover:border-primary/30 hover:bg-primary/5 hover:text-primary"
-                  >
-                    {q}
-                  </button>
-                ))}
-              </div>
-            )}
           </div>
-        </div>
+        </>
       )}
     </Portal>
   </>)
