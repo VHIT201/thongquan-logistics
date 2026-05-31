@@ -19,71 +19,70 @@ interface Props {
 
 export function EmployeePerformanceTable({ employees, onViewDetail }: Props) {
   return (
-    <div className="border-b border-[#111111] bg-white">
-      <div className="flex items-center gap-2 border-b border-[#111111] px-5 py-3">
-        <span className="text-[10px] font-bold uppercase text-[#71717A]">[ NHAN SU ]</span>
-        <div className="h-px flex-1 bg-[#111111]" />
-      </div>
-      <h2 className="px-5 pt-3 text-lg font-black uppercase text-[#111111]">HIEU SUAT NHAN VIEN</h2>
-      <p className="px-5 text-xs text-[#71717A] text-pretty">Theo doi cong viec va hieu suat tung nhan vien</p>
-      <div className="mt-3">
-        <Table>
-          <TableHeader>
-            <TableRow className="border-b-2 border-[#111111] bg-[#F4F4F0] hover:bg-[#F4F4F0]">
-              <TableHead className="text-[10px] font-bold uppercase text-[#71717A]">Nhan vien</TableHead>
-              <TableHead className="text-[10px] font-bold uppercase text-[#71717A]">Phong ban</TableHead>
-              <TableHead className="text-[10px] font-bold uppercase text-[#71717A] text-right tabular-nums">Tong task</TableHead>
-              <TableHead className="text-[10px] font-bold uppercase text-[#71717A] text-right tabular-nums">Hoan thanh</TableHead>
-              <TableHead className="text-[10px] font-bold uppercase text-[#71717A] text-right tabular-nums">Dang XL</TableHead>
-              <TableHead className="text-[10px] font-bold uppercase text-[#71717A] text-right tabular-nums">Qua han</TableHead>
-              <TableHead className="text-[10px] font-bold uppercase text-[#71717A] text-right tabular-nums">Ty le</TableHead>
-              <TableHead className="text-[10px] font-bold uppercase text-[#71717A] text-right">Thoi gian TB</TableHead>
-              <TableHead className="text-[10px] font-bold uppercase text-[#71717A]">Canh bao</TableHead>
-              <TableHead className="text-[10px] font-bold uppercase text-[#71717A] w-16 text-right"></TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {employees.map((emp) => {
-              const warning =
-                emp.overdueTasks >= 5
-                  ? "CAN KIEM TRA"
-                  : emp.completionRate < 60
-                  ? "HIEU SUAT THAP"
-                  : "ON DINH"
-              return (
-                <TableRow
-                  key={emp.id}
-                  className="border-b border-[#111111] text-sm transition-colors hover:bg-[#F4F4F0] cursor-pointer"
-                  onClick={() => onViewDetail(emp)}
-                >
-                  <TableCell className="font-bold text-[#111111]">{emp.name}</TableCell>
-                  <TableCell className="text-[#71717A]">{emp.department}</TableCell>
-                  <TableCell className="text-right text-[#111111] tabular-nums" style={{ fontFamily: 'ui-monospace, SFMono-Regular, Menlo, Consolas, monospace' }}>{emp.totalTasks}</TableCell>
-                  <TableCell className="text-right text-[#111111] tabular-nums" style={{ fontFamily: 'ui-monospace, SFMono-Regular, Menlo, Consolas, monospace' }}>{emp.completedTasks}</TableCell>
-                  <TableCell className="text-right text-[#111111] tabular-nums" style={{ fontFamily: 'ui-monospace, SFMono-Regular, Menlo, Consolas, monospace' }}>{emp.processingTasks}</TableCell>
-                  <TableCell className="text-right text-[#E61919] tabular-nums" style={{ fontFamily: 'ui-monospace, SFMono-Regular, Menlo, Consolas, monospace' }}>{emp.overdueTasks}</TableCell>
-                  <TableCell className="text-right font-bold text-[#111111] tabular-nums" style={{ fontFamily: 'ui-monospace, SFMono-Regular, Menlo, Consolas, monospace' }}>{emp.completionRate}%</TableCell>
-                  <TableCell className="text-right text-[#71717A]">{emp.averageProcessingTime}</TableCell>
-                  <TableCell>
-                    <Badge className={`rounded-none text-[10px] px-2 py-0.5 font-bold uppercase ${warning === "ON DINH" ? "bg-[#F4F4F0] text-[#71717A]" : "bg-[#E61919]/10 text-[#E61919]"}`}>
-                      {warning}
-                    </Badge>
-                  </TableCell>
-                  <TableCell className="text-right">
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      className="h-6 rounded-none px-2 text-[10px] font-bold uppercase text-[#111111] opacity-0 transition-opacity hover:bg-[#111111] hover:text-white group-hover:opacity-100"
-                      onClick={(e) => { e.stopPropagation(); onViewDetail(emp) }}
-                    >
-                      CHI TIET
-                    </Button>
-                  </TableCell>
-                </TableRow>
-              )
-            })}
-          </TableBody>
-        </Table>
+    <div className="rounded-[2rem] p-2 bg-black/[0.03] ring-1 ring-black/[0.04]">
+      <div className="rounded-[calc(2rem-0.5rem)] bg-white p-6 shadow-[0_2px_24px_-10px_rgba(24,24,27,0.04)]">
+        <span className="inline-flex items-center rounded-full bg-[#0A84FF]/10 px-3 py-1 text-[10px] font-semibold uppercase tracking-[0.2em] text-[#0A84FF]">Nhân sự</span>
+        <h2 className="mt-3 text-xl font-bold tracking-tight text-[#18181B]">Hiệu suất nhân viên</h2>
+        <p className="mt-1 text-sm text-[#71717A] text-pretty">Theo dõi công việc và hiệu suất từng nhân viên</p>
+        <div className="mt-5">
+          <Table>
+            <TableHeader>
+              <TableRow className="border-b border-black/[0.06] bg-transparent hover:bg-transparent">
+                <TableHead className="text-[11px] font-semibold uppercase tracking-[0.1em] text-[#71717A]">Nhân viên</TableHead>
+                <TableHead className="text-[11px] font-semibold uppercase tracking-[0.1em] text-[#71717A]">Phòng ban</TableHead>
+                <TableHead className="text-[11px] font-semibold uppercase tracking-[0.1em] text-[#71717A] text-right tabular-nums">Tổng task</TableHead>
+                <TableHead className="text-[11px] font-semibold uppercase tracking-[0.1em] text-[#71717A] text-right tabular-nums">Hoàn thành</TableHead>
+                <TableHead className="text-[11px] font-semibold uppercase tracking-[0.1em] text-[#71717A] text-right tabular-nums">Đang XL</TableHead>
+                <TableHead className="text-[11px] font-semibold uppercase tracking-[0.1em] text-[#71717A] text-right tabular-nums">Quá hạn</TableHead>
+                <TableHead className="text-[11px] font-semibold uppercase tracking-[0.1em] text-[#71717A] text-right tabular-nums">Tỷ lệ</TableHead>
+                <TableHead className="text-[11px] font-semibold uppercase tracking-[0.1em] text-[#71717A] text-right">Thời gian TB</TableHead>
+                <TableHead className="text-[11px] font-semibold uppercase tracking-[0.1em] text-[#71717A]">Cảnh báo</TableHead>
+                <TableHead className="text-[11px] font-semibold uppercase tracking-[0.1em] text-[#71717A] w-16 text-right"></TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {employees.map((emp) => {
+                const warning =
+                  emp.overdueTasks >= 5
+                    ? "Cần kiểm tra"
+                    : emp.completionRate < 60
+                    ? "Hiệu suất thấp"
+                    : "Ổn định"
+                return (
+                  <TableRow
+                    key={emp.id}
+                    className="border-b border-black/[0.04] text-sm transition-colors duration-300 hover:bg-black/[0.02] cursor-pointer"
+                    onClick={() => onViewDetail(emp)}
+                  >
+                    <TableCell className="font-semibold text-[#18181B]">{emp.name}</TableCell>
+                    <TableCell className="text-[#71717A]">{emp.department}</TableCell>
+                    <TableCell className="text-right text-[#18181B] tabular-nums" style={{ fontFamily: 'var(--font-geist-mono)' }}>{emp.totalTasks}</TableCell>
+                    <TableCell className="text-right text-[#18181B] tabular-nums" style={{ fontFamily: 'var(--font-geist-mono)' }}>{emp.completedTasks}</TableCell>
+                    <TableCell className="text-right text-[#18181B] tabular-nums" style={{ fontFamily: 'var(--font-geist-mono)' }}>{emp.processingTasks}</TableCell>
+                    <TableCell className="text-right text-[#FF453A] tabular-nums" style={{ fontFamily: 'var(--font-geist-mono)' }}>{emp.overdueTasks}</TableCell>
+                    <TableCell className="text-right font-semibold text-[#18181B] tabular-nums" style={{ fontFamily: 'var(--font-geist-mono)' }}>{emp.completionRate}%</TableCell>
+                    <TableCell className="text-right text-[#71717A]">{emp.averageProcessingTime}</TableCell>
+                    <TableCell>
+                      <Badge className={`rounded-full text-[11px] px-2.5 py-0.5 font-semibold ${warning === "Ổn định" ? "bg-[#F4F4F5] text-[#71717A]" : "bg-[#FF453A]/10 text-[#FF453A]"}`}>
+                        {warning}
+                      </Badge>
+                    </TableCell>
+                    <TableCell className="text-right">
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="h-7 rounded-full px-3 text-[11px] font-semibold text-[#18181B] opacity-0 transition-all duration-300 hover:bg-[#18181B] hover:text-white group-hover:opacity-100"
+                        onClick={(e) => { e.stopPropagation(); onViewDetail(emp) }}
+                      >
+                        Chi tiết
+                      </Button>
+                    </TableCell>
+                  </TableRow>
+                )
+              })}
+            </TableBody>
+          </Table>
+        </div>
       </div>
     </div>
   )
