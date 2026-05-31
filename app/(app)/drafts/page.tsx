@@ -118,7 +118,7 @@ export default function DraftsPage() {
   }
 
   return (
-    <div className="flex h-[calc(100dvh-100px)] flex-col gap-4 overflow-hidden">
+    <div className="flex h-full max-h-full flex-col gap-4 overflow-hidden">
       {/* Header */}
       <div className="flex flex-wrap items-center justify-between gap-3 shrink-0">
         <div>
