@@ -25,12 +25,17 @@ const rowVariant = {
 
 export function EmployeePerformanceTable({ employees, onViewDetail }: Props) {
   return (
-    <section className="rounded-lg border border-zinc-100 bg-white">
-      <div className="px-4 py-3">
-        <h2 className="text-sm font-semibold tracking-tight text-zinc-800">Hiệu suất nhân viên</h2>
-        <p className="text-[11px] text-zinc-500">Theo dõi công việc và hiệu suất từng nhân viên</p>
-      </div>
-      <div className="rounded-md border border-zinc-100 overflow-hidden mx-4 mb-4">
+    <motion.section
+      initial={{ opacity: 0, y: 24, filter: "blur(6px)" }}
+      whileInView={{ opacity: 1, y: 0, filter: "blur(0px)" }}
+      viewport={{ once: true, margin: "-60px" }}
+      transition={{ duration: 0.7, ease: [0.32, 0.72, 0, 1] }}
+      className="rounded-2xl bg-white p-5 shadow-[0_2px_24px_-10px_rgba(12,84,156,0.06)] ring-1 ring-zinc-100/80"
+    >
+      <span className="inline-block rounded-full px-2.5 py-0.5 text-[9px] font-semibold uppercase tracking-[0.15em] text-[#0c549c] bg-[#0c549c]/5 mb-1">Nhân sự</span>
+      <h2 className="text-sm font-semibold tracking-tight text-zinc-800">Hiệu suất nhân viên</h2>
+      <p className="text-[11px] text-zinc-500">Theo dõi công việc và hiệu suất từng nhân viên</p>
+      <div className="mt-4 rounded-xl overflow-hidden ring-1 ring-zinc-100/80">
         <Table>
           <TableHeader>
             <TableRow className="bg-zinc-50 hover:bg-zinc-50">
@@ -99,6 +104,6 @@ export function EmployeePerformanceTable({ employees, onViewDetail }: Props) {
           </TableBody>
         </Table>
       </div>
-    </section>
+    </motion.section>
   )
 }

@@ -1,7 +1,7 @@
 "use client"
 
 import { useState } from "react"
-import { Mail, Building2, Briefcase, BarChart3, Clock, Bot, AlertTriangle, Inbox, History } from "lucide-react"
+import { motion } from "framer-motion"
 import {
   Dialog,
   DialogContent,
@@ -38,17 +38,17 @@ export function EmployeeDetailDrawer({ employee, open, onOpenChange }: Props) {
         </DialogHeader>
 
         <div className="space-y-4">
-          <div className="grid grid-cols-2 gap-3 text-xs text-neutral-600">
+          <div className="grid grid-cols-2 gap-2 text-xs text-zinc-600">
             <div className="flex items-center gap-2">
-              <Building2 className="h-3.5 w-3.5 text-neutral-400" />
+              <span className="text-zinc-400">PB</span>
               <span>{employee.department}</span>
             </div>
             <div className="flex items-center gap-2">
-              <Briefcase className="h-3.5 w-3.5 text-neutral-400" />
+              <span className="text-zinc-400">Vị trí</span>
               <span>{employee.role}</span>
             </div>
-            <div className="flex items-center gap-2">
-              <Mail className="h-3.5 w-3.5 text-neutral-400" />
+            <div className="col-span-2 flex items-center gap-2">
+              <span className="text-zinc-400">Email</span>
               <span>{employee.email}</span>
             </div>
           </div>
@@ -208,39 +208,36 @@ export function EmployeeDetailDrawer({ employee, open, onOpenChange }: Props) {
               </div>
             </TabsContent>
 
-            <TabsContent value="stats" className="mt-2">
+            <TabsContent value="stats" className="mt-3">
               <div className="grid grid-cols-2 gap-3">
                 {[
-                  { icon: BarChart3, label: "Tỷ lệ hoàn thành", value: `${employee.completionRate}%`, color: "text-emerald-600" },
-                  { icon: Clock, label: "Thời gian xử lý TB", value: employee.averageProcessingTime, color: "text-blue-600" },
-                  { icon: AlertTriangle, label: "Task quá hạn", value: `${employee.overdueTasks}`, color: "text-rose-600" },
-                  { icon: AlertTriangle, label: "Task chưa xử lý", value: `${employee.pendingTasks}`, color: "text-amber-600" },
+                  { label: "Tỷ lệ hoàn thành", value: `${employee.completionRate}%`, tone: "primary" as const },
+                  { label: "Thời gian xử lý TB", value: employee.averageProcessingTime },
+                  { label: "Task quá hạn", value: `${employee.overdueTasks}`, tone: "rose" as const },
+                  { label: "Task chưa xử lý", value: `${employee.pendingTasks}` },
                 ].map((s) => (
-                  <div key={s.label} className="flex items-center gap-2 rounded-lg border border-neutral-100 bg-neutral-50 p-3">
-                    <s.icon className={`h-4 w-4 ${s.color}`} />
-                    <div>
-                      <p className="text-sm font-bold text-neutral-800">{s.value}</p>
-                      <p className="text-[10px] text-neutral-500">{s.label}</p>
-                    </div>
+                  <div key={s.label} className="rounded-xl bg-white shadow-[0_2px_12px_-4px_rgba(12,84,156,0.06)] ring-1 ring-zinc-100/80 p-3">
+                    <p className={`text-sm font-bold tabular-nums ${s.tone === "rose" ? "text-rose-600" : s.tone === "primary" ? "text-[#0c549c]" : "text-zinc-800"}`}>{s.value}</p>
+                    <p className="text-[10px] text-zinc-500">{s.label}</p>
                   </div>
                 ))}
               </div>
             </TabsContent>
 
-            <TabsContent value="history" className="mt-2">
+            <TabsContent value="history" className="mt-3">
               {employee.activityLogs.length === 0 ? (
-                <p className="text-xs text-neutral-400 py-4 text-center">Không có lịch sử.</p>
+                <p className="text-xs text-zinc-400 py-4 text-center">Không có lịch sử.</p>
               ) : (
                 <div className="space-y-2">
                   {employee.activityLogs.map((log, i) => (
-                    <div key={i} className="flex items-start gap-3 rounded-lg border border-neutral-100 bg-neutral-50/50 p-3">
-                      <History className="mt-0.5 h-3.5 w-3.5 text-neutral-400 shrink-0" />
+                    <div key={i} className="flex items-start gap-3 rounded-xl bg-white shadow-[0_2px_12px_-4px_rgba(12,84,156,0.04)] ring-1 ring-zinc-100/60 p-3">
+                      <div className="mt-0.5 h-1.5 w-1.5 rounded-full bg-zinc-300 shrink-0" />
                       <div className="min-w-0 flex-1">
                         <div className="flex items-center gap-2">
-                          <span className="text-[11px] font-medium text-neutral-600">{log.time}</span>
+                          <span className="text-[11px] font-medium text-zinc-600">{log.time}</span>
                           <Badge variant="secondary" className="text-[9px] px-1.5 py-0">{log.action}</Badge>
                         </div>
-                        <p className="mt-0.5 text-[11px] text-neutral-500">{log.content}</p>
+                        <p className="mt-0.5 text-[11px] text-zinc-500">{log.content}</p>
                       </div>
                     </div>
                   ))}
@@ -248,21 +245,15 @@ export function EmployeeDetailDrawer({ employee, open, onOpenChange }: Props) {
               )}
             </TabsContent>
 
-            <TabsContent value="ai" className="mt-2">
+            <TabsContent value="ai" className="mt-3">
               <div className="grid grid-cols-2 gap-3">
-                <div className="flex items-center gap-2 rounded-lg border border-violet-100 bg-violet-50 p-3">
-                  <Bot className="h-4 w-4 text-violet-500" />
-                  <div>
-                    <p className="text-sm font-bold text-violet-700">{employee.aiExtractedFiles}</p>
-                    <p className="text-[10px] text-violet-600">File AI đã bóc tách</p>
-                  </div>
+                <div className="rounded-xl bg-[#0c549c]/3 p-3 ring-1 ring-[#0c549c]/10">
+                  <p className="text-sm font-bold text-[#0c549c]">{employee.aiExtractedFiles}</p>
+                  <p className="text-[10px] text-zinc-500">File AI đã bóc tách</p>
                 </div>
-                <div className="flex items-center gap-2 rounded-lg border border-amber-100 bg-amber-50 p-3">
-                  <AlertTriangle className="h-4 w-4 text-amber-500" />
-                  <div>
-                    <p className="text-sm font-bold text-amber-700">{employee.aiNeedReviewFiles}</p>
-                    <p className="text-[10px] text-amber-600">File cần kiểm tra lại</p>
-                  </div>
+                <div className="rounded-xl bg-rose-50/40 p-3 ring-1 ring-rose-100/60">
+                  <p className="text-sm font-bold text-rose-700">{employee.aiNeedReviewFiles}</p>
+                  <p className="text-[10px] text-zinc-500">File cần kiểm tra lại</p>
                 </div>
               </div>
             </TabsContent>
