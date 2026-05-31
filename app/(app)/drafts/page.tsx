@@ -118,9 +118,9 @@ export default function DraftsPage() {
   }
 
   return (
-    <div className="space-y-4">
+    <div className="flex h-[calc(100dvh-100px)] flex-col gap-4 overflow-hidden">
       {/* Header */}
-      <div className="flex flex-wrap items-center justify-between gap-3">
+      <div className="flex flex-wrap items-center justify-between gap-3 shrink-0">
         <div>
           <Link
             href="/emails"
@@ -138,9 +138,9 @@ export default function DraftsPage() {
         </div>
       </div>
 
-      <div className="grid gap-4 xl:grid-cols-[1fr_340px]">
+      <div className="grid min-h-0 flex-1 gap-4 xl:grid-cols-[1fr_340px] overflow-hidden">
         {/* Left: Drafts list */}
-        <div className="space-y-3">
+        <div className="flex min-h-0 flex-col gap-3 overflow-hidden">
           {/* Search & Filter */}
           <div className="flex flex-wrap items-center gap-2">
             <div className="relative flex-1 min-w-[200px]">
@@ -173,7 +173,7 @@ export default function DraftsPage() {
 
           {/* Drafts Grid */}
           {filteredDrafts.length === 0 ? (
-            <div className="flex flex-col items-center justify-center rounded-2xl border border-neutral-100 bg-white p-8 text-center">
+            <div className="flex flex-col items-center justify-center overflow-y-auto rounded-2xl border border-neutral-100 bg-white p-8 text-center">
               <FileText className="h-10 w-10 text-neutral-300" />
               <p className="mt-2 text-sm text-neutral-500">
                 {searchQuery || statusFilter !== "all"
@@ -198,7 +198,7 @@ export default function DraftsPage() {
               )}
             </div>
           ) : (
-            <div className="grid gap-2 sm:grid-cols-2">
+            <div className="grid gap-2 overflow-y-auto sm:grid-cols-2">
               {filteredDrafts.map((draft) => (
                 <button
                   key={draft.id}
@@ -249,7 +249,7 @@ export default function DraftsPage() {
         </div>
 
         {/* Right: RAG Chat */}
-        <div className="flex h-[calc(100dvh-180px)] min-h-[400px] flex-col rounded-2xl border border-neutral-100 bg-white shadow-sm">
+        <div className="flex h-full min-h-0 flex-col rounded-2xl border border-neutral-100 bg-white shadow-sm">
           <div className="border-b border-neutral-100 p-3">
             <h2 className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wide text-neutral-500">
               <Bot className="h-3.5 w-3.5" />
