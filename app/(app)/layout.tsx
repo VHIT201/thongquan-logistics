@@ -26,6 +26,7 @@ import {
   Webhook,
   ClipboardCheck,
   Monitor,
+  Crown,
 } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { useAuth } from "@/hooks/use-auth"
@@ -167,6 +168,10 @@ const getBreadcrumbItems = (pathname: string) => {
     return [{ label: "Quản trị", href: "#" }]
   }
 
+  if (pathname.startsWith("/ceo")) {
+    return [{ label: "CEO Dashboard", href: "/ceo" }]
+  }
+
   if (pathname.startsWith("/employees")) {
     const employeeId = pathname.split("/")[2]
     if (employeeId) {
@@ -211,6 +216,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
     ...baseNavItems.slice(0, 2),
     { href: "/emails", label: "Email", icon: Mail, permission: "mail.read" },
     { href: "/drafts", label: "Hồ sơ xử lý", icon: FileText, permission: "mail.read" },
+    { href: "/ceo", label: "CEO Dashboard", icon: Crown },
     ...baseNavItems.slice(2),
   ]
 
