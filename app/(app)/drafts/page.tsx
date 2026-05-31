@@ -138,21 +138,35 @@ export default function DraftsPage() {
     setRagMessages((prev) => [...prev, { role: "user" as const, content: query }])
 
     const relevantDrafts = searchDrafts(query).slice(0, 3)
-    const context = relevantDrafts
-      .map((d, i) => {
-        const dataText = Object.entries(d.extractedData)
-          .map(([k, v]) => `${k}: ${v}`)
-          .join("\n")
-        return `[Hồ sơ ${i + 1}]\n${dataText}`
-      })
-      .join("\n\n")
 
     setTimeout(() => {
       const hasResults = relevantDrafts.length > 0
-      const answer = hasResults
-        ? `Dựa trên ${relevantDrafts.length} hồ sơ tìm thấy:\n\n${context}\n\nBạn có muốn tôi phân tích thêm không?`
-        : "Không tìm thấy hồ sơ nào liên quan."
-      setRagMessages((prev) => [...prev, { role: "assistant", content: answer }])
+      if (!hasResults) {
+        setRagMessages((prev) => [...prev, { role: "assistant", content: "Không tìm thấy hồ sơ nào liên quan." }])
+        setRagLoading(false)
+        return
+      }
+
+      const answer = relevantDrafts
+        .map((d) => {
+          const data = d.extractedData
+          const lines = [
+            `📋 Tờ khai: ${data.soToKhai || "—"}`,
+            `🏢 Khách hàng: ${data.khachHang || "—"}`,
+            `📦 Loại hàng: ${data.loaiHang || "—"}`,
+            `🚢 Cảng: ${data.cangXuatNhap || "—"}`,
+            `📐 Container 20': ${data.soContainer20 || "0"}`,
+            `📐 Container 40': ${data.soContainer40 || "0"}`,
+            `🚛 Trạng thái: ${data.trangThaiLoHang || "—"}`,
+          ]
+          return lines.join("\n")
+        })
+        .join("\n\n———\n\n")
+
+      setRagMessages((prev) => [
+        ...prev,
+        { role: "assistant", content: `Dựa trên ${relevantDrafts.length} hồ sơ tìm thấy:\n\n${answer}` },
+      ])
       setRagLoading(false)
     }, 800)
   }

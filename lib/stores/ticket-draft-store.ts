@@ -82,6 +82,8 @@ export const useTicketDraftStore = create<TicketDraftState>()(
       searchDrafts: (query) => {
         const q = query.trim().toLowerCase()
         if (!q) return get().drafts
+        const keywords = q.split(/\s+/).filter((w) => w.length > 1)
+        if (keywords.length === 0) return get().drafts
         return get().drafts.filter((d) => {
           const text = [
             d.emailSubject,
@@ -93,7 +95,7 @@ export const useTicketDraftStore = create<TicketDraftState>()(
             .filter(Boolean)
             .join(" ")
             .toLowerCase()
-          return text.includes(q)
+          return keywords.some((kw) => text.includes(kw))
         })
       },
 
