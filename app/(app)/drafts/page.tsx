@@ -269,8 +269,8 @@ export default function DraftsPage() {
   }
 
   return (
-    <>
-      <div className="flex h-full max-h-full flex-col gap-5 overflow-hidden">
+    <div className="flex h-screen overflow-hidden">
+      <div className="relative flex h-full flex-1 flex-col gap-5 overflow-hidden">
       {/* Header */}
       <div className="shrink-0">
         <Link
@@ -635,14 +635,12 @@ export default function DraftsPage() {
           )}
         </DialogContent>
       </Dialog>
-    </div>
 
-    {/* AI Chat Drawer — rendered via Portal to document.body */}
-    <Portal>
+      {/* Floating AI button inside main content */}
       {!chatOpen && (
         <button
           onClick={() => { setChatOpen(true); setHasNewMsg(false) }}
-          className={`fixed bottom-6 right-6 z-[9999] flex h-14 w-14 cursor-pointer items-center justify-center rounded-full bg-primary text-white shadow-xl shadow-primary/30 transition hover:scale-105 hover:shadow-2xl hover:shadow-primary/40 ${hasNewMsg ? "animate-pulse ring-4 ring-primary/30" : ""}`}
+          className={`absolute bottom-6 right-6 z-50 flex h-14 w-14 cursor-pointer items-center justify-center rounded-full bg-primary text-white shadow-xl shadow-primary/30 transition hover:scale-105 hover:shadow-2xl hover:shadow-primary/40 ${hasNewMsg ? "animate-pulse ring-4 ring-primary/30" : ""}`}
           title="AI Tra cứu"
         >
           <Sparkles className="h-5 w-5" />
@@ -651,9 +649,10 @@ export default function DraftsPage() {
           )}
         </button>
       )}
+    </div>
 
-      {/* Drawer — always rendered for slide animation, no backdrop */}
-      <div className={`fixed right-0 top-0 z-[9999] flex h-full w-[400px] flex-col overflow-hidden border-l border-neutral-200/60 bg-white shadow-xl transition-transform duration-300 ease-out ${chatOpen ? 'translate-x-0 pointer-events-auto' : 'translate-x-full pointer-events-none'}`}>
+    {/* AI Chat Drawer — inline, pushes layout */}
+    <div className={`flex h-full flex-col overflow-hidden border-l border-neutral-200/60 bg-white shadow-xl transition-all duration-300 ease-out ${chatOpen ? 'w-[400px]' : 'w-0'}`}>
             {/* Header */}
             <div className="flex shrink-0 items-center justify-between border-b border-neutral-100/60 bg-gradient-to-r from-primary to-primary/90 px-5 py-3.5">
               <div className="flex items-center gap-2.5">
@@ -794,6 +793,6 @@ export default function DraftsPage() {
               )}
             </div>
           </div>
-    </Portal>
-  </>)
+    </div>
+)
 }
