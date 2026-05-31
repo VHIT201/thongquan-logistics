@@ -137,15 +137,17 @@ export default function DraftsPage() {
 
     setRagMessages((prev) => [...prev, { role: "user" as const, content: query }])
 
+    const q = query.toLowerCase()
     const allResults = searchDrafts(query)
     // Ưu tiên match chính xác soToKhai
     const exactMatch = allResults.find((d) =>
-      d.extractedData.soToKhai?.toLowerCase().includes(query.replace(/\s+/g, ""))
+      d.extractedData.soToKhai?.toLowerCase().includes(q.replace(/\s+/g, ""))
     )
+    const firstKeyword = q.split(/\s+/).find((w) => w.length > 1) || ""
     const relevantDrafts = exactMatch
       ? [exactMatch]
       : allResults.filter((d) =>
-          d.extractedData.soToKhai?.toLowerCase().includes(query.split(/\s+/)[0])
+          d.extractedData.soToKhai?.toLowerCase().includes(firstKeyword)
         ).slice(0, 1)
 
     setTimeout(() => {
