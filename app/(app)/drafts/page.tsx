@@ -150,7 +150,8 @@ export default function DraftsPage() {
   }
 
   return (
-    <div className="flex h-full max-h-full flex-col gap-5 overflow-hidden">
+    <>
+      <div className="flex h-full max-h-full flex-col gap-5 overflow-hidden">
       {/* Header */}
       <div className="shrink-0">
         <Link
@@ -361,130 +362,6 @@ export default function DraftsPage() {
         </div>
       </div>
 
-      {/* Floating AI Chat Widget */}
-      {!chatOpen && (
-        <button
-          onClick={() => setChatOpen(true)}
-          className="fixed bottom-6 right-6 z-50 flex h-14 w-14 items-center justify-center rounded-full bg-primary text-white shadow-xl shadow-primary/30 transition hover:scale-105 hover:shadow-2xl hover:shadow-primary/40"
-          title="AI Tra cứu"
-        >
-          <Sparkles className="h-5 w-5" />
-        </button>
-      )}
-
-      {chatOpen && (
-        <div className="fixed bottom-6 right-6 z-50 flex h-[520px] w-[380px] flex-col overflow-hidden rounded-2xl border border-neutral-200/60 bg-white shadow-2xl shadow-neutral-200">
-          {/* Header */}
-          <div className="flex shrink-0 items-center justify-between border-b border-neutral-100 bg-primary px-4 py-3">
-            <div className="flex items-center gap-2.5">
-              <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-white/20">
-                <Sparkles className="h-3.5 w-3.5 text-white" />
-              </div>
-              <div>
-                <h2 className="text-xs font-bold text-white">AI Tra cứu</h2>
-                <p className="text-[10px] text-white/70">RAG — Tìm kiếm trong hồ sơ</p>
-              </div>
-            </div>
-            <button
-              onClick={() => setChatOpen(false)}
-              className="flex h-6 w-6 items-center justify-center rounded-md text-white/70 transition hover:bg-white/10 hover:text-white"
-            >
-              <X className="h-4 w-4" />
-            </button>
-          </div>
-
-          {/* Messages */}
-          <div className="min-h-0 flex-1 overflow-y-auto px-4 py-3 space-y-3">
-            {ragMessages.length === 0 && (
-              <div className="flex flex-col items-center justify-center py-10 text-center">
-                <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-gradient-to-br from-primary/10 to-primary/5">
-                  <Bot className="h-6 w-6 text-primary/70" />
-                </div>
-                <p className="mt-3 text-sm font-medium text-neutral-600">
-                  Bắt đầu tra cứu
-                </p>
-                <p className="mt-1 max-w-[220px] text-[11px] leading-relaxed text-neutral-400">
-                  Ví dụ: “Tờ khai TK25 có bao nhiêu container?”
-                </p>
-              </div>
-            )}
-            {ragMessages.map((msg, i) => (
-              <div
-                key={i}
-                className={`flex gap-2.5 ${
-                  msg.role === "user" ? "justify-end" : "justify-start"
-                }`}
-              >
-                {msg.role === "assistant" && (
-                  <div className="mt-1 flex h-6 w-6 shrink-0 items-center justify-center rounded-lg bg-gradient-to-br from-primary/20 to-primary/5">
-                    <Sparkles className="h-3 w-3 text-primary" />
-                  </div>
-                )}
-                <div
-                  className={`max-w-[88%] rounded-2xl px-3.5 py-2.5 text-xs leading-relaxed ${
-                    msg.role === "user"
-                      ? "rounded-br-md bg-primary text-white shadow-sm"
-                      : "rounded-bl-md border border-neutral-100 bg-white text-neutral-700 shadow-sm"
-                  }`}
-                >
-                  <pre className="whitespace-pre-wrap font-sans">
-                    {msg.content}
-                  </pre>
-                </div>
-                {msg.role === "user" && (
-                  <div className="mt-1 flex h-6 w-6 shrink-0 items-center justify-center rounded-lg bg-primary/10">
-                    <User className="h-3 w-3 text-primary" />
-                  </div>
-                )}
-              </div>
-            ))}
-            {ragLoading && (
-              <div className="flex items-center gap-1.5 py-1 pl-9">
-                <span
-                  className="h-1.5 w-1.5 animate-bounce rounded-full bg-neutral-300"
-                  style={{ animationDelay: "0ms" }}
-                />
-                <span
-                  className="h-1.5 w-1.5 animate-bounce rounded-full bg-neutral-300"
-                  style={{ animationDelay: "150ms" }}
-                />
-                <span
-                  className="h-1.5 w-1.5 animate-bounce rounded-full bg-neutral-300"
-                  style={{ animationDelay: "300ms" }}
-                />
-              </div>
-            )}
-          </div>
-
-          {/* Input */}
-          <div className="shrink-0 border-t border-neutral-100 bg-white px-4 py-3">
-            <div className="flex items-center gap-2 rounded-xl border border-neutral-200 bg-neutral-50 px-3 py-2 transition focus-within:border-primary focus-within:bg-white focus-within:ring-2 focus-within:ring-primary/10">
-              <input
-                type="text"
-                value={ragQuery}
-                onChange={(e) => setRagQuery(e.target.value)}
-                onKeyDown={(e) => {
-                  if (e.key === "Enter" && !e.shiftKey) {
-                    e.preventDefault()
-                    void handleRagSearch()
-                  }
-                }}
-                disabled={ragLoading}
-                placeholder="Hỏi về hồ sơ đã lưu..."
-                className="flex-1 bg-transparent text-xs text-neutral-800 outline-none placeholder:text-neutral-400"
-              />
-              <button
-                onClick={() => void handleRagSearch()}
-                disabled={ragLoading || !ragQuery.trim()}
-                className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-primary text-white shadow-sm transition hover:bg-primary/90 disabled:cursor-not-allowed disabled:opacity-30"
-              >
-                <Send className="h-3 w-3" />
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
       {/* Detail Modal */}
       <Dialog open={detailOpen} onOpenChange={setDetailOpen}>
         <DialogContent className="max-h-[90vh] max-w-[800px] overflow-y-auto rounded-2xl border border-neutral-200 p-0 shadow-xl">
@@ -590,5 +467,129 @@ export default function DraftsPage() {
         </DialogContent>
       </Dialog>
     </div>
-  )
+
+    {/* Floating AI Chat Widget — outside page container */}
+    {!chatOpen && (
+      <button
+        onClick={() => setChatOpen(true)}
+        className="fixed bottom-6 right-6 z-[9999] flex h-14 w-14 items-center justify-center rounded-full bg-primary text-white shadow-xl shadow-primary/30 transition hover:scale-105 hover:shadow-2xl hover:shadow-primary/40"
+        title="AI Tra cứu"
+      >
+        <Sparkles className="h-5 w-5" />
+      </button>
+    )}
+
+    {chatOpen && (
+      <div className="fixed bottom-6 right-6 z-[9999] flex h-[520px] w-[380px] flex-col overflow-hidden rounded-2xl border border-neutral-200/60 bg-white shadow-2xl shadow-neutral-200">
+        {/* Header */}
+        <div className="flex shrink-0 items-center justify-between border-b border-neutral-100 bg-primary px-4 py-3">
+          <div className="flex items-center gap-2.5">
+            <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-white/20">
+              <Sparkles className="h-3.5 w-3.5 text-white" />
+            </div>
+            <div>
+              <h2 className="text-xs font-bold text-white">AI Tra cứu</h2>
+              <p className="text-[10px] text-white/70">RAG — Tìm kiếm trong hồ sơ</p>
+            </div>
+          </div>
+          <button
+            onClick={() => setChatOpen(false)}
+            className="flex h-6 w-6 items-center justify-center rounded-md text-white/70 transition hover:bg-white/10 hover:text-white"
+          >
+            <X className="h-4 w-4" />
+          </button>
+        </div>
+
+        {/* Messages */}
+        <div className="min-h-0 flex-1 overflow-y-auto px-4 py-3 space-y-3">
+          {ragMessages.length === 0 && (
+            <div className="flex flex-col items-center justify-center py-10 text-center">
+              <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-gradient-to-br from-primary/10 to-primary/5">
+                <Bot className="h-6 w-6 text-primary/70" />
+              </div>
+              <p className="mt-3 text-sm font-medium text-neutral-600">
+                Bắt đầu tra cứu
+              </p>
+              <p className="mt-1 max-w-[220px] text-[11px] leading-relaxed text-neutral-400">
+                Ví dụ: "Tờ khai TK25 có bao nhiêu container?"
+              </p>
+            </div>
+          )}
+          {ragMessages.map((msg, i) => (
+            <div
+              key={i}
+              className={`flex gap-2.5 ${
+                msg.role === "user" ? "justify-end" : "justify-start"
+              }`}
+            >
+              {msg.role === "assistant" && (
+                <div className="mt-1 flex h-6 w-6 shrink-0 items-center justify-center rounded-lg bg-gradient-to-br from-primary/20 to-primary/5">
+                  <Sparkles className="h-3 w-3 text-primary" />
+                </div>
+              )}
+              <div
+                className={`max-w-[88%] rounded-2xl px-3.5 py-2.5 text-xs leading-relaxed ${
+                  msg.role === "user"
+                    ? "rounded-br-md bg-primary text-white shadow-sm"
+                    : "rounded-bl-md border border-neutral-100 bg-white text-neutral-700 shadow-sm"
+                }`}
+              >
+                <pre className="whitespace-pre-wrap font-sans">
+                  {msg.content}
+                </pre>
+              </div>
+              {msg.role === "user" && (
+                <div className="mt-1 flex h-6 w-6 shrink-0 items-center justify-center rounded-lg bg-primary/10">
+                  <User className="h-3 w-3 text-primary" />
+                </div>
+              )}
+            </div>
+          ))}
+          {ragLoading && (
+            <div className="flex items-center gap-1.5 py-1 pl-9">
+              <span
+                className="h-1.5 w-1.5 animate-bounce rounded-full bg-neutral-300"
+                style={{ animationDelay: "0ms" }}
+              />
+              <span
+                className="h-1.5 w-1.5 animate-bounce rounded-full bg-neutral-300"
+                style={{ animationDelay: "150ms" }}
+              />
+              <span
+                className="h-1.5 w-1.5 animate-bounce rounded-full bg-neutral-300"
+                style={{ animationDelay: "300ms" }}
+              />
+            </div>
+          )}
+        </div>
+
+        {/* Input */}
+        <div className="shrink-0 border-t border-neutral-100 bg-white px-4 py-3">
+          <div className="flex items-center gap-2 rounded-xl border border-neutral-200 bg-neutral-50 px-3 py-2 transition focus-within:border-primary focus-within:bg-white focus-within:ring-2 focus-within:ring-primary/10">
+            <input
+              type="text"
+              value={ragQuery}
+              onChange={(e) => setRagQuery(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter" && !e.shiftKey) {
+                  e.preventDefault()
+                  void handleRagSearch()
+                }
+              }}
+              disabled={ragLoading}
+              placeholder="Hỏi về hồ sơ đã lưu..."
+              className="flex-1 bg-transparent text-xs text-neutral-800 outline-none placeholder:text-neutral-400"
+            />
+            <button
+              onClick={() => void handleRagSearch()}
+              disabled={ragLoading || !ragQuery.trim()}
+              className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-primary text-white shadow-sm transition hover:bg-primary/90 disabled:cursor-not-allowed disabled:opacity-30"
+            >
+              <Send className="h-3 w-3" />
+            </button>
+          </div>
+        </div>
+      </div>
+    )}
+  </>)
 }
