@@ -44,7 +44,7 @@ const STATUS_COLORS: Record<TicketDraftStatus, string> = {
 
 export default function DraftsPage() {
   const router = useRouter()
-  const { drafts, searchDrafts, updateDraft } = useTicketDraftStore()
+  const { drafts, searchDrafts, updateDraft, seedDummyData } = useTicketDraftStore()
 
   const [searchQuery, setSearchQuery] = useState("")
   const [statusFilter, setStatusFilter] = useState<TicketDraftStatus | "all">("all")
@@ -176,6 +176,17 @@ export default function DraftsPage() {
                   ? "Thử thay đổi bộ lọc"
                   : 'Bấm "Lưu hồ sơ" trong modal bóc tách để tạo hồ sơ mới'}
               </p>
+              {!searchQuery && statusFilter === "all" && (
+                <button
+                  onClick={() => {
+                    seedDummyData()
+                    toast.success("Đã tạo 10 hồ sơ mẫu")
+                  }}
+                  className="mt-3 cursor-pointer rounded-md border border-primary bg-primary px-3 py-1.5 text-xs font-medium text-white hover:bg-primary/90"
+                >
+                  Tạo dữ liệu mẫu
+                </button>
+              )}
             </div>
           ) : (
             <div className="grid gap-2 sm:grid-cols-2">
