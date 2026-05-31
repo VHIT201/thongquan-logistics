@@ -138,9 +138,9 @@ export default function DraftsPage() {
         </div>
       </div>
 
-      <div className="grid min-h-0 flex-1 gap-4 xl:grid-cols-[1fr_340px] overflow-hidden">
+      <div className="grid min-h-0 flex-1 grid-rows-1 gap-4 xl:grid-cols-[1fr_340px] overflow-hidden">
         {/* Left: Drafts list */}
-        <div className="flex min-h-0 flex-col gap-3 overflow-hidden">
+        <div className="flex h-full min-h-0 flex-col gap-3 overflow-hidden">
           {/* Search & Filter */}
           <div className="flex flex-wrap items-center gap-2">
             <div className="relative flex-1 min-w-[200px]">
