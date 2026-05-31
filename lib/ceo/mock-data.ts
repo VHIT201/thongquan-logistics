@@ -76,6 +76,16 @@ export const ceoEmployeesMock: EmployeePerformance[] = [
         warning: "Quá hạn 45 phút",
       },
     ],
+    emails: [
+      { receivedAt: "08:15", subject: "INV Công ty A - Bill 123", customerName: "Công ty A", attachments: 3, aiStatus: "Thành công", status: "Đã tạo task" },
+      { receivedAt: "09:00", subject: "Booking Công ty B", customerName: "Công ty B", attachments: 2, aiStatus: "Thiếu dữ liệu", status: "Cần kiểm tra" },
+    ],
+    activityLogs: [
+      { time: "08:30", action: "Nhận task", content: "Nhận xử lý email INV Công ty A" },
+      { time: "08:35", action: "AI bóc tách", content: "Bóc tách thành công invoice" },
+      { time: "08:45", action: "Cập nhật trạng thái", content: "Chuyển sang đang xử lý" },
+      { time: "09:20", action: "Ghi chú", content: "Thiếu thông tin booking, chờ khách bổ sung" },
+    ],
   },
   {
     id: "emp-002",
@@ -113,6 +123,13 @@ export const ceoEmployeesMock: EmployeePerformance[] = [
         dueAt: "2026-05-29 11:00",
         warning: "Bình thường",
       },
+    ],
+    emails: [
+      { receivedAt: "09:30", subject: "Tờ khai xuất khẩu Công ty C", customerName: "Công ty C", attachments: 4, aiStatus: "Thành công", status: "Đang xử lý" },
+    ],
+    activityLogs: [
+      { time: "09:00", action: "Nhận task", content: "Nhận booking xuất khẩu Công ty C" },
+      { time: "09:10", action: "AI bóc tách", content: "Bóc tách thành công" },
     ],
   },
   {
@@ -152,6 +169,13 @@ export const ceoEmployeesMock: EmployeePerformance[] = [
         warning: "Quá hạn 2 giờ",
       },
     ],
+    emails: [
+      { receivedAt: "06:30", subject: "Bill lading Công ty D", customerName: "Công ty D", attachments: 2, aiStatus: "Cần review", status: "Quá hạn" },
+    ],
+    activityLogs: [
+      { time: "06:00", action: "Nhận task", content: "Nhận bill lading Công ty D" },
+      { time: "07:00", action: "Cảnh báo quá hạn", content: "Task quá hạn 1 giờ" },
+    ],
   },
   {
     id: "emp-004",
@@ -179,6 +203,12 @@ export const ceoEmployeesMock: EmployeePerformance[] = [
       },
     ],
     currentTasks: [],
+    emails: [
+      { receivedAt: "10:00", subject: "Invoice Công ty E", customerName: "Công ty E", attachments: 1, aiStatus: "Thành công", status: "Hoàn tất" },
+    ],
+    activityLogs: [
+      { time: "10:00", action: "Hoàn tất", content: "Xử lý xong invoice Công ty E" },
+    ],
   },
 ]
 

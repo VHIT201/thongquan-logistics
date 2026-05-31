@@ -1,7 +1,7 @@
 "use client"
 
 import { useState } from "react"
-import { Mail, Building2, Briefcase, BarChart3, Clock, Bot, AlertTriangle } from "lucide-react"
+import { Mail, Building2, Briefcase, BarChart3, Clock, Bot, AlertTriangle, Inbox, History } from "lucide-react"
 import {
   Dialog,
   DialogContent,
@@ -68,43 +68,111 @@ export function EmployeeDetailDrawer({ employee, open, onOpenChange }: Props) {
           </div>
 
           <Tabs value={tab} onValueChange={setTab} className="w-full">
-            <TabsList className="grid w-full grid-cols-4 h-8 text-[11px]">
-              <TabsTrigger value="tasks" className="text-[11px]">Task đang xử lý</TabsTrigger>
-              <TabsTrigger value="customers" className="text-[11px]">Khách hàng</TabsTrigger>
-              <TabsTrigger value="stats" className="text-[11px]">Chỉ số</TabsTrigger>
-              <TabsTrigger value="ai" className="text-[11px]">AI</TabsTrigger>
+            <TabsList className="grid w-full grid-cols-7 h-8 text-[10px]">
+              <TabsTrigger value="tasks" className="text-[10px] px-1">Task đang XL</TabsTrigger>
+              <TabsTrigger value="overdue" className="text-[10px] px-1">Task quá hạn</TabsTrigger>
+              <TabsTrigger value="emails" className="text-[10px] px-1">Email/CT</TabsTrigger>
+              <TabsTrigger value="customers" className="text-[10px] px-1">Khách hàng</TabsTrigger>
+              <TabsTrigger value="stats" className="text-[10px] px-1">Chỉ số</TabsTrigger>
+              <TabsTrigger value="history" className="text-[10px] px-1">Lịch sử</TabsTrigger>
+              <TabsTrigger value="ai" className="text-[10px] px-1">AI</TabsTrigger>
             </TabsList>
 
             <TabsContent value="tasks" className="mt-2">
-              {employee.currentTasks.length === 0 ? (
+              {employee.currentTasks.filter(t => t.status !== "overdue").length === 0 ? (
                 <p className="text-xs text-neutral-400 py-4 text-center">Không có task đang xử lý.</p>
               ) : (
                 <div className="rounded-md border">
                   <Table>
                     <TableHeader>
-                      <TableRow className="bg-neutral-50">
-                        <TableHead className="text-[11px] text-neutral-500">Mã</TableHead>
-                        <TableHead className="text-[11px] text-neutral-500">Khách hàng</TableHead>
-                        <TableHead className="text-[11px] text-neutral-500">Loại</TableHead>
-                        <TableHead className="text-[11px] text-neutral-500">Trạng thái</TableHead>
-                        <TableHead className="text-[11px] text-neutral-500">Cảnh báo</TableHead>
+                      <TableRow className="bg-neutral-50 hover:bg-neutral-50">
+                        <TableHead className="text-[11px] font-medium text-neutral-500">Mã</TableHead>
+                        <TableHead className="text-[11px] font-medium text-neutral-500">Khách hàng</TableHead>
+                        <TableHead className="text-[11px] font-medium text-neutral-500">Loại</TableHead>
+                        <TableHead className="text-[11px] font-medium text-neutral-500">Trạng thái</TableHead>
+                        <TableHead className="text-[11px] font-medium text-neutral-500">Cảnh báo</TableHead>
                       </TableRow>
                     </TableHeader>
                     <TableBody>
-                      {employee.currentTasks.map((task) => (
+                      {employee.currentTasks.filter(t => t.status !== "overdue").map((task) => (
                         <TableRow key={task.id} className="text-xs">
                           <TableCell className="font-medium text-neutral-700">{task.id}</TableCell>
                           <TableCell className="text-neutral-600">{task.customerName}</TableCell>
                           <TableCell className="text-neutral-600">{task.documentType}</TableCell>
                           <TableCell>
-                            <Badge
-                              variant={task.status === "overdue" ? "destructive" : "secondary"}
-                              className="text-[10px]"
-                            >
-                              {task.status === "overdue" ? "Quá hạn" : "Đang xử lý"}
-                            </Badge>
+                            <Badge variant="secondary" className="text-[10px]">Đang xử lý</Badge>
                           </TableCell>
                           <TableCell className="text-neutral-500">{task.warning}</TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                </div>
+              )}
+            </TabsContent>
+
+            <TabsContent value="overdue" className="mt-2">
+              {employee.currentTasks.filter(t => t.status === "overdue").length === 0 ? (
+                <p className="text-xs text-neutral-400 py-4 text-center">Không có task quá hạn.</p>
+              ) : (
+                <div className="rounded-md border">
+                  <Table>
+                    <TableHeader>
+                      <TableRow className="bg-neutral-50 hover:bg-neutral-50">
+                        <TableHead className="text-[11px] font-medium text-neutral-500">Mã</TableHead>
+                        <TableHead className="text-[11px] font-medium text-neutral-500">Khách hàng</TableHead>
+                        <TableHead className="text-[11px] font-medium text-neutral-500">Loại</TableHead>
+                        <TableHead className="text-[11px] font-medium text-neutral-500">Nhận</TableHead>
+                        <TableHead className="text-[11px] font-medium text-neutral-500">Hạn</TableHead>
+                        <TableHead className="text-[11px] font-medium text-neutral-500">Cảnh báo</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {employee.currentTasks.filter(t => t.status === "overdue").map((task) => (
+                        <TableRow key={task.id} className="text-xs">
+                          <TableCell className="font-medium text-neutral-700">{task.id}</TableCell>
+                          <TableCell className="text-neutral-600">{task.customerName}</TableCell>
+                          <TableCell className="text-neutral-600">{task.documentType}</TableCell>
+                          <TableCell className="text-neutral-500">{task.receivedAt}</TableCell>
+                          <TableCell className="text-neutral-500">{task.dueAt}</TableCell>
+                          <TableCell className="text-rose-600">{task.warning}</TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                </div>
+              )}
+            </TabsContent>
+
+            <TabsContent value="emails" className="mt-2">
+              {employee.emails.length === 0 ? (
+                <p className="text-xs text-neutral-400 py-4 text-center">Không có email.</p>
+              ) : (
+                <div className="rounded-md border">
+                  <Table>
+                    <TableHeader>
+                      <TableRow className="bg-neutral-50 hover:bg-neutral-50">
+                        <TableHead className="text-[11px] font-medium text-neutral-500">Nhận</TableHead>
+                        <TableHead className="text-[11px] font-medium text-neutral-500">Tiêu đề</TableHead>
+                        <TableHead className="text-[11px] font-medium text-neutral-500">Khách hàng</TableHead>
+                        <TableHead className="text-[11px] font-medium text-neutral-500 text-right">File</TableHead>
+                        <TableHead className="text-[11px] font-medium text-neutral-500">AI</TableHead>
+                        <TableHead className="text-[11px] font-medium text-neutral-500">Trạng thái</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {employee.emails.map((e, i) => (
+                        <TableRow key={i} className="text-xs">
+                          <TableCell className="text-neutral-600">{e.receivedAt}</TableCell>
+                          <TableCell className="font-medium text-neutral-700">{e.subject}</TableCell>
+                          <TableCell className="text-neutral-600">{e.customerName}</TableCell>
+                          <TableCell className="text-right text-neutral-600">{e.attachments} file</TableCell>
+                          <TableCell className="text-neutral-500">{e.aiStatus}</TableCell>
+                          <TableCell>
+                            <Badge variant={e.status === "Quá hạn" ? "destructive" : "secondary"} className="text-[10px]">
+                              {e.status}
+                            </Badge>
+                          </TableCell>
                         </TableRow>
                       ))}
                     </TableBody>
@@ -117,12 +185,12 @@ export function EmployeeDetailDrawer({ employee, open, onOpenChange }: Props) {
               <div className="rounded-md border">
                 <Table>
                   <TableHeader>
-                    <TableRow className="bg-neutral-50">
-                      <TableHead className="text-[11px] text-neutral-500">Khách hàng</TableHead>
-                      <TableHead className="text-[11px] text-neutral-500 text-right">Email</TableHead>
-                      <TableHead className="text-[11px] text-neutral-500 text-right">Task</TableHead>
-                      <TableHead className="text-[11px] text-neutral-500 text-right">Đang xử lý</TableHead>
-                      <TableHead className="text-[11px] text-neutral-500 text-right">Quá hạn</TableHead>
+                    <TableRow className="bg-neutral-50 hover:bg-neutral-50">
+                      <TableHead className="text-[11px] font-medium text-neutral-500">Khách hàng</TableHead>
+                      <TableHead className="text-[11px] font-medium text-neutral-500 text-right">Email</TableHead>
+                      <TableHead className="text-[11px] font-medium text-neutral-500 text-right">Task</TableHead>
+                      <TableHead className="text-[11px] font-medium text-neutral-500 text-right">Đang xử lý</TableHead>
+                      <TableHead className="text-[11px] font-medium text-neutral-500 text-right">Quá hạn</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
@@ -157,6 +225,27 @@ export function EmployeeDetailDrawer({ employee, open, onOpenChange }: Props) {
                   </div>
                 ))}
               </div>
+            </TabsContent>
+
+            <TabsContent value="history" className="mt-2">
+              {employee.activityLogs.length === 0 ? (
+                <p className="text-xs text-neutral-400 py-4 text-center">Không có lịch sử.</p>
+              ) : (
+                <div className="space-y-2">
+                  {employee.activityLogs.map((log, i) => (
+                    <div key={i} className="flex items-start gap-3 rounded-lg border border-neutral-100 bg-neutral-50/50 p-3">
+                      <History className="mt-0.5 h-3.5 w-3.5 text-neutral-400 shrink-0" />
+                      <div className="min-w-0 flex-1">
+                        <div className="flex items-center gap-2">
+                          <span className="text-[11px] font-medium text-neutral-600">{log.time}</span>
+                          <Badge variant="secondary" className="text-[9px] px-1.5 py-0">{log.action}</Badge>
+                        </div>
+                        <p className="mt-0.5 text-[11px] text-neutral-500">{log.content}</p>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
             </TabsContent>
 
             <TabsContent value="ai" className="mt-2">

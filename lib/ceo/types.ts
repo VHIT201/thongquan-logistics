@@ -31,6 +31,21 @@ export interface EmployeeTask {
   warning: string
 }
 
+export interface EmployeeEmail {
+  receivedAt: string
+  subject: string
+  customerName: string
+  attachments: number
+  aiStatus: string
+  status: string
+}
+
+export interface ActivityLog {
+  time: string
+  action: string
+  content: string
+}
+
 export interface EmployeePerformance {
   id: string
   name: string
@@ -49,6 +64,8 @@ export interface EmployeePerformance {
   aiNeedReviewFiles: number
   customers: EmployeeCustomer[]
   currentTasks: EmployeeTask[]
+  emails: EmployeeEmail[]
+  activityLogs: ActivityLog[]
 }
 
 export type AlertLevel = "low" | "medium" | "high" | "critical"

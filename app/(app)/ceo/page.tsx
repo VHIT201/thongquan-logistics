@@ -50,6 +50,7 @@ export default function CeoPage() {
   const [mounted, setMounted] = useState(false)
   const [selectedEmployee, setSelectedEmployee] = useState<EmployeePerformance | null>(null)
   const [drawerOpen, setDrawerOpen] = useState(false)
+  const [timeFilter, setTimeFilter] = useState("today")
 
   useEffect(() => {
     setMounted(true)
@@ -63,6 +64,13 @@ export default function CeoPage() {
   }, [])
 
   if (!mounted) return null
+
+  const timeOptions = [
+    { value: "today", label: "Hôm nay" },
+    { value: "week", label: "Tuần này" },
+    { value: "month", label: "Tháng này" },
+    { value: "custom", label: "Tùy chọn" },
+  ]
 
   return (
     <div className="flex h-full flex-col gap-6 overflow-auto p-6">
@@ -80,6 +88,20 @@ export default function CeoPage() {
           <Download className="h-3.5 w-3.5" />
           Xuất báo cáo
         </Button>
+      </div>
+
+      <div className="flex items-center gap-2">
+        {timeOptions.map((opt) => (
+          <Button
+            key={opt.value}
+            variant={timeFilter === opt.value ? "default" : "outline"}
+            size="sm"
+            className="text-xs h-7"
+            onClick={() => setTimeFilter(opt.value)}
+          >
+            {opt.label}
+          </Button>
+        ))}
       </div>
 
       {/* KPI Cards */}
