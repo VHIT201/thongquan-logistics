@@ -1,6 +1,7 @@
 "use client"
 
 import { useEffect, useMemo, useState } from "react"
+import { createPortal } from "react-dom"
 import Link from "next/link"
 import {
   Search,
@@ -69,6 +70,13 @@ const STATUS_CONFIG: Record<
     border: "border-emerald-200",
     icon: <Archive className="h-3 w-3" />,
   },
+}
+
+function Portal({ children }: { children: React.ReactNode }) {
+  const [mounted, setMounted] = useState(false)
+  useEffect(() => setMounted(true), [])
+  if (!mounted) return null
+  return createPortal(children, document.body)
 }
 
 export default function DraftsPage() {
@@ -468,19 +476,20 @@ export default function DraftsPage() {
       </Dialog>
     </div>
 
-    {/* Floating AI Chat Widget — outside page container */}
-    {!chatOpen && (
-      <button
-        onClick={() => setChatOpen(true)}
-        className="fixed bottom-6 right-6 z-[9999] flex h-14 w-14 items-center justify-center rounded-full bg-primary text-white shadow-xl shadow-primary/30 transition hover:scale-105 hover:shadow-2xl hover:shadow-primary/40"
-        title="AI Tra cứu"
-      >
-        <Sparkles className="h-5 w-5" />
-      </button>
-    )}
+    {/* Floating AI Chat Widget — rendered via Portal to document.body */}
+    <Portal>
+      {!chatOpen && (
+        <button
+          onClick={() => setChatOpen(true)}
+          className="fixed bottom-6 right-6 z-[9999] flex h-14 w-14 items-center justify-center rounded-full bg-primary text-white shadow-xl shadow-primary/30 transition hover:scale-105 hover:shadow-2xl hover:shadow-primary/40"
+          title="AI Tra cứu"
+        >
+          <Sparkles className="h-5 w-5" />
+        </button>
+      )}
 
-    {chatOpen && (
-      <div className="fixed bottom-6 right-6 z-[9999] flex h-[520px] w-[380px] flex-col overflow-hidden rounded-2xl border border-neutral-200/60 bg-white shadow-2xl shadow-neutral-200">
+      {chatOpen && (
+        <div className="fixed bottom-6 right-6 z-[9999] flex h-[520px] w-[380px] flex-col overflow-hidden rounded-2xl border border-neutral-200/60 bg-white shadow-2xl shadow-neutral-200">
         {/* Header */}
         <div className="flex shrink-0 items-center justify-between border-b border-neutral-100 bg-primary px-4 py-3">
           <div className="flex items-center gap-2.5">
@@ -591,5 +600,6 @@ export default function DraftsPage() {
         </div>
       </div>
     )}
+    </Portal>
   </>)
 }
