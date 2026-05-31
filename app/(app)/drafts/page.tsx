@@ -652,15 +652,8 @@ export default function DraftsPage() {
         </button>
       )}
 
-      {chatOpen && (
-        <>
-          {/* Backdrop */}
-          <div
-            onClick={() => setChatOpen(false)}
-            className="fixed inset-0 z-[9998] bg-black/20 backdrop-blur-[2px] transition-opacity"
-          />
-          {/* Drawer */}
-          <div className="fixed right-0 top-0 z-[9999] flex h-full w-[400px] flex-col overflow-hidden border-l border-neutral-200/60 bg-white shadow-2xl shadow-neutral-200/40">
+      {/* Drawer — always rendered for slide animation, no backdrop */}
+      <div className={`fixed right-0 top-0 z-[9999] flex h-full w-[400px] flex-col overflow-hidden border-l border-neutral-200/60 bg-white shadow-xl transition-transform duration-300 ease-out ${chatOpen ? 'translate-x-0 pointer-events-auto' : 'translate-x-full pointer-events-none'}`}>
             {/* Header */}
             <div className="flex shrink-0 items-center justify-between border-b border-neutral-100/60 bg-gradient-to-r from-primary to-primary/90 px-5 py-3.5">
               <div className="flex items-center gap-2.5">
@@ -801,8 +794,6 @@ export default function DraftsPage() {
               )}
             </div>
           </div>
-        </>
-      )}
     </Portal>
   </>)
 }
