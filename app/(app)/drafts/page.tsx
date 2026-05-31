@@ -230,36 +230,36 @@ export default function DraftsPage() {
       // Câu hỏi về container + đếm
       if (isContainer && isCount) {
         answer =
-          `**Tờ khai ${data.soToKhai || "—"}**\n\n` +
+          `Tờ khai ${data.soToKhai || "—"}\n\n` +
           `Khách hàng: ${data.khachHang || "—"}\n` +
           `Container 20': ${data.soContainer20 || "0"} chiếc\n` +
           `Container 40': ${data.soContainer40 || "0"} chiếc\n` +
-          `Tổng: **${totalCont} container**`
+          `Tổng: ${totalCont} container`
       }
       // Câu hỏi về khách hàng
       else if (isCustomer) {
-        answer = `Khách hàng của tờ khai ${data.soToKhai || "—"} là **${data.khachHang || "—"}**`
+        answer = `Khách hàng của tờ khai ${data.soToKhai || "—"} là ${data.khachHang || "—"}`
       }
       // Câu hỏi về cảng
       else if (isPort) {
-        answer = `Tờ khai ${data.soToKhai || "—"}:\nCảng: **${data.cangXuatNhap || "—"}**`
+        answer = `Tờ khai ${data.soToKhai || "—"}:\nCảng: ${data.cangXuatNhap || "—"}`
       }
       // Câu hỏi về trạng thái
       else if (isStatus) {
-        answer = `Tờ khai ${data.soToKhai || "—"}:\nTrạng thái: **${data.trangThaiLoHang || "—"}**`
+        answer = `Tờ khai ${data.soToKhai || "—"}:\nTrạng thái: ${data.trangThaiLoHang || "—"}`
       }
       // Câu hỏi về loại hàng
       else if (isCargo) {
-        answer = `Tờ khai ${data.soToKhai || "—"}:\nLoại hàng: **${data.loaiHang || "—"}**`
+        answer = `Tờ khai ${data.soToKhai || "—"}:\nLoại hàng: ${data.loaiHang || "—"}`
       }
       // Default
       else {
         answer =
-          `**Tờ khai ${data.soToKhai || "—"}**\n\n` +
+          `Tờ khai ${data.soToKhai || "—"}\n\n` +
           `Khách hàng: ${data.khachHang || "—"}\n` +
           `Loại hàng: ${data.loaiHang || "—"}\n` +
           `Cảng: ${data.cangXuatNhap || "—"}\n\n` +
-          `Container: 20'=${data.soContainer20 || "0"}, 40'=${data.soContainer40 || "0"} → **${totalCont}**\n\n` +
+          `Container: 20'=${data.soContainer20 || "0"}, 40'=${data.soContainer40 || "0"} → ${totalCont}\n\n` +
           `Trạng thái: ${data.trangThaiLoHang || "—"}`
       }
 
