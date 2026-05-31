@@ -21,6 +21,7 @@ import {
   Package,
   Ship,
   Hash,
+  MessageCircle,
 } from "lucide-react"
 import dayjs from "dayjs"
 import { toast } from "sonner"
@@ -84,6 +85,7 @@ export default function DraftsPage() {
   const [ragMessages, setRagMessages] = useState<
     { role: "user" | "assistant"; content: string }[]
   >([])
+  const [chatOpen, setChatOpen] = useState(false)
 
   // Auto-seed
   const [hasSeeded, setHasSeeded] = useState(false)
@@ -213,167 +215,182 @@ export default function DraftsPage() {
       </div>
 
       {/* Main content */}
-      <div className="grid min-h-0 flex-1 grid-rows-1 gap-5 overflow-hidden xl:grid-cols-[1fr_360px]">
-        {/* Left: Drafts */}
-        <div className="flex h-full min-h-0 flex-col gap-4 overflow-hidden">
-          {/* Search */}
-          <div className="flex items-center gap-3">
-            <div className="relative flex-1">
-              <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-neutral-400" />
-              <input
-                type="text"
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                placeholder="Tìm theo tờ khai, khách hàng, mã hàng..."
-                className="w-full rounded-xl border border-neutral-200 bg-white py-2.5 pl-10 pr-4 text-sm text-neutral-800 shadow-sm outline-none transition focus:border-primary focus:ring-2 focus:ring-primary/10"
-              />
-            </div>
-            <div className="flex items-center gap-1.5 rounded-xl border border-neutral-200 bg-white px-3 py-2.5 shadow-sm">
-              <Filter className="h-3.5 w-3.5 text-neutral-400" />
-              <select
-                value={statusFilter}
-                onChange={(e) =>
-                  setStatusFilter(e.target.value as TicketDraftStatus | "all")
-                }
-                className="bg-transparent text-xs font-medium text-neutral-700 outline-none"
-              >
-                <option value="all">Tất cả</option>
-                <option value="draft">Nháp</option>
-                <option value="reviewing">Đang xem xét</option>
-                <option value="pending_confirm">Chờ xác nhận</option>
-                <option value="archived">Đã lưu</option>
-              </select>
-            </div>
+      <div className="flex min-h-0 flex-1 flex-col gap-4 overflow-hidden">
+        {/* Search */}
+        <div className="flex items-center gap-3 shrink-0">
+          <div className="relative flex-1">
+            <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-neutral-400" />
+            <input
+              type="text"
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              placeholder="Tìm theo tờ khai, khách hàng, mã hàng..."
+              className="w-full rounded-xl border border-neutral-200 bg-white py-2.5 pl-10 pr-4 text-sm text-neutral-800 shadow-sm outline-none transition focus:border-primary focus:ring-2 focus:ring-primary/10"
+            />
           </div>
-
-          {/* Drafts Grid */}
-          <div className="flex-1 min-h-0 overflow-y-auto">
-            {filteredDrafts.length === 0 ? (
-              <div className="flex flex-col items-center justify-center rounded-2xl border border-dashed border-neutral-200 bg-white p-10 text-center">
-                <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-neutral-50">
-                  <FileText className="h-6 w-6 text-neutral-300" />
-                </div>
-                <p className="mt-3 text-sm font-medium text-neutral-600">
-                  {searchQuery || statusFilter !== "all"
-                    ? "Không tìm thấy hồ sơ phù hợp"
-                    : "Chưa có hồ sơ nào được lưu"}
-                </p>
-                <p className="mt-1 text-xs text-neutral-400">
-                  {searchQuery || statusFilter !== "all"
-                    ? "Thử thay đổi bộ lọc"
-                    : 'Bấm "Lưu hồ sơ" trong modal bóc tách để tạo hồ sơ mới'}
-                </p>
-                {!searchQuery && statusFilter === "all" && (
-                  <button
-                    onClick={() => {
-                      seedDummyData()
-                      toast.success("Đã tạo 10 hồ sơ mẫu")
-                    }}
-                    className="mt-4 cursor-pointer rounded-lg bg-primary px-4 py-2 text-xs font-semibold text-white shadow-sm transition hover:bg-primary/90 hover:shadow"
-                  >
-                    Tạo dữ liệu mẫu
-                  </button>
-                )}
-              </div>
-            ) : (
-              <div className="grid gap-3 sm:grid-cols-2">
-                {filteredDrafts.map((draft) => {
-                  const status = STATUS_CONFIG[draft.status]
-                  return (
-                    <button
-                      key={draft.id}
-                      onClick={() => openDetail(draft)}
-                      className="group cursor-pointer rounded-2xl border border-neutral-100 bg-white p-5 text-left shadow-sm transition-all duration-200 hover:-translate-y-0.5 hover:border-primary/20 hover:shadow-lg"
-                    >
-                      {/* Top row */}
-                      <div className="flex items-start justify-between gap-3">
-                        <div className="flex items-center gap-2">
-                          <span
-                            className={`inline-flex items-center gap-1 rounded-full border px-2.5 py-1 text-[10px] font-semibold ${status.bg} ${status.text} ${status.border}`}
-                          >
-                            {status.icon}
-                            {status.label}
-                          </span>
-                        </div>
-                        <div className="flex items-center gap-1 text-[11px] text-neutral-400">
-                          <Calendar className="h-3 w-3" />
-                          {dayjs(draft.createdAt).format("DD/MM/YY")}
-                        </div>
-                      </div>
-
-                      {/* Title */}
-                      <h3 className="mt-3 text-sm font-semibold text-neutral-800">
-                        {draft.extractedData?.khachHang ||
-                          draft.extractedData?.customer ||
-                          "Không tên"}
-                      </h3>
-                      <p className="mt-0.5 truncate text-xs text-neutral-500">
-                        {draft.emailSubject || "Không tiêu đề"}
-                      </p>
-
-                      {/* Fields */}
-                      <div className="mt-3 grid grid-cols-3 gap-2">
-                        {[
-                          {
-                            icon: <Hash className="h-3 w-3" />,
-                            label: "Tờ khai",
-                            value: draft.extractedData?.soToKhai,
-                          },
-                          {
-                            icon: <Package className="h-3 w-3" />,
-                            label: "Loại hàng",
-                            value: draft.extractedData?.loaiHang,
-                          },
-                          {
-                            icon: <Ship className="h-3 w-3" />,
-                            label: "Cảng",
-                            value: draft.extractedData?.cangXuatNhap,
-                          },
-                        ].map((field) => (
-                          <div
-                            key={field.label}
-                            className="rounded-lg bg-neutral-50 px-2.5 py-2"
-                          >
-                            <div className="flex items-center gap-1 text-[10px] text-neutral-400">
-                              {field.icon}
-                              {field.label}
-                            </div>
-                            <p className="mt-0.5 truncate text-[11px] font-medium text-neutral-700">
-                              {field.value || "—"}
-                            </p>
-                          </div>
-                        ))}
-                      </div>
-
-                      {/* Footer */}
-                      <div className="mt-3 flex items-center justify-between">
-                        <div className="flex items-center gap-1.5 text-[11px] text-neutral-400">
-                          <FileText className="h-3 w-3" />
-                          {draft.attachments.length} tệp
-                        </div>
-                        <ChevronRight className="h-4 w-4 text-neutral-300 transition group-hover:text-primary" />
-                      </div>
-                    </button>
-                  )
-                })}
-              </div>
-            )}
+          <div className="flex items-center gap-1.5 rounded-xl border border-neutral-200 bg-white px-3 py-2.5 shadow-sm">
+            <Filter className="h-3.5 w-3.5 text-neutral-400" />
+            <select
+              value={statusFilter}
+              onChange={(e) =>
+                setStatusFilter(e.target.value as TicketDraftStatus | "all")
+              }
+              className="bg-transparent text-xs font-medium text-neutral-700 outline-none"
+            >
+              <option value="all">Tất cả</option>
+              <option value="draft">Nháp</option>
+              <option value="reviewing">Đang xem xét</option>
+              <option value="pending_confirm">Chờ xác nhận</option>
+              <option value="archived">Đã lưu</option>
+            </select>
           </div>
         </div>
 
-        {/* Right: AI Chat */}
-        <div className="flex h-full min-h-0 flex-col overflow-hidden rounded-2xl border border-neutral-200/60 bg-white shadow-lg shadow-neutral-100">
+        {/* Drafts Grid */}
+        <div className="flex-1 min-h-0 overflow-y-auto">
+          {filteredDrafts.length === 0 ? (
+            <div className="flex flex-col items-center justify-center rounded-2xl border border-dashed border-neutral-200 bg-white p-10 text-center">
+              <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-neutral-50">
+                <FileText className="h-6 w-6 text-neutral-300" />
+              </div>
+              <p className="mt-3 text-sm font-medium text-neutral-600">
+                {searchQuery || statusFilter !== "all"
+                  ? "Không tìm thấy hồ sơ phù hợp"
+                  : "Chưa có hồ sơ nào được lưu"}
+              </p>
+              <p className="mt-1 text-xs text-neutral-400">
+                {searchQuery || statusFilter !== "all"
+                  ? "Thử thay đổi bộ lọc"
+                  : 'Bấm "Lưu hồ sơ" trong modal bóc tách để tạo hồ sơ mới'}
+              </p>
+              {!searchQuery && statusFilter === "all" && (
+                <button
+                  onClick={() => {
+                    seedDummyData()
+                    toast.success("Đã tạo 10 hồ sơ mẫu")
+                  }}
+                  className="mt-4 cursor-pointer rounded-lg bg-primary px-4 py-2 text-xs font-semibold text-white shadow-sm transition hover:bg-primary/90 hover:shadow"
+                >
+                  Tạo dữ liệu mẫu
+                </button>
+              )}
+            </div>
+          ) : (
+            <div className="grid gap-3 sm:grid-cols-2">
+              {filteredDrafts.map((draft) => {
+                const status = STATUS_CONFIG[draft.status]
+                return (
+                  <button
+                    key={draft.id}
+                    onClick={() => openDetail(draft)}
+                    className="group cursor-pointer rounded-2xl border border-neutral-100 bg-white p-5 text-left shadow-sm transition-all duration-200 hover:-translate-y-0.5 hover:border-primary/20 hover:shadow-lg"
+                  >
+                    {/* Top row */}
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="flex items-center gap-2">
+                        <span
+                          className={`inline-flex items-center gap-1 rounded-full border px-2.5 py-1 text-[10px] font-semibold ${status.bg} ${status.text} ${status.border}`}
+                        >
+                          {status.icon}
+                          {status.label}
+                        </span>
+                      </div>
+                      <div className="flex items-center gap-1 text-[11px] text-neutral-400">
+                        <Calendar className="h-3 w-3" />
+                        {dayjs(draft.createdAt).format("DD/MM/YY")}
+                      </div>
+                    </div>
+
+                    {/* Title */}
+                    <h3 className="mt-3 text-sm font-semibold text-neutral-800">
+                      {draft.extractedData?.khachHang ||
+                        draft.extractedData?.customer ||
+                        "Không tên"}
+                    </h3>
+                    <p className="mt-0.5 truncate text-xs text-neutral-500">
+                      {draft.emailSubject || "Không tiêu đề"}
+                    </p>
+
+                    {/* Fields */}
+                    <div className="mt-3 grid grid-cols-3 gap-2">
+                      {[
+                        {
+                          icon: <Hash className="h-3 w-3" />,
+                          label: "Tờ khai",
+                          value: draft.extractedData?.soToKhai,
+                        },
+                        {
+                          icon: <Package className="h-3 w-3" />,
+                          label: "Loại hàng",
+                          value: draft.extractedData?.loaiHang,
+                        },
+                        {
+                          icon: <Ship className="h-3 w-3" />,
+                          label: "Cảng",
+                          value: draft.extractedData?.cangXuatNhap,
+                        },
+                      ].map((field) => (
+                        <div
+                          key={field.label}
+                          className="rounded-lg bg-neutral-50 px-2.5 py-2"
+                        >
+                          <div className="flex items-center gap-1 text-[10px] text-neutral-400">
+                            {field.icon}
+                            {field.label}
+                          </div>
+                          <p className="mt-0.5 truncate text-[11px] font-medium text-neutral-700">
+                            {field.value || "—"}
+                          </p>
+                        </div>
+                      ))}
+                    </div>
+
+                    {/* Footer */}
+                    <div className="mt-3 flex items-center justify-between">
+                      <div className="flex items-center gap-1.5 text-[11px] text-neutral-400">
+                        <FileText className="h-3 w-3" />
+                        {draft.attachments.length} tệp
+                      </div>
+                      <ChevronRight className="h-4 w-4 text-neutral-300 transition group-hover:text-primary" />
+                    </div>
+                  </button>
+                )
+              })}
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/* Floating AI Chat Widget */}
+      {!chatOpen && (
+        <button
+          onClick={() => setChatOpen(true)}
+          className="fixed bottom-6 right-6 z-50 flex h-14 w-14 items-center justify-center rounded-full bg-primary text-white shadow-xl shadow-primary/30 transition hover:scale-105 hover:shadow-2xl hover:shadow-primary/40"
+          title="AI Tra cứu"
+        >
+          <Sparkles className="h-5 w-5" />
+        </button>
+      )}
+
+      {chatOpen && (
+        <div className="fixed bottom-6 right-6 z-50 flex h-[520px] w-[380px] flex-col overflow-hidden rounded-2xl border border-neutral-200/60 bg-white shadow-2xl shadow-neutral-200">
           {/* Header */}
-          <div className="shrink-0 border-b border-neutral-100 bg-gradient-to-r from-primary/5 to-transparent px-4 py-3">
-            <div className="flex items-center gap-2">
-              <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-primary/10">
-                <Sparkles className="h-3.5 w-3.5 text-primary" />
+          <div className="flex shrink-0 items-center justify-between border-b border-neutral-100 bg-primary px-4 py-3">
+            <div className="flex items-center gap-2.5">
+              <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-white/20">
+                <Sparkles className="h-3.5 w-3.5 text-white" />
               </div>
               <div>
-                <h2 className="text-xs font-bold text-neutral-800">AI Tra cứu</h2>
-                <p className="text-[10px] text-neutral-400">RAG — Tìm kiếm trong hồ sơ</p>
+                <h2 className="text-xs font-bold text-white">AI Tra cứu</h2>
+                <p className="text-[10px] text-white/70">RAG — Tìm kiếm trong hồ sơ</p>
               </div>
             </div>
+            <button
+              onClick={() => setChatOpen(false)}
+              className="flex h-6 w-6 items-center justify-center rounded-md text-white/70 transition hover:bg-white/10 hover:text-white"
+            >
+              <X className="h-4 w-4" />
+            </button>
           </div>
 
           {/* Messages */}
@@ -386,7 +403,7 @@ export default function DraftsPage() {
                 <p className="mt-3 text-sm font-medium text-neutral-600">
                   Bắt đầu tra cứu
                 </p>
-                <p className="mt-1 max-w-[200px] text-[11px] leading-relaxed text-neutral-400">
+                <p className="mt-1 max-w-[220px] text-[11px] leading-relaxed text-neutral-400">
                   Ví dụ: “Tờ khai TK25 có bao nhiêu container?”
                 </p>
               </div>
@@ -466,7 +483,7 @@ export default function DraftsPage() {
             </div>
           </div>
         </div>
-      </div>
+      )}
 
       {/* Detail Modal */}
       <Dialog open={detailOpen} onOpenChange={setDetailOpen}>
