@@ -94,71 +94,75 @@ export default function CeoPage() {
 
   return (
     <>
-      <div className="grain" />
-      <motion.div variants={container} initial="hidden" animate="show" className="flex h-full flex-col gap-6 overflow-auto p-6 bg-slate-50">
-        <motion.div variants={item} className="flex items-center justify-between">
-          <div>
-            <h1 className="text-3xl font-bold text-balance text-slate-900">CEO Dashboard</h1>
-            <p className="mt-1 text-base text-slate-500 text-pretty">Theo dõi tổng quan vận hành toàn công ty</p>
+      <motion.div variants={container} initial="hidden" animate="show" className="flex h-full flex-col gap-0 overflow-auto bg-[#F4F4F0]">
+        {/* Header */}
+        <motion.div variants={item} className="border-b-2 border-[#111111] px-6 py-5">
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-[10px] font-bold uppercase tracking-[0.1em] text-[#71717A]">REV 2.6 // UNIT / CEO-001</p>
+              <h1 className="mt-1 text-4xl font-black uppercase text-[#111111]" style={{ letterSpacing: '-0.03em', lineHeight: 0.9 }}>CEO DASHBOARD</h1>
+              <p className="mt-2 text-sm text-[#71717A] text-pretty max-w-xl">THEO DOI TONG QUAN VAN HANH TOAN CONG TY // LOGISTICS OPS CONTROL</p>
+            </div>
+            <Button size="sm" className="cursor-pointer rounded-none border-2 border-[#111111] bg-[#111111] px-6 py-2.5 text-xs font-bold uppercase text-white hover:bg-[#333333]">
+              XUAT BAO CAO
+            </Button>
           </div>
-          <Button variant="outline" size="sm" className="text-sm rounded-full px-5 py-2 h-9 active:scale-[0.98] active:translate-y-px transition-all duration-200 ease-out bg-white shadow-[0_2px_12px_-4px_rgba(12,84,156,0.08)] ring-1 ring-slate-200 border-0 hover:shadow-[0_4px_20px_-6px_rgba(12,84,156,0.12)]">
-            Xuất báo cáo
-          </Button>
         </motion.div>
 
-        <motion.div variants={item} className="flex flex-wrap items-center gap-2">
+        {/* Toolbar */}
+        <motion.div variants={item} className="flex flex-wrap items-center gap-0 border-b border-[#111111] px-6 py-3">
           {timeOptions.map((opt) => (
-            <motion.button
+            <button
               key={opt.value}
-              whileTap={{ scale: 0.97, y: 1 }}
               onClick={() => setTimeFilter(opt.value)}
-              className={`cursor-pointer rounded-full px-4 py-2 text-sm font-medium transition-all duration-200 ease-out ${
+              className={`cursor-pointer border-r border-[#111111] px-4 py-2 text-xs font-bold uppercase transition-colors last:border-r-0 ${
                 timeFilter === opt.value
-                  ? "bg-[#0c549c] text-white shadow-[0_2px_12px_-4px_rgba(12,84,156,0.25)]"
-                  : "bg-white text-slate-600 shadow-[0_2px_12px_-4px_rgba(0,0,0,0.04)] ring-1 ring-slate-200 hover:shadow-[0_4px_16px_-6px_rgba(0,0,0,0.08)]"
+                  ? "bg-[#111111] text-white"
+                  : "bg-transparent text-[#111111] hover:bg-[#111111]/5"
               }`}
             >
               {opt.label}
-            </motion.button>
+            </button>
           ))}
+          <div className="mx-2 h-4 w-px bg-[#111111]" />
           <Select value={deptFilter} onValueChange={setDeptFilter}>
-            <SelectTrigger className="cursor-pointer h-9 w-44 rounded-full bg-white text-sm shadow-[0_2px_12px_-4px_rgba(0,0,0,0.04)] ring-1 ring-slate-200 border-0">
-              <SelectValue placeholder="Phòng ban" />
+            <SelectTrigger className="cursor-pointer h-8 w-44 rounded-none border-0 border-r border-[#111111] bg-transparent text-xs font-bold uppercase text-[#111111]">
+              <SelectValue placeholder="PHONG BAN" />
             </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">Tất cả phòng ban</SelectItem>
-              <SelectItem value="Khai báo hải quan">Khai báo hải quan</SelectItem>
-              <SelectItem value="Chứng từ">Chứng từ</SelectItem>
-              <SelectItem value="Kế toán">Kế toán</SelectItem>
+            <SelectContent className="rounded-none border-2 border-[#111111]">
+              <SelectItem value="all">TAT CA PHONG BAN</SelectItem>
+              <SelectItem value="Khai báo hải quan">KHAI BAO HAI QUAN</SelectItem>
+              <SelectItem value="Chứng từ">CHUNG TU</SelectItem>
+              <SelectItem value="Kế toán">KE TOAN</SelectItem>
               <SelectItem value="CSKH">CSKH</SelectItem>
             </SelectContent>
           </Select>
           <Select value={statusFilter} onValueChange={setStatusFilter}>
-            <SelectTrigger className="cursor-pointer h-9 w-40 rounded-full bg-white text-sm shadow-[0_2px_12px_-4px_rgba(0,0,0,0.04)] ring-1 ring-slate-200 border-0">
-              <SelectValue placeholder="Trạng thái" />
+            <SelectTrigger className="cursor-pointer h-8 w-40 rounded-none border-0 border-r border-[#111111] bg-transparent text-xs font-bold uppercase text-[#111111]">
+              <SelectValue placeholder="TRANG THAI" />
             </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">Tất cả trạng thái</SelectItem>
-              <SelectItem value="completed">Hoàn thành</SelectItem>
-              <SelectItem value="processing">Đang xử lý</SelectItem>
-              <SelectItem value="overdue">Quá hạn</SelectItem>
+            <SelectContent className="rounded-none border-2 border-[#111111]">
+              <SelectItem value="all">TAT CA TRANG THAI</SelectItem>
+              <SelectItem value="completed">HOAN THANH</SelectItem>
+              <SelectItem value="processing">DANG XU LY</SelectItem>
+              <SelectItem value="overdue">QUA HAN</SelectItem>
             </SelectContent>
           </Select>
         </motion.div>
 
-        <Tabs value={activeTab} onValueChange={setActiveTab} className="flex-1 flex flex-col gap-6">
-          <motion.div variants={item}>
-            <TabsList className="w-max h-10 bg-white shadow-[0_2px_12px_-4px_rgba(0,0,0,0.04)] ring-1 ring-slate-200 p-1.5 rounded-xl gap-1">
+        <Tabs value={activeTab} onValueChange={setActiveTab} className="flex-1 flex flex-col">
+          <motion.div variants={item} className="border-b border-[#111111]">
+            <TabsList className="h-10 w-max gap-0 rounded-none bg-transparent p-0">
               {[
-                { value: "overview", label: "Tổng quan" },
-                { value: "alerts", label: "Cảnh báo" },
-                { value: "personnel", label: "Nhân sự" },
-                { value: "ai-reports", label: "AI & Báo cáo" },
+                { value: "overview", label: "TONG QUAN" },
+                { value: "alerts", label: "CANH BAO" },
+                { value: "personnel", label: "NHAN SU" },
+                { value: "ai-reports", label: "AI & BAO CAO" },
               ].map((t) => (
                 <TabsTrigger
                   key={t.value}
                   value={t.value}
-                  className="cursor-pointer rounded-lg px-5 py-2 text-sm font-medium text-slate-500 transition-all data-[state=active]:bg-[#0c549c] data-[state=active]:text-white data-[state=active]:shadow-[0_2px_12px_-4px_rgba(12,84,156,0.25)]"
+                  className="cursor-pointer rounded-none border-r border-[#111111] px-6 py-2.5 text-xs font-bold uppercase text-[#71717A] transition-colors data-[state=active]:bg-[#111111] data-[state=active]:text-white"
                 >
                   {t.label}
                 </TabsTrigger>
@@ -166,302 +170,249 @@ export default function CeoPage() {
             </TabsList>
           </motion.div>
 
-          <TabsContent value="overview" className="flex flex-col gap-6 mt-0">
+          <TabsContent value="overview" className="flex flex-col mt-0">
             {/* KPI Bento */}
-            <motion.div variants={item} className="grid grid-cols-2 gap-3 sm:grid-cols-4 lg:grid-cols-8">
+            <div className="grid grid-cols-2 border-b border-[#111111] sm:grid-cols-4 lg:grid-cols-8">
               {kpiData.map((k) => (
-                <motion.div
+                <div
                   key={k.label}
-                  whileHover={{ y: -2, transition: { duration: 0.2 } }}
-                  className="group flex flex-col justify-between rounded-2xl bg-white p-4 shadow-[0_2px_20px_-8px_rgba(12,84,156,0.06)] ring-1 ring-slate-200 cursor-default"
+                  className={`flex flex-col justify-between border-r border-b border-[#111111] p-4 last:border-r-0 lg:last:border-r lg:nth-last-child(-n+4):border-b-0 ${k.tone === "rose" ? "bg-[#E61919]/5" : "bg-white"}`}
                 >
-                  <p className="text-xs font-medium uppercase  text-slate-400">{k.label}</p>
-                  <p className={`mt-2 text-3xl font-bold  tabular-nums ${k.tone === "rose" ? "text-rose-600" : "text-[#0c549c]"}`}>{k.value}</p>
-                </motion.div>
+                  <p className="text-[10px] font-bold uppercase text-[#71717A]">{k.label}</p>
+                  <p className={`mt-3 text-3xl font-black tabular-nums ${k.tone === "rose" ? "text-[#E61919]" : "text-[#111111]"}`} style={{ fontFamily: 'ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace' }}>{k.value}</p>
+                </div>
               ))}
-            </motion.div>
+            </div>
 
             {/* Charts */}
-            <motion.div variants={item} className="grid grid-cols-1 gap-4 lg:grid-cols-3">
-              <motion.section
-                initial={{ opacity: 0, y: 24 }}
-                whileInView={{ opacity: 1, y: 0 }}
-                viewport={{ once: true, margin: "-60px" }}
-                transition={{ duration: 0.5, ease: "easeOut" }}
-                className="rounded-2xl bg-white p-5 shadow-[0_2px_24px_-10px_rgba(12,84,156,0.06)] ring-1 ring-slate-200 lg:col-span-2"
-              >
-                <span className="inline-block rounded-full px-3 py-1 text-[10px] font-semibold uppercase  text-[#0c549c] bg-[#0c549c]/5 mb-2">Phân tích</span>
-                <h2 className="text-base font-semibold text-balance text-slate-800">Trạng thái task</h2>
-                <p className="text-sm text-slate-500 text-pretty">Phân bổ task theo trạng thái xử lý</p>
+            <div className="grid grid-cols-1 lg:grid-cols-3">
+              <section className="border-b border-r border-[#111111] bg-white p-5 lg:col-span-2">
+                <div className="flex items-center gap-2">
+                  <span className="text-[10px] font-bold uppercase text-[#71717A]">[ PHAN TICH ]</span>
+                  <div className="h-px flex-1 bg-[#111111]" />
+                </div>
+                <h2 className="mt-2 text-lg font-black uppercase text-[#111111]">TRANG THAI TASK</h2>
+                <p className="text-xs text-[#71717A] text-pretty">Phan bo task theo trang thai xu ly</p>
                 <div className="mt-4">
                   <TaskStatusChart />
                 </div>
-              </motion.section>
-              <motion.section
-                initial={{ opacity: 0, y: 24 }}
-                whileInView={{ opacity: 1, y: 0 }}
-                viewport={{ once: true, margin: "-60px" }}
-                transition={{ duration: 0.5, ease: "easeOut", delay: 0.1 }}
-                className="rounded-2xl bg-white p-5 shadow-[0_2px_24px_-10px_rgba(12,84,156,0.06)] ring-1 ring-slate-200"
-              >
-                <span className="inline-block rounded-full px-3 py-1 text-[10px] font-semibold uppercase  text-[#0c549c] bg-[#0c549c]/5 mb-2">Hiệu quả</span>
-                <h2 className="text-base font-semibold text-balance text-slate-800">Tỷ lệ hoàn thành</h2>
-                <p className="text-sm text-slate-500 text-pretty">Tổng quan tiến độ công việc</p>
+              </section>
+              <section className="border-b border-[#111111] bg-white p-5">
+                <div className="flex items-center gap-2">
+                  <span className="text-[10px] font-bold uppercase text-[#71717A]">[ HIEU QUA ]</span>
+                  <div className="h-px flex-1 bg-[#111111]" />
+                </div>
+                <h2 className="mt-2 text-lg font-black uppercase text-[#111111]">TY LE HOAN THANH</h2>
+                <p className="text-xs text-[#71717A] text-pretty">Tong quan tien do cong viec</p>
                 <div className="mt-4">
                   <CompletionRateChart />
                 </div>
-              </motion.section>
-            </motion.div>
+              </section>
+            </div>
           </TabsContent>
 
-          <TabsContent value="alerts" className="flex flex-col gap-6 mt-0">
+          <TabsContent value="alerts" className="flex flex-col mt-0">
             {/* Alert KPIs */}
-            <motion.div variants={item} className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+            <div className="grid grid-cols-2 border-b border-[#111111] sm:grid-cols-4">
               {[
-                { label: "Tổng cảnh báo", value: ceoAlertsMock.length, tone: "primary" as const },
-                { label: "Nghiêm trọng", value: ceoAlertsMock.filter(a => a.level === "critical").length, tone: "rose" as const },
-                { label: "Cao", value: ceoAlertsMock.filter(a => a.level === "high").length, tone: "rose" as const },
-                { label: "Task quá hạn", value: departmentSummaryMock.reduce((s, d) => s + d.overdueTasks, 0), tone: "amber" as const },
+                { label: "TONG CANH BAO", value: ceoAlertsMock.length, alert: false },
+                { label: "NGHIEM TRONG", value: ceoAlertsMock.filter(a => a.level === "critical").length, alert: true },
+                { label: "CAO", value: ceoAlertsMock.filter(a => a.level === "high").length, alert: true },
+                { label: "TASK QUA HAN", value: departmentSummaryMock.reduce((s, d) => s + d.overdueTasks, 0), alert: true },
               ].map((k) => (
-                <motion.div
+                <div
                   key={k.label}
-                  whileHover={{ y: -2, transition: { duration: 0.2 } }}
-                  className="flex flex-col justify-between rounded-2xl bg-white p-4 shadow-[0_2px_20px_-8px_rgba(12,84,156,0.06)] ring-1 ring-slate-200"
+                  className={`flex flex-col justify-between border-r border-b border-[#111111] p-4 last:border-r-0 sm:last:border-r sm:nth-last-child(-n+4):border-b-0 ${k.alert ? "bg-[#E61919]/5" : "bg-white"}`}
                 >
-                  <p className="text-xs font-medium uppercase  text-slate-400">{k.label}</p>
-                  <p className={`mt-2 text-3xl font-bold  tabular-nums ${k.tone === "rose" ? "text-rose-600" : k.tone === "amber" ? "text-amber-600" : "text-[#0c549c]"}`}>{k.value}</p>
-                </motion.div>
+                  <p className="text-[10px] font-bold uppercase text-[#71717A]">{k.label}</p>
+                  <p className={`mt-3 text-3xl font-black tabular-nums ${k.alert ? "text-[#E61919]" : "text-[#111111]"}`} style={{ fontFamily: 'ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace' }}>{k.value}</p>
+                </div>
               ))}
-            </motion.div>
+            </div>
 
             {/* Alerts list */}
-            <motion.div variants={item}>
-              <motion.section
-                initial={{ opacity: 0, y: 24 }}
-                whileInView={{ opacity: 1, y: 0 }}
-                viewport={{ once: true, margin: "-60px" }}
-                transition={{ duration: 0.5, ease: "easeOut" }}
-                className="rounded-2xl bg-white shadow-[0_2px_24px_-10px_rgba(12,84,156,0.06)] ring-1 ring-slate-200 overflow-hidden"
-              >
-                <div className="px-5 py-4 border-b border-slate-100">
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <span className="inline-block rounded-full px-3 py-1 text-[10px] font-semibold uppercase  text-rose-600 bg-rose-50 mb-1">Khẩn cấp</span>
-                      <h2 className="text-base font-semibold text-balance text-slate-800">Cảnh báo cần xử lý</h2>
-                    </div>
-                    <div className="flex items-center gap-3 text-xs font-medium">
-                      <span className="flex items-center gap-1.5 text-rose-600"><span className="h-2 w-2 rounded-full bg-rose-500"/>Critical</span>
-                      <span className="flex items-center gap-1.5 text-amber-600"><span className="h-2 w-2 rounded-full bg-amber-500"/>High</span>
-                      <span className="flex items-center gap-1.5 text-slate-500"><span className="h-2 w-2 rounded-full bg-slate-400"/>Medium</span>
-                    </div>
-                  </div>
+            <div className="border-b border-[#111111] bg-white">
+              <div className="flex items-center gap-2 border-b border-[#111111] px-5 py-3">
+                <span className="text-[10px] font-bold uppercase text-[#E61919]">[ CANH BAO CAN XU LY ]</span>
+                <div className="h-px flex-1 bg-[#111111]" />
+                <div className="flex items-center gap-4 text-[10px] font-bold uppercase">
+                  <span className="flex items-center gap-1.5 text-[#E61919]"><span className="size-2 bg-[#E61919]"/>CRITICAL</span>
+                  <span className="flex items-center gap-1.5 text-[#111111]"><span className="size-2 bg-[#111111]"/>HIGH</span>
+                  <span className="flex items-center gap-1.5 text-[#71717A]"><span className="size-2 bg-[#71717A]"/>MEDIUM</span>
                 </div>
-                <div className="divide-y divide-slate-100">
-                  {ceoAlertsMock.map((alert, i) => {
-                    const isCritical = alert.level === "critical"
-                    const isHigh = alert.level === "high"
-                    const isMedium = alert.level === "medium"
-                    return (
-                      <motion.div
-                        key={alert.id}
-                        initial={{ opacity: 0, x: -6 }}
-                        animate={{ opacity: 1, x: 0 }}
-                        transition={{ delay: i * 0.06, type: "spring" as const, stiffness: 120, damping: 20 }}
-                        className={`px-5 py-3.5 transition-colors cursor-pointer ${isCritical ? "bg-rose-50/60 hover:bg-rose-50" : isHigh ? "bg-amber-50/40 hover:bg-amber-50/60" : "hover:bg-slate-100/40"}`}
-                      >
-                        <div className="flex items-start gap-3">
-                          <div className={`mt-1.5 h-2 w-2 shrink-0 rounded-full ${isCritical ? "bg-rose-600" : isHigh ? "bg-amber-500" : isMedium ? "bg-slate-400" : "bg-slate-300"}`} />
-                          <div className="flex-1 min-w-0">
-                            <div className="flex items-center gap-2 flex-wrap">
-                              <p className={`text-sm font-semibold ${isCritical ? "text-rose-700" : isHigh ? "text-amber-700" : "text-slate-700"}`}>{alert.title}</p>
-                              <Badge
-                                variant={isCritical ? "destructive" : isHigh ? "default" : "secondary"}
-                                className={`text-[10px] px-2 py-0.5 ${isCritical ? "bg-rose-100 text-rose-700 hover:bg-rose-100" : isHigh ? "bg-amber-100 text-amber-700 hover:bg-amber-100" : ""}`}
-                              >
-                                {levelBadge[alert.level].label}
-                              </Badge>
-                            </div>
-                            <p className="mt-1 text-sm text-slate-500 leading-relaxed">{alert.description}</p>
+              </div>
+              <div>
+                {ceoAlertsMock.map((alert) => {
+                  const isCritical = alert.level === "critical"
+                  const isHigh = alert.level === "high"
+                  return (
+                    <div
+                      key={alert.id}
+                      className={`border-b border-[#111111] px-5 py-3.5 cursor-pointer transition-colors last:border-b-0 ${isCritical ? "bg-[#E61919]/5" : isHigh ? "bg-[#111111]/[0.02]" : "hover:bg-[#111111]/[0.02]"}`}
+                    >
+                      <div className="flex items-start gap-3">
+                        <div className={`mt-1.5 size-2 shrink-0 ${isCritical ? "bg-[#E61919]" : isHigh ? "bg-[#111111]" : "bg-[#71717A]"}`} />
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center gap-2 flex-wrap">
+                            <p className={`text-sm font-bold uppercase ${isCritical ? "text-[#E61919]" : isHigh ? "text-[#111111]" : "text-[#71717A]"}`}>{alert.title}</p>
+                            <Badge
+                              className={`rounded-none text-[10px] px-2 py-0.5 font-bold uppercase ${isCritical ? "bg-[#E61919] text-white hover:bg-[#E61919]" : isHigh ? "bg-[#111111] text-white hover:bg-[#111111]" : "bg-[#F4F4F0] text-[#71717A] hover:bg-[#F4F4F0]"}`}
+                            >
+                              {levelBadge[alert.level].label}
+                            </Badge>
                           </div>
+                          <p className="mt-1 text-sm text-[#71717A]">{alert.description}</p>
                         </div>
-                      </motion.div>
-                    )
-                  })}
-                </div>
-              </motion.section>
-            </motion.div>
+                      </div>
+                    </div>
+                  )
+                })}
+              </div>
+            </div>
 
             {/* Departments */}
-            <motion.div variants={item}>
-              <motion.section
-                initial={{ opacity: 0, y: 24 }}
-                whileInView={{ opacity: 1, y: 0 }}
-                viewport={{ once: true, margin: "-60px" }}
-                transition={{ duration: 0.5, ease: "easeOut", delay: 0.1 }}
-                className="rounded-2xl bg-white p-5 shadow-[0_2px_24px_-10px_rgba(12,84,156,0.06)] ring-1 ring-slate-200"
-              >
-                <span className="inline-block rounded-full px-3 py-1 text-[10px] font-semibold uppercase  text-[#0c549c] bg-[#0c549c]/5 mb-1">Tổ chức</span>
-                <h2 className="text-base font-semibold text-balance text-slate-800">Tổng quan theo phòng ban</h2>
-                <div className="mt-4 rounded-xl overflow-hidden ring-1 ring-slate-200">
-                  <Table>
-                    <TableHeader>
-                      <TableRow className="bg-slate-100 hover:bg-slate-100">
-                        <TableHead className="text-xs font-medium text-slate-500">Phòng ban</TableHead>
-                        <TableHead className="text-xs font-medium text-slate-500 text-right tabular-nums">Tổng task</TableHead>
-                        <TableHead className="text-xs font-medium text-slate-500 text-right tabular-nums">Đã xử lý</TableHead>
-                        <TableHead className="text-xs font-medium text-slate-500 text-right tabular-nums">Đang xử lý</TableHead>
-                        <TableHead className="text-xs font-medium text-slate-500 text-right tabular-nums">Quá hạn</TableHead>
-                        <TableHead className="text-xs font-medium text-slate-500 text-right tabular-nums">Hoàn thành</TableHead>
-                        <TableHead className="text-xs font-medium text-slate-500">Cảnh báo</TableHead>
-                      </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                      {departmentSummaryMock.map((dept, i) => (
-                        <motion.tr
-                          key={dept.name}
-                          initial={{ opacity: 0, x: -6 }}
-                          animate={{ opacity: 1, x: 0 }}
-                          transition={{ delay: i * 0.04, type: "spring" as const, stiffness: 120, damping: 20 }}
-                          className="border-b border-slate-100 text-sm transition-colors hover:bg-slate-100/60 cursor-pointer group"
-                        >
-                          <TableCell className="relative font-medium text-slate-800">
-                            <span className="absolute left-0 top-1/2 -translate-y-1/2 h-4 w-[2px] bg-[#0c549c] scale-y-0 transition-transform duration-200 group-hover:scale-y-100 rounded-r" />
-                            {dept.name}
-                          </TableCell>
-                          <TableCell className="text-right text-slate-600 tabular-nums">{dept.totalTasks}</TableCell>
-                          <TableCell className="text-right text-slate-600 tabular-nums">{dept.completedTasks}</TableCell>
-                          <TableCell className="text-right text-slate-600 tabular-nums">{dept.processingTasks}</TableCell>
-                          <TableCell className="text-right text-rose-600 tabular-nums">{dept.overdueTasks}</TableCell>
-                          <TableCell className="text-right font-medium text-[#0c549c] tabular-nums">{dept.completionRate}%</TableCell>
-                          <TableCell>
-                            <Badge variant={dept.alert === "Ổn định" ? "secondary" : "outline"} className="text-[10px]">
-                              {dept.alert}
-                            </Badge>
-                          </TableCell>
-                        </motion.tr>
-                      ))}
-                    </TableBody>
-                  </Table>
-                </div>
-              </motion.section>
-            </motion.div>
-          </TabsContent>
-
-          <TabsContent value="personnel" className="flex flex-col gap-6 mt-0">
-            {/* Employee Table */}
-            <motion.div variants={item}>
-              <EmployeePerformanceTable
-                employees={ceoEmployeesMock}
-                onViewDetail={(emp) => {
-                  setSelectedEmployee(emp)
-                  setDrawerOpen(true)
-                }}
-              />
-            </motion.div>
-          </TabsContent>
-
-          <TabsContent value="ai-reports" className="flex flex-col gap-6 mt-0">
-            {/* AI Extraction */}
-            <motion.section
-              initial={{ opacity: 0, y: 24 }}
-              whileInView={{ opacity: 1, y: 0 }}
-              viewport={{ once: true, margin: "-60px" }}
-              transition={{ duration: 0.5, ease: "easeOut" }}
-              className="rounded-2xl bg-white p-5 shadow-[0_2px_24px_-10px_rgba(12,84,156,0.06)] ring-1 ring-slate-200"
-            >
-              <span className="inline-block rounded-full px-3 py-1 text-[10px] font-semibold uppercase  text-[#0c549c] bg-[#0c549c]/5 mb-1">Trí tuệ nhân tạo</span>
-              <h2 className="text-base font-semibold text-balance text-slate-800">Thống kê AI bóc tách chứng từ</h2>
-              <p className="text-sm text-slate-500 text-pretty">Hiệu quả AI theo loại chứng từ</p>
-              <div className="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-4">
-                <div className="rounded-xl bg-slate-100/60 p-3 ring-1 ring-slate-200">
-                  <p className="text-2xl font-bold text-slate-800 tabular-nums">{aiExtractionSummaryMock.totalFiles}</p>
-                  <p className="text-xs text-slate-500">Tổng file</p>
-                </div>
-                <div className="rounded-xl bg-[#0c549c]/3 p-3 ring-1 ring-[#0c549c]/10">
-                  <p className="text-2xl font-bold text-[#0c549c] tabular-nums">{aiExtractionSummaryMock.success}</p>
-                  <p className="text-xs text-slate-500">Thành công</p>
-                </div>
-                <div className="rounded-xl bg-slate-100/60 p-3 ring-1 ring-slate-200">
-                  <p className="text-2xl font-bold text-slate-800 tabular-nums">{aiExtractionSummaryMock.needReview}</p>
-                  <p className="text-xs text-slate-500">Cần review</p>
-                </div>
-                <div className="rounded-xl bg-rose-50/40 p-3 ring-1 ring-rose-100/60">
-                  <p className="text-2xl font-bold text-rose-700 tabular-nums">{aiExtractionSummaryMock.failed}</p>
-                  <p className="text-xs text-slate-500">Lỗi</p>
-                </div>
+            <div className="border-b border-[#111111] bg-white">
+              <div className="flex items-center gap-2 border-b border-[#111111] px-5 py-3">
+                <span className="text-[10px] font-bold uppercase text-[#71717A]">[ TO CHUC ]</span>
+                <div className="h-px flex-1 bg-[#111111]" />
               </div>
-              <div className="mt-5">
-                <AiExtractionChart />
-              </div>
-            </motion.section>
-
-            {/* Report */}
-            <motion.section
-              initial={{ opacity: 0, y: 24 }}
-              whileInView={{ opacity: 1, y: 0 }}
-              viewport={{ once: true, margin: "-60px" }}
-              transition={{ duration: 0.5, ease: "easeOut", delay: 0.1 }}
-              className="rounded-2xl bg-white p-5 shadow-[0_2px_24px_-10px_rgba(12,84,156,0.06)] ring-1 ring-slate-200"
-            >
-              <div className="flex items-center justify-between pb-4">
-                <div>
-                  <span className="inline-block rounded-full px-3 py-1 text-[10px] font-semibold uppercase  text-[#0c549c] bg-[#0c549c]/5 mb-1">Hồ sơ</span>
-                  <h2 className="text-base font-semibold text-balance text-slate-800">Báo cáo tổng hợp</h2>
-                  <p className="text-sm text-slate-500 text-pretty">Danh sách hồ sơ theo khách hàng</p>
-                </div>
-                <Button variant="outline" size="sm" className="text-sm rounded-full px-5 py-2 h-9 active:scale-[0.98] active:translate-y-px transition-all duration-200 ease-out bg-white shadow-[0_2px_12px_-4px_rgba(12,84,156,0.08)] ring-1 ring-slate-200 border-0 hover:shadow-[0_4px_20px_-6px_rgba(12,84,156,0.12)]">
-                  Xuất CSV
-                </Button>
-              </div>
-              <div className="rounded-xl overflow-hidden ring-1 ring-slate-200">
+              <h2 className="px-5 pt-3 text-lg font-black uppercase text-[#111111]">TONG QUAN THEO PHONG BAN</h2>
+              <div className="mt-3">
                 <Table>
                   <TableHeader>
-                    <TableRow className="bg-slate-100 hover:bg-slate-100">
-                      <TableHead className="text-xs font-medium text-slate-500 w-10">STT</TableHead>
-                      <TableHead className="text-xs font-medium text-slate-500">Khách hàng</TableHead>
-                      <TableHead className="text-xs font-medium text-slate-500">Invoice</TableHead>
-                      <TableHead className="text-xs font-medium text-slate-500">Bill</TableHead>
-                      <TableHead className="text-xs font-medium text-slate-500">Booking</TableHead>
-                      <TableHead className="text-xs font-medium text-slate-500">Loại</TableHead>
-                      <TableHead className="text-xs font-medium text-slate-500">Nhân viên</TableHead>
-                      <TableHead className="text-xs font-medium text-slate-500">Trạng thái</TableHead>
-                      <TableHead className="text-xs font-medium text-slate-500">Ghi chú</TableHead>
+                    <TableRow className="border-b-2 border-[#111111] bg-[#F4F4F0] hover:bg-[#F4F4F0]">
+                      <TableHead className="text-[10px] font-bold uppercase text-[#71717A]">Phong ban</TableHead>
+                      <TableHead className="text-[10px] font-bold uppercase text-[#71717A] text-right tabular-nums">Tong task</TableHead>
+                      <TableHead className="text-[10px] font-bold uppercase text-[#71717A] text-right tabular-nums">Da xu ly</TableHead>
+                      <TableHead className="text-[10px] font-bold uppercase text-[#71717A] text-right tabular-nums">Dang XL</TableHead>
+                      <TableHead className="text-[10px] font-bold uppercase text-[#71717A] text-right tabular-nums">Qua han</TableHead>
+                      <TableHead className="text-[10px] font-bold uppercase text-[#71717A] text-right tabular-nums">Hoan thanh</TableHead>
+                      <TableHead className="text-[10px] font-bold uppercase text-[#71717A]">Canh bao</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {reportSummaryMock.map((row, i) => (
-                      <motion.tr
-                        key={row.stt}
-                        initial={{ opacity: 0, x: -6 }}
-                        animate={{ opacity: 1, x: 0 }}
-                        transition={{ delay: i * 0.03, type: "spring" as const, stiffness: 120, damping: 20 }}
-                        className="border-b border-slate-100 text-sm transition-colors hover:bg-slate-100/60 cursor-pointer group"
+                    {departmentSummaryMock.map((dept) => (
+                      <TableRow
+                        key={dept.name}
+                        className="border-b border-[#111111] text-sm transition-colors hover:bg-[#F4F4F0] cursor-pointer"
                       >
-                        <TableCell className="relative text-slate-600 tabular-nums">
-                          <span className="absolute left-0 top-1/2 -translate-y-1/2 h-4 w-[2px] bg-[#0c549c] scale-y-0 transition-transform duration-200 group-hover:scale-y-100 rounded-r" />
-                          {row.stt}
-                        </TableCell>
-                        <TableCell className="font-medium text-slate-700">{row.customerName}</TableCell>
-                        <TableCell className="text-slate-600">{row.invoice}</TableCell>
-                        <TableCell className="text-slate-600">{row.bill}</TableCell>
-                        <TableCell className="text-slate-600">{row.booking}</TableCell>
-                        <TableCell className="text-slate-600">{row.type}</TableCell>
-                        <TableCell className="text-slate-600">{row.employee}</TableCell>
+                        <TableCell className="font-bold uppercase text-[#111111]">{dept.name}</TableCell>
+                        <TableCell className="text-right text-[#111111] tabular-nums" style={{ fontFamily: 'ui-monospace, SFMono-Regular, Menlo, Consolas, monospace' }}>{dept.totalTasks}</TableCell>
+                        <TableCell className="text-right text-[#111111] tabular-nums" style={{ fontFamily: 'ui-monospace, SFMono-Regular, Menlo, Consolas, monospace' }}>{dept.completedTasks}</TableCell>
+                        <TableCell className="text-right text-[#111111] tabular-nums" style={{ fontFamily: 'ui-monospace, SFMono-Regular, Menlo, Consolas, monospace' }}>{dept.processingTasks}</TableCell>
+                        <TableCell className="text-right text-[#E61919] tabular-nums" style={{ fontFamily: 'ui-monospace, SFMono-Regular, Menlo, Consolas, monospace' }}>{dept.overdueTasks}</TableCell>
+                        <TableCell className="text-right font-bold text-[#111111] tabular-nums" style={{ fontFamily: 'ui-monospace, SFMono-Regular, Menlo, Consolas, monospace' }}>{dept.completionRate}%</TableCell>
                         <TableCell>
-                          <Badge
-                            variant={row.status === "Hoàn tất" ? "secondary" : row.status === "Đang xử lý" ? "default" : "destructive"}
-                            className="text-[10px]"
-                          >
-                            {row.status}
+                          <Badge className={`rounded-none text-[10px] px-2 py-0.5 font-bold uppercase ${dept.alert === "Ổn định" ? "bg-[#F4F4F0] text-[#71717A]" : "bg-[#E61919]/10 text-[#E61919]"}`}>
+                            {dept.alert}
                           </Badge>
                         </TableCell>
-                        <TableCell className="text-slate-500">{row.notes}</TableCell>
-                      </motion.tr>
+                      </TableRow>
                     ))}
                   </TableBody>
                 </Table>
               </div>
-            </motion.section>
+            </div>
+          </TabsContent>
+
+          <TabsContent value="personnel" className="flex flex-col mt-0">
+            {/* Employee Table */}
+            <EmployeePerformanceTable
+              employees={ceoEmployeesMock}
+              onViewDetail={(emp) => {
+                setSelectedEmployee(emp)
+                setDrawerOpen(true)
+              }}
+            />
+          </TabsContent>
+
+          <TabsContent value="ai-reports" className="flex flex-col mt-0">
+            {/* AI Extraction */}
+            <div className="border-b border-[#111111] bg-white">
+              <div className="flex items-center gap-2 border-b border-[#111111] px-5 py-3">
+                <span className="text-[10px] font-bold uppercase text-[#71717A]">[ TRI TUE NHAN TAO ]</span>
+                <div className="h-px flex-1 bg-[#111111]" />
+              </div>
+              <div className="p-5">
+                <h2 className="text-lg font-black uppercase text-[#111111]">THONG KE AI BOCTACH CHUNG TU</h2>
+                <p className="text-xs text-[#71717A] text-pretty">Hieu qua AI theo loai chung tu</p>
+                <div className="mt-4 grid grid-cols-2 border border-[#111111] sm:grid-cols-4">
+                  <div className="border-r border-b border-[#111111] p-3 sm:border-b-0 sm:last:border-r-0">
+                    <p className="text-2xl font-black text-[#111111] tabular-nums" style={{ fontFamily: 'ui-monospace, SFMono-Regular, Menlo, Consolas, monospace' }}>{aiExtractionSummaryMock.totalFiles}</p>
+                    <p className="text-[10px] font-bold uppercase text-[#71717A]">Tong file</p>
+                  </div>
+                  <div className="border-b border-[#111111] p-3 sm:border-b-0 sm:border-r sm:last:border-r-0">
+                    <p className="text-2xl font-black text-[#111111] tabular-nums" style={{ fontFamily: 'ui-monospace, SFMono-Regular, Menlo, Consolas, monospace' }}>{aiExtractionSummaryMock.success}</p>
+                    <p className="text-[10px] font-bold uppercase text-[#71717A]">Thanh cong</p>
+                  </div>
+                  <div className="border-r border-[#111111] p-3 sm:border-b-0">
+                    <p className="text-2xl font-black text-[#111111] tabular-nums" style={{ fontFamily: 'ui-monospace, SFMono-Regular, Menlo, Consolas, monospace' }}>{aiExtractionSummaryMock.needReview}</p>
+                    <p className="text-[10px] font-bold uppercase text-[#71717A]">Can review</p>
+                  </div>
+                  <div className="p-3">
+                    <p className="text-2xl font-black text-[#E61919] tabular-nums" style={{ fontFamily: 'ui-monospace, SFMono-Regular, Menlo, Consolas, monospace' }}>{aiExtractionSummaryMock.failed}</p>
+                    <p className="text-[10px] font-bold uppercase text-[#71717A]">Loi</p>
+                  </div>
+                </div>
+                <div className="mt-5">
+                  <AiExtractionChart />
+                </div>
+              </div>
+            </div>
+
+            {/* Report */}
+            <div className="border-b border-[#111111] bg-white">
+              <div className="flex items-center justify-between border-b border-[#111111] px-5 py-3">
+                <div className="flex items-center gap-2">
+                  <span className="text-[10px] font-bold uppercase text-[#71717A]">[ HO SO ]</span>
+                  <div className="h-px w-24 bg-[#111111]" />
+                </div>
+                <Button size="sm" className="cursor-pointer rounded-none border-2 border-[#111111] bg-[#111111] px-5 py-2 text-[10px] font-bold uppercase text-white hover:bg-[#333333]">
+                  XUAT CSV
+                </Button>
+              </div>
+              <h2 className="px-5 pt-3 text-lg font-black uppercase text-[#111111]">BAO CAO TONG HOP</h2>
+              <p className="px-5 text-xs text-[#71717A] text-pretty">Danh sach ho so theo khach hang</p>
+              <div className="mt-3">
+                <Table>
+                  <TableHeader>
+                    <TableRow className="border-b-2 border-[#111111] bg-[#F4F4F0] hover:bg-[#F4F4F0]">
+                      <TableHead className="text-[10px] font-bold uppercase text-[#71717A] w-10">STT</TableHead>
+                      <TableHead className="text-[10px] font-bold uppercase text-[#71717A]">Khach hang</TableHead>
+                      <TableHead className="text-[10px] font-bold uppercase text-[#71717A]">Invoice</TableHead>
+                      <TableHead className="text-[10px] font-bold uppercase text-[#71717A]">Bill</TableHead>
+                      <TableHead className="text-[10px] font-bold uppercase text-[#71717A]">Booking</TableHead>
+                      <TableHead className="text-[10px] font-bold uppercase text-[#71717A]">Loai</TableHead>
+                      <TableHead className="text-[10px] font-bold uppercase text-[#71717A]">Nhan vien</TableHead>
+                      <TableHead className="text-[10px] font-bold uppercase text-[#71717A]">Trang thai</TableHead>
+                      <TableHead className="text-[10px] font-bold uppercase text-[#71717A]">Ghi chu</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {reportSummaryMock.map((row) => (
+                      <TableRow
+                        key={row.stt}
+                        className="border-b border-[#111111] text-sm transition-colors hover:bg-[#F4F4F0] cursor-pointer"
+                      >
+                        <TableCell className="text-[#111111] tabular-nums" style={{ fontFamily: 'ui-monospace, SFMono-Regular, Menlo, Consolas, monospace' }}>{row.stt}</TableCell>
+                        <TableCell className="font-bold text-[#111111]">{row.customerName}</TableCell>
+                        <TableCell className="text-[#71717A]">{row.invoice}</TableCell>
+                        <TableCell className="text-[#71717A]">{row.bill}</TableCell>
+                        <TableCell className="text-[#71717A]">{row.booking}</TableCell>
+                        <TableCell className="text-[#71717A]">{row.type}</TableCell>
+                        <TableCell className="text-[#71717A]">{row.employee}</TableCell>
+                        <TableCell>
+                          <Badge className={`rounded-none text-[10px] px-2 py-0.5 font-bold uppercase ${row.status === "Hoàn tất" ? "bg-[#F4F4F0] text-[#71717A]" : row.status === "Đang xử lý" ? "bg-[#111111] text-white" : "bg-[#E61919]/10 text-[#E61919]"}`}>
+                            {row.status}
+                          </Badge>
+                        </TableCell>
+                        <TableCell className="text-[#71717A]">{row.notes}</TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </div>
+            </div>
           </TabsContent>
         </Tabs>
 

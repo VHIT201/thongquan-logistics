@@ -1,7 +1,6 @@
 "use client"
 
 import { useState } from "react"
-import { motion } from "framer-motion"
 import {
   Dialog,
   DialogContent,
@@ -32,77 +31,81 @@ export function EmployeeDetailDrawer({ employee, open, onOpenChange }: Props) {
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-2xl max-h-[85vh] overflow-y-auto">
-        <DialogHeader>
-          <DialogTitle className="text-base font-semibold text-balance text-slate-800">{employee.name}</DialogTitle>
+      <DialogContent className="max-w-2xl max-h-[85vh] overflow-y-auto rounded-none border-2 border-[#111111] bg-[#F4F4F0] p-0">
+        <DialogHeader className="border-b-2 border-[#111111] px-5 py-4">
+          <div className="flex items-center gap-2">
+            <span className="text-[10px] font-bold uppercase text-[#71717A]">[ NHAN VIEN ]</span>
+            <div className="h-px w-12 bg-[#111111]" />
+          </div>
+          <DialogTitle className="mt-1 text-xl font-black uppercase text-[#111111]" style={{ letterSpacing: '-0.02em' }}>{employee.name}</DialogTitle>
         </DialogHeader>
 
-        <div className="space-y-4">
-          <div className="grid grid-cols-2 gap-2 text-sm text-slate-600">
-            <div className="flex items-center gap-2">
-              <span className="text-slate-400">PB</span>
-              <span>{employee.department}</span>
+        <div className="space-y-0">
+          <div className="grid grid-cols-2 border-b border-[#111111] text-sm">
+            <div className="flex items-center gap-2 border-r border-[#111111] px-5 py-2">
+              <span className="text-[10px] font-bold uppercase text-[#71717A]">PB</span>
+              <span className="font-bold text-[#111111]">{employee.department}</span>
             </div>
-            <div className="flex items-center gap-2">
-              <span className="text-slate-400">Vị trí</span>
-              <span>{employee.role}</span>
+            <div className="flex items-center gap-2 px-5 py-2">
+              <span className="text-[10px] font-bold uppercase text-[#71717A]">VI TRI</span>
+              <span className="font-bold text-[#111111]">{employee.role}</span>
             </div>
-            <div className="col-span-2 flex items-center gap-2">
-              <span className="text-slate-400">Email</span>
-              <span>{employee.email}</span>
+            <div className="col-span-2 flex items-center gap-2 border-t border-[#111111] px-5 py-2">
+              <span className="text-[10px] font-bold uppercase text-[#71717A]">EMAIL</span>
+              <span className="text-[#111111]">{employee.email}</span>
             </div>
           </div>
 
-          <div className="grid grid-cols-4 gap-2">
+          <div className="grid grid-cols-4 border-b border-[#111111]">
             {[
-              { label: "Tổng task", value: employee.totalTasks, color: "text-slate-700" },
-              { label: "Hoàn thành", value: employee.completedTasks, color: "text-emerald-600" },
-              { label: "Đang xử lý", value: employee.processingTasks, color: "text-amber-600" },
-              { label: "Quá hạn", value: employee.overdueTasks, color: "text-rose-600" },
+              { label: "TONG TASK", value: employee.totalTasks, alert: false },
+              { label: "HOAN THANH", value: employee.completedTasks, alert: false },
+              { label: "DANG XL", value: employee.processingTasks, alert: false },
+              { label: "QUA HAN", value: employee.overdueTasks, alert: true },
             ].map((kpi) => (
-              <div key={kpi.label} className="rounded-lg border border-slate-100 bg-slate-50 p-2 text-center">
-                <p className={`text-base font-bold ${kpi.color}`}>{kpi.value}</p>
-                <p className="text-xs text-slate-500">{kpi.label}</p>
+              <div key={kpi.label} className="border-r border-[#111111] p-3 text-center last:border-r-0">
+                <p className={`text-xl font-black tabular-nums ${kpi.alert ? "text-[#E61919]" : "text-[#111111]"}`} style={{ fontFamily: 'ui-monospace, SFMono-Regular, Menlo, Consolas, monospace' }}>{kpi.value}</p>
+                <p className="text-[10px] font-bold uppercase text-[#71717A]">{kpi.label}</p>
               </div>
             ))}
           </div>
 
           <Tabs value={tab} onValueChange={setTab} className="w-full">
-            <TabsList className="grid w-full grid-cols-7 h-10 text-xs">
-              <TabsTrigger value="tasks" className="cursor-pointer text-xs px-1">Task đang XL</TabsTrigger>
-              <TabsTrigger value="overdue" className="cursor-pointer text-xs px-1">Task quá hạn</TabsTrigger>
-              <TabsTrigger value="emails" className="cursor-pointer text-xs px-1">Email/CT</TabsTrigger>
-              <TabsTrigger value="customers" className="cursor-pointer text-xs px-1">Khách hàng</TabsTrigger>
-              <TabsTrigger value="stats" className="cursor-pointer text-xs px-1">Chỉ số</TabsTrigger>
-              <TabsTrigger value="history" className="cursor-pointer text-xs px-1">Lịch sử</TabsTrigger>
-              <TabsTrigger value="ai" className="cursor-pointer text-xs px-1">AI</TabsTrigger>
+            <TabsList className="grid w-full grid-cols-7 h-10 gap-0 rounded-none border-b border-[#111111] bg-transparent p-0 text-xs">
+              <TabsTrigger value="tasks" className="cursor-pointer rounded-none border-r border-[#111111] text-[10px] font-bold uppercase data-[state=active]:bg-[#111111] data-[state=active]:text-white">Task dang XL</TabsTrigger>
+              <TabsTrigger value="overdue" className="cursor-pointer rounded-none border-r border-[#111111] text-[10px] font-bold uppercase data-[state=active]:bg-[#111111] data-[state=active]:text-white">Task qua han</TabsTrigger>
+              <TabsTrigger value="emails" className="cursor-pointer rounded-none border-r border-[#111111] text-[10px] font-bold uppercase data-[state=active]:bg-[#111111] data-[state=active]:text-white">Email/CT</TabsTrigger>
+              <TabsTrigger value="customers" className="cursor-pointer rounded-none border-r border-[#111111] text-[10px] font-bold uppercase data-[state=active]:bg-[#111111] data-[state=active]:text-white">Khach hang</TabsTrigger>
+              <TabsTrigger value="stats" className="cursor-pointer rounded-none border-r border-[#111111] text-[10px] font-bold uppercase data-[state=active]:bg-[#111111] data-[state=active]:text-white">Chi so</TabsTrigger>
+              <TabsTrigger value="history" className="cursor-pointer rounded-none border-r border-[#111111] text-[10px] font-bold uppercase data-[state=active]:bg-[#111111] data-[state=active]:text-white">Lich su</TabsTrigger>
+              <TabsTrigger value="ai" className="cursor-pointer rounded-none text-[10px] font-bold uppercase data-[state=active]:bg-[#111111] data-[state=active]:text-white">AI</TabsTrigger>
             </TabsList>
 
-            <TabsContent value="tasks" className="mt-2">
+            <TabsContent value="tasks" className="mt-0">
               {employee.currentTasks.filter(t => t.status !== "overdue").length === 0 ? (
-                <p className="text-sm text-slate-400 py-4 text-center">Không có task đang xử lý.</p>
+                <p className="py-4 text-center text-xs font-bold uppercase text-[#71717A]">Khong co task dang xu ly.</p>
               ) : (
-                <div className="rounded-md border">
+                <div className="border border-[#111111]">
                   <Table>
                     <TableHeader>
-                      <TableRow className="bg-slate-50 hover:bg-slate-50">
-                        <TableHead className="text-xs font-medium text-slate-500">Mã</TableHead>
-                        <TableHead className="text-xs font-medium text-slate-500">Khách hàng</TableHead>
-                        <TableHead className="text-xs font-medium text-slate-500">Loại</TableHead>
-                        <TableHead className="text-xs font-medium text-slate-500">Trạng thái</TableHead>
-                        <TableHead className="text-xs font-medium text-slate-500">Cảnh báo</TableHead>
+                      <TableRow className="border-b-2 border-[#111111] bg-[#F4F4F0] hover:bg-[#F4F4F0]">
+                        <TableHead className="text-[10px] font-bold uppercase text-[#71717A]">Ma</TableHead>
+                        <TableHead className="text-[10px] font-bold uppercase text-[#71717A]">Khach hang</TableHead>
+                        <TableHead className="text-[10px] font-bold uppercase text-[#71717A]">Loai</TableHead>
+                        <TableHead className="text-[10px] font-bold uppercase text-[#71717A]">Trang thai</TableHead>
+                        <TableHead className="text-[10px] font-bold uppercase text-[#71717A]">Canh bao</TableHead>
                       </TableRow>
                     </TableHeader>
                     <TableBody>
                       {employee.currentTasks.filter(t => t.status !== "overdue").map((task) => (
-                        <TableRow key={task.id} className="text-sm cursor-pointer">
-                          <TableCell className="font-medium text-slate-700">{task.id}</TableCell>
-                          <TableCell className="text-slate-600">{task.customerName}</TableCell>
-                          <TableCell className="text-slate-600">{task.documentType}</TableCell>
+                        <TableRow key={task.id} className="border-b border-[#111111] text-sm cursor-pointer hover:bg-[#F4F4F0]">
+                          <TableCell className="font-bold text-[#111111]">{task.id}</TableCell>
+                          <TableCell className="text-[#71717A]">{task.customerName}</TableCell>
+                          <TableCell className="text-[#71717A]">{task.documentType}</TableCell>
                           <TableCell>
-                            <Badge variant="secondary" className="text-xs">Đang xử lý</Badge>
+                            <Badge className="rounded-none bg-[#F4F4F0] text-[10px] font-bold uppercase text-[#71717A]">Dang xu ly</Badge>
                           </TableCell>
-                          <TableCell className="text-slate-500">{task.warning}</TableCell>
+                          <TableCell className="text-[#71717A]">{task.warning}</TableCell>
                         </TableRow>
                       ))}
                     </TableBody>
@@ -111,31 +114,31 @@ export function EmployeeDetailDrawer({ employee, open, onOpenChange }: Props) {
               )}
             </TabsContent>
 
-            <TabsContent value="overdue" className="mt-2">
+            <TabsContent value="overdue" className="mt-0">
               {employee.currentTasks.filter(t => t.status === "overdue").length === 0 ? (
-                <p className="text-sm text-slate-400 py-4 text-center">Không có task quá hạn.</p>
+                <p className="py-4 text-center text-xs font-bold uppercase text-[#71717A]">Khong co task qua han.</p>
               ) : (
-                <div className="rounded-md border">
+                <div className="border border-[#111111]">
                   <Table>
                     <TableHeader>
-                      <TableRow className="bg-slate-50 hover:bg-slate-50">
-                        <TableHead className="text-xs font-medium text-slate-500">Mã</TableHead>
-                        <TableHead className="text-xs font-medium text-slate-500">Khách hàng</TableHead>
-                        <TableHead className="text-xs font-medium text-slate-500">Loại</TableHead>
-                        <TableHead className="text-xs font-medium text-slate-500">Nhận</TableHead>
-                        <TableHead className="text-xs font-medium text-slate-500">Hạn</TableHead>
-                        <TableHead className="text-xs font-medium text-slate-500">Cảnh báo</TableHead>
+                      <TableRow className="border-b-2 border-[#111111] bg-[#F4F4F0] hover:bg-[#F4F4F0]">
+                        <TableHead className="text-[10px] font-bold uppercase text-[#71717A]">Ma</TableHead>
+                        <TableHead className="text-[10px] font-bold uppercase text-[#71717A]">Khach hang</TableHead>
+                        <TableHead className="text-[10px] font-bold uppercase text-[#71717A]">Loai</TableHead>
+                        <TableHead className="text-[10px] font-bold uppercase text-[#71717A]">Nhan</TableHead>
+                        <TableHead className="text-[10px] font-bold uppercase text-[#71717A]">Han</TableHead>
+                        <TableHead className="text-[10px] font-bold uppercase text-[#71717A]">Canh bao</TableHead>
                       </TableRow>
                     </TableHeader>
                     <TableBody>
                       {employee.currentTasks.filter(t => t.status === "overdue").map((task) => (
-                        <TableRow key={task.id} className="text-sm cursor-pointer">
-                          <TableCell className="font-medium text-slate-700">{task.id}</TableCell>
-                          <TableCell className="text-slate-600">{task.customerName}</TableCell>
-                          <TableCell className="text-slate-600">{task.documentType}</TableCell>
-                          <TableCell className="text-slate-500">{task.receivedAt}</TableCell>
-                          <TableCell className="text-slate-500">{task.dueAt}</TableCell>
-                          <TableCell className="text-rose-600">{task.warning}</TableCell>
+                        <TableRow key={task.id} className="border-b border-[#111111] text-sm cursor-pointer hover:bg-[#F4F4F0]">
+                          <TableCell className="font-bold text-[#111111]">{task.id}</TableCell>
+                          <TableCell className="text-[#71717A]">{task.customerName}</TableCell>
+                          <TableCell className="text-[#71717A]">{task.documentType}</TableCell>
+                          <TableCell className="text-[#71717A]">{task.receivedAt}</TableCell>
+                          <TableCell className="text-[#71717A]">{task.dueAt}</TableCell>
+                          <TableCell className="text-[#E61919] font-bold">{task.warning}</TableCell>
                         </TableRow>
                       ))}
                     </TableBody>
@@ -144,32 +147,32 @@ export function EmployeeDetailDrawer({ employee, open, onOpenChange }: Props) {
               )}
             </TabsContent>
 
-            <TabsContent value="emails" className="mt-2">
+            <TabsContent value="emails" className="mt-0">
               {employee.emails.length === 0 ? (
-                <p className="text-sm text-slate-400 py-4 text-center">Không có email.</p>
+                <p className="py-4 text-center text-xs font-bold uppercase text-[#71717A]">Khong co email.</p>
               ) : (
-                <div className="rounded-md border">
+                <div className="border border-[#111111]">
                   <Table>
                     <TableHeader>
-                      <TableRow className="bg-slate-50 hover:bg-slate-50">
-                        <TableHead className="text-xs font-medium text-slate-500">Nhận</TableHead>
-                        <TableHead className="text-xs font-medium text-slate-500">Tiêu đề</TableHead>
-                        <TableHead className="text-xs font-medium text-slate-500">Khách hàng</TableHead>
-                        <TableHead className="text-xs font-medium text-slate-500 text-right">File</TableHead>
-                        <TableHead className="text-xs font-medium text-slate-500">AI</TableHead>
-                        <TableHead className="text-xs font-medium text-slate-500">Trạng thái</TableHead>
+                      <TableRow className="border-b-2 border-[#111111] bg-[#F4F4F0] hover:bg-[#F4F4F0]">
+                        <TableHead className="text-[10px] font-bold uppercase text-[#71717A]">Nhan</TableHead>
+                        <TableHead className="text-[10px] font-bold uppercase text-[#71717A]">Tieu de</TableHead>
+                        <TableHead className="text-[10px] font-bold uppercase text-[#71717A]">Khach hang</TableHead>
+                        <TableHead className="text-[10px] font-bold uppercase text-[#71717A] text-right">File</TableHead>
+                        <TableHead className="text-[10px] font-bold uppercase text-[#71717A]">AI</TableHead>
+                        <TableHead className="text-[10px] font-bold uppercase text-[#71717A]">Trang thai</TableHead>
                       </TableRow>
                     </TableHeader>
                     <TableBody>
                       {employee.emails.map((e, i) => (
-                        <TableRow key={i} className="text-sm cursor-pointer">
-                          <TableCell className="text-slate-600">{e.receivedAt}</TableCell>
-                          <TableCell className="font-medium text-slate-700">{e.subject}</TableCell>
-                          <TableCell className="text-slate-600">{e.customerName}</TableCell>
-                          <TableCell className="text-right text-slate-600">{e.attachments} file</TableCell>
-                          <TableCell className="text-slate-500">{e.aiStatus}</TableCell>
+                        <TableRow key={i} className="border-b border-[#111111] text-sm cursor-pointer hover:bg-[#F4F4F0]">
+                          <TableCell className="text-[#71717A]">{e.receivedAt}</TableCell>
+                          <TableCell className="font-bold text-[#111111]">{e.subject}</TableCell>
+                          <TableCell className="text-[#71717A]">{e.customerName}</TableCell>
+                          <TableCell className="text-right text-[#71717A]">{e.attachments} file</TableCell>
+                          <TableCell className="text-[#71717A]">{e.aiStatus}</TableCell>
                           <TableCell>
-                            <Badge variant={e.status === "Quá hạn" ? "destructive" : "secondary"} className="text-xs">
+                            <Badge className={`rounded-none text-[10px] px-2 py-0.5 font-bold uppercase ${e.status === "Quá hạn" ? "bg-[#E61919] text-white" : "bg-[#F4F4F0] text-[#71717A]"}`}>
                               {e.status}
                             </Badge>
                           </TableCell>
@@ -181,26 +184,26 @@ export function EmployeeDetailDrawer({ employee, open, onOpenChange }: Props) {
               )}
             </TabsContent>
 
-            <TabsContent value="customers" className="mt-2">
-              <div className="rounded-md border">
+            <TabsContent value="customers" className="mt-0">
+              <div className="border border-[#111111]">
                 <Table>
                   <TableHeader>
-                    <TableRow className="bg-slate-50 hover:bg-slate-50">
-                      <TableHead className="text-xs font-medium text-slate-500">Khách hàng</TableHead>
-                      <TableHead className="text-xs font-medium text-slate-500 text-right">Email</TableHead>
-                      <TableHead className="text-xs font-medium text-slate-500 text-right">Task</TableHead>
-                      <TableHead className="text-xs font-medium text-slate-500 text-right">Đang xử lý</TableHead>
-                      <TableHead className="text-xs font-medium text-slate-500 text-right">Quá hạn</TableHead>
+                    <TableRow className="border-b-2 border-[#111111] bg-[#F4F4F0] hover:bg-[#F4F4F0]">
+                      <TableHead className="text-[10px] font-bold uppercase text-[#71717A]">Khach hang</TableHead>
+                      <TableHead className="text-[10px] font-bold uppercase text-[#71717A] text-right">Email</TableHead>
+                      <TableHead className="text-[10px] font-bold uppercase text-[#71717A] text-right">Task</TableHead>
+                      <TableHead className="text-[10px] font-bold uppercase text-[#71717A] text-right">Dang XL</TableHead>
+                      <TableHead className="text-[10px] font-bold uppercase text-[#71717A] text-right">Qua han</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
                     {employee.customers.map((c) => (
-                      <TableRow key={c.customerName} className="text-sm cursor-pointer">
-                        <TableCell className="font-medium text-slate-700">{c.customerName}</TableCell>
-                        <TableCell className="text-right text-slate-600">{c.totalEmails}</TableCell>
-                        <TableCell className="text-right text-slate-600">{c.totalTasks}</TableCell>
-                        <TableCell className="text-right text-amber-600">{c.processingTasks}</TableCell>
-                        <TableCell className="text-right text-rose-600">{c.overdueTasks}</TableCell>
+                      <TableRow key={c.customerName} className="border-b border-[#111111] text-sm cursor-pointer hover:bg-[#F4F4F0]">
+                        <TableCell className="font-bold text-[#111111]">{c.customerName}</TableCell>
+                        <TableCell className="text-right text-[#111111] tabular-nums" style={{ fontFamily: 'ui-monospace, SFMono-Regular, Menlo, Consolas, monospace' }}>{c.totalEmails}</TableCell>
+                        <TableCell className="text-right text-[#111111] tabular-nums" style={{ fontFamily: 'ui-monospace, SFMono-Regular, Menlo, Consolas, monospace' }}>{c.totalTasks}</TableCell>
+                        <TableCell className="text-right text-[#111111] tabular-nums" style={{ fontFamily: 'ui-monospace, SFMono-Regular, Menlo, Consolas, monospace' }}>{c.processingTasks}</TableCell>
+                        <TableCell className="text-right text-[#E61919] tabular-nums" style={{ fontFamily: 'ui-monospace, SFMono-Regular, Menlo, Consolas, monospace' }}>{c.overdueTasks}</TableCell>
                       </TableRow>
                     ))}
                   </TableBody>
@@ -208,36 +211,36 @@ export function EmployeeDetailDrawer({ employee, open, onOpenChange }: Props) {
               </div>
             </TabsContent>
 
-            <TabsContent value="stats" className="mt-3">
-              <div className="grid grid-cols-2 gap-3">
+            <TabsContent value="stats" className="mt-0">
+              <div className="grid grid-cols-2 border border-[#111111]">
                 {[
-                  { label: "Tỷ lệ hoàn thành", value: `${employee.completionRate}%`, tone: "primary" as const },
-                  { label: "Thời gian xử lý TB", value: employee.averageProcessingTime },
-                  { label: "Task quá hạn", value: `${employee.overdueTasks}`, tone: "rose" as const },
-                  { label: "Task chưa xử lý", value: `${employee.pendingTasks}` },
+                  { label: "TY LE HOAN THANH", value: `${employee.completionRate}%`, alert: false },
+                  { label: "THOI GIAN XL TB", value: employee.averageProcessingTime, alert: false },
+                  { label: "TASK QUA HAN", value: `${employee.overdueTasks}`, alert: true },
+                  { label: "TASK CHUA XL", value: `${employee.pendingTasks}`, alert: false },
                 ].map((s) => (
-                  <div key={s.label} className="rounded-xl bg-white shadow-[0_2px_12px_-4px_rgba(12,84,156,0.06)] ring-1 ring-slate-200 p-3">
-                    <p className={`text-sm font-bold tabular-nums ${s.tone === "rose" ? "text-rose-600" : s.tone === "primary" ? "text-[#0c549c]" : "text-slate-800"}`}>{s.value}</p>
-                    <p className="text-xs text-slate-500">{s.label}</p>
+                  <div key={s.label} className="border-r border-b border-[#111111] p-3 last:border-r-0 even:border-r-0 sm:even:border-r sm:nth-last-child(-n+2):border-b-0">
+                    <p className={`text-lg font-black tabular-nums ${s.alert ? "text-[#E61919]" : "text-[#111111]"}`} style={{ fontFamily: 'ui-monospace, SFMono-Regular, Menlo, Consolas, monospace' }}>{s.value}</p>
+                    <p className="text-[10px] font-bold uppercase text-[#71717A]">{s.label}</p>
                   </div>
                 ))}
               </div>
             </TabsContent>
 
-            <TabsContent value="history" className="mt-3">
+            <TabsContent value="history" className="mt-0">
               {employee.activityLogs.length === 0 ? (
-                <p className="text-sm text-slate-400 py-4 text-center">Không có lịch sử.</p>
+                <p className="py-4 text-center text-xs font-bold uppercase text-[#71717A]">Khong co lich su.</p>
               ) : (
-                <div className="space-y-2">
+                <div className="border border-[#111111]">
                   {employee.activityLogs.map((log, i) => (
-                    <div key={i} className="flex items-start gap-3 rounded-xl bg-white shadow-[0_2px_12px_-4px_rgba(12,84,156,0.04)] ring-1 ring-slate-200 p-3">
-                      <div className="mt-0.5 h-1.5 w-1.5 rounded-full bg-slate-300 shrink-0" />
+                    <div key={i} className={`flex items-start gap-3 px-5 py-3 ${i !== employee.activityLogs.length - 1 ? "border-b border-[#111111]" : ""}`}>
+                      <div className="mt-0.5 size-2 shrink-0 bg-[#71717A]" />
                       <div className="min-w-0 flex-1">
                         <div className="flex items-center gap-2">
-                          <span className="text-sm font-medium text-slate-600">{log.time}</span>
-                          <Badge variant="secondary" className="text-[10px] px-2 py-0.5">{log.action}</Badge>
+                          <span className="text-sm font-bold text-[#111111]">{log.time}</span>
+                          <Badge className="rounded-none bg-[#F4F4F0] text-[10px] px-2 py-0.5 font-bold uppercase text-[#71717A]">{log.action}</Badge>
                         </div>
-                        <p className="mt-0.5 text-sm text-slate-500">{log.content}</p>
+                        <p className="mt-0.5 text-sm text-[#71717A]">{log.content}</p>
                       </div>
                     </div>
                   ))}
@@ -245,15 +248,15 @@ export function EmployeeDetailDrawer({ employee, open, onOpenChange }: Props) {
               )}
             </TabsContent>
 
-            <TabsContent value="ai" className="mt-3">
-              <div className="grid grid-cols-2 gap-3">
-                <div className="rounded-xl bg-[#0c549c]/3 p-3 ring-1 ring-[#0c549c]/10">
-                  <p className="text-sm font-bold text-[#0c549c]">{employee.aiExtractedFiles}</p>
-                  <p className="text-xs text-slate-500">File AI đã bóc tách</p>
+            <TabsContent value="ai" className="mt-0">
+              <div className="grid grid-cols-2 border border-[#111111]">
+                <div className="border-r border-[#111111] p-3">
+                  <p className="text-lg font-black text-[#111111] tabular-nums" style={{ fontFamily: 'ui-monospace, SFMono-Regular, Menlo, Consolas, monospace' }}>{employee.aiExtractedFiles}</p>
+                  <p className="text-[10px] font-bold uppercase text-[#71717A]">File AI da boc tach</p>
                 </div>
-                <div className="rounded-xl bg-rose-50/40 p-3 ring-1 ring-rose-100/60">
-                  <p className="text-sm font-bold text-rose-700">{employee.aiNeedReviewFiles}</p>
-                  <p className="text-xs text-slate-500">File cần kiểm tra lại</p>
+                <div className="p-3">
+                  <p className="text-lg font-black text-[#E61919] tabular-nums" style={{ fontFamily: 'ui-monospace, SFMono-Regular, Menlo, Consolas, monospace' }}>{employee.aiNeedReviewFiles}</p>
+                  <p className="text-[10px] font-bold uppercase text-[#71717A]">File can kiem tra lai</p>
                 </div>
               </div>
             </TabsContent>
