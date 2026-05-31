@@ -137,7 +137,16 @@ export default function DraftsPage() {
 
     setRagMessages((prev) => [...prev, { role: "user" as const, content: query }])
 
-    const relevantDrafts = searchDrafts(query).slice(0, 3)
+    const allResults = searchDrafts(query)
+    // Ưu tiên match chính xác soToKhai
+    const exactMatch = allResults.find((d) =>
+      d.extractedData.soToKhai?.toLowerCase().includes(query.replace(/\s+/g, ""))
+    )
+    const relevantDrafts = exactMatch
+      ? [exactMatch]
+      : allResults.filter((d) =>
+          d.extractedData.soToKhai?.toLowerCase().includes(query.split(/\s+/)[0])
+        ).slice(0, 1)
 
     setTimeout(() => {
       const hasResults = relevantDrafts.length > 0
@@ -147,25 +156,25 @@ export default function DraftsPage() {
         return
       }
 
-      const answer = relevantDrafts
-        .map((d) => {
-          const data = d.extractedData
-          const lines = [
-            `📋 Tờ khai: ${data.soToKhai || "—"}`,
-            `🏢 Khách hàng: ${data.khachHang || "—"}`,
-            `📦 Loại hàng: ${data.loaiHang || "—"}`,
-            `🚢 Cảng: ${data.cangXuatNhap || "—"}`,
-            `📐 Container 20': ${data.soContainer20 || "0"}`,
-            `📐 Container 40': ${data.soContainer40 || "0"}`,
-            `🚛 Trạng thái: ${data.trangThaiLoHang || "—"}`,
-          ]
-          return lines.join("\n")
-        })
-        .join("\n\n———\n\n")
+      const d = relevantDrafts[0]
+      const data = d.extractedData
+      const totalCont =
+        (parseInt(data.soContainer20 || "0") || 0) +
+        (parseInt(data.soContainer40 || "0") || 0)
+
+      const answer = `📋 **Tờ khai ${data.soToKhai || "—"}**\n\n` +
+        `🏢 Khách hàng: ${data.khachHang || "—"}\n` +
+        `📦 Loại hàng: ${data.loaiHang || "—"}\n` +
+        `🚢 Cảng: ${data.cangXuatNhap || "—"}\n\n` +
+        `📐 **Container:**\n` +
+        `   • 20': ${data.soContainer20 || "0"} chiếc\n` +
+        `   • 40': ${data.soContainer40 || "0"} chiếc\n` +
+        `   → **Tổng: ${totalCont} container**\n\n` +
+        `🚛 Trạng thái: ${data.trangThaiLoHang || "—"}`
 
       setRagMessages((prev) => [
         ...prev,
-        { role: "assistant", content: `Dựa trên ${relevantDrafts.length} hồ sơ tìm thấy:\n\n${answer}` },
+        { role: "assistant", content: answer },
       ])
       setRagLoading(false)
     }, 800)
