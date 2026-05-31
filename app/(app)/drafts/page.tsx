@@ -275,7 +275,7 @@ export default function DraftsPage() {
       <div className="shrink-0">
         <Link
           href="/emails"
-          className="inline-flex items-center gap-1.5 text-xs font-medium text-neutral-400 transition hover:text-neutral-600"
+          className="inline-flex cursor-pointer items-center gap-1.5 text-xs font-medium text-neutral-400 transition hover:text-neutral-600"
         >
           <ArrowLeft className="h-3.5 w-3.5" />
           Quay lại Email
@@ -315,7 +315,7 @@ export default function DraftsPage() {
                           : "archived"
                 )
               }
-              className={`flex items-center gap-2 rounded-lg border px-3 py-1.5 text-xs font-medium transition hover:shadow-sm ${s.color} ${
+              className={`flex cursor-pointer items-center gap-2 rounded-lg border px-3 py-1.5 text-xs font-medium transition hover:shadow-sm ${s.color} ${
                 (s.label === "Tổng" && statusFilter === "all") ||
                 (s.label === "Nháp" && statusFilter === "draft") ||
                 (s.label === "Đang xem xét" && statusFilter === "reviewing") ||
@@ -485,7 +485,7 @@ export default function DraftsPage() {
               <button
                 onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
                 disabled={currentPage === 1}
-                className="flex h-8 w-8 items-center justify-center rounded-lg border border-neutral-200 bg-white text-neutral-600 transition hover:bg-neutral-50 disabled:opacity-30 disabled:cursor-not-allowed"
+                className="flex h-8 w-8 cursor-pointer items-center justify-center rounded-lg border border-neutral-200 bg-white text-neutral-600 transition hover:bg-neutral-50 disabled:opacity-30 disabled:cursor-not-allowed"
               >
                 <ChevronRight className="h-4 w-4 rotate-180" />
               </button>
@@ -505,7 +505,7 @@ export default function DraftsPage() {
                     <button
                       key={pageNum}
                       onClick={() => setCurrentPage(pageNum)}
-                      className={`flex h-8 w-8 items-center justify-center rounded-lg text-xs font-semibold transition ${
+                      className={`flex h-8 w-8 cursor-pointer items-center justify-center rounded-lg text-xs font-semibold transition ${
                         pageNum === currentPage
                           ? "bg-primary text-white shadow-sm"
                           : "border border-neutral-200 bg-white text-neutral-600 hover:bg-neutral-50"
@@ -519,7 +519,7 @@ export default function DraftsPage() {
               <button
                 onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
                 disabled={currentPage === totalPages}
-                className="flex h-8 w-8 items-center justify-center rounded-lg border border-neutral-200 bg-white text-neutral-600 transition hover:bg-neutral-50 disabled:opacity-30 disabled:cursor-not-allowed"
+                className="flex h-8 w-8 cursor-pointer items-center justify-center rounded-lg border border-neutral-200 bg-white text-neutral-600 transition hover:bg-neutral-50 disabled:opacity-30 disabled:cursor-not-allowed"
               >
                 <ChevronRight className="h-4 w-4" />
               </button>
@@ -548,7 +548,7 @@ export default function DraftsPage() {
               </div>
               <button
                 onClick={() => setDetailOpen(false)}
-                className="flex h-8 w-8 items-center justify-center rounded-lg border border-neutral-200 bg-white text-neutral-500 transition hover:bg-neutral-50 hover:text-neutral-800"
+                className="flex h-8 w-8 cursor-pointer items-center justify-center rounded-lg border border-neutral-200 bg-white text-neutral-500 transition hover:bg-neutral-50 hover:text-neutral-800"
               >
                 <X className="h-4 w-4" />
               </button>
@@ -642,7 +642,7 @@ export default function DraftsPage() {
       {!chatOpen && (
         <button
           onClick={() => { setChatOpen(true); setHasNewMsg(false) }}
-          className={`fixed bottom-6 right-6 z-[9999] flex h-14 w-14 items-center justify-center rounded-full bg-primary text-white shadow-xl shadow-primary/30 transition hover:scale-105 hover:shadow-2xl hover:shadow-primary/40 ${hasNewMsg ? "animate-pulse ring-4 ring-primary/30" : ""}`}
+          className={`fixed bottom-6 right-6 z-[9999] flex h-14 w-14 cursor-pointer items-center justify-center rounded-full bg-primary text-white shadow-xl shadow-primary/30 transition hover:scale-105 hover:shadow-2xl hover:shadow-primary/40 ${hasNewMsg ? "animate-pulse ring-4 ring-primary/30" : ""}`}
           title="AI Tra cứu"
         >
           <Sparkles className="h-5 w-5" />
@@ -668,14 +668,14 @@ export default function DraftsPage() {
             <div className="flex items-center gap-1">
               <button
                 onClick={() => { setRagMessages([]); setRagQuery("") }}
-                className="flex h-6 w-6 items-center justify-center rounded-md text-white/50 transition hover:bg-white/10 hover:text-white"
+                className="flex h-6 w-6 cursor-pointer items-center justify-center rounded-md text-white/50 transition hover:bg-white/10 hover:text-white"
                 title="Xóa lịch sử"
               >
                 <MessageCircle className="h-3 w-3" />
               </button>
               <button
                 onClick={() => setChatOpen(false)}
-                className="flex h-6 w-6 items-center justify-center rounded-md text-white/70 transition hover:bg-white/10 hover:text-white"
+                className="flex h-6 w-6 cursor-pointer items-center justify-center rounded-md text-white/70 transition hover:bg-white/10 hover:text-white"
               >
                 <X className="h-4 w-4" />
               </button>
@@ -700,7 +700,7 @@ export default function DraftsPage() {
                     <button
                       key={q}
                       onClick={() => { setRagQuery(q); void handleRagSearch() }}
-                      className="rounded-full border border-neutral-200 bg-white px-3 py-1.5 text-[10px] font-medium text-neutral-600 transition hover:border-primary/30 hover:bg-primary/5 hover:text-primary"
+                      className="cursor-pointer rounded-full border border-neutral-200 bg-white px-3 py-1.5 text-[10px] font-medium text-neutral-600 transition hover:border-primary/30 hover:bg-primary/5 hover:text-primary"
                     >
                       {q}
                     </button>
@@ -715,11 +715,6 @@ export default function DraftsPage() {
                   msg.role === "user" ? "justify-end" : "justify-start"
                 }`}
               >
-                {msg.role === "assistant" && (
-                  <div className="mt-auto flex h-6 w-6 shrink-0 items-center justify-center rounded-lg bg-gradient-to-br from-primary/20 to-primary/5 ring-1 ring-primary/10">
-                    <Sparkles className="h-3 w-3 text-primary" />
-                  </div>
-                )}
                 <div className="flex max-w-[88%] flex-col">
                   <div
                     className={`rounded-2xl px-3.5 py-2.5 text-xs leading-relaxed ${
@@ -736,18 +731,10 @@ export default function DraftsPage() {
                     {dayjs(msg.ts).format("HH:mm")}
                   </span>
                 </div>
-                {msg.role === "user" && (
-                  <div className="mt-auto flex h-6 w-6 shrink-0 items-center justify-center rounded-lg bg-primary/10 ring-1 ring-primary/10">
-                    <User className="h-3 w-3 text-primary" />
-                  </div>
-                )}
               </div>
             ))}
             {ragLoading && (
               <div className="flex items-start gap-2 pl-0">
-                <div className="mt-auto flex h-6 w-6 shrink-0 items-center justify-center rounded-lg bg-gradient-to-br from-primary/20 to-primary/5 ring-1 ring-primary/10">
-                  <Sparkles className="h-3 w-3 text-primary" />
-                </div>
                 <div className="flex items-center gap-1.5 rounded-2xl rounded-bl-md border border-neutral-100/80 bg-white/80 px-3.5 py-2.5 shadow-sm">
                   <span
                     className="h-1.5 w-1.5 animate-bounce rounded-full bg-neutral-300"
@@ -787,7 +774,7 @@ export default function DraftsPage() {
               <button
                 onClick={() => void handleRagSearch()}
                 disabled={ragLoading || !ragQuery.trim()}
-                className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-gradient-to-br from-primary to-primary/90 text-white shadow-sm transition hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-30"
+                className="flex h-7 w-7 shrink-0 cursor-pointer items-center justify-center rounded-lg bg-gradient-to-br from-primary to-primary/90 text-white shadow-sm transition hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-30"
               >
                 <Send className="h-3 w-3" />
               </button>
