@@ -28,22 +28,15 @@ import {
 import type { EmployeePerformance } from "@/lib/ceo/types"
 
 const kpiData = [
-  { label: "Tổng email", value: ceoOverviewMock.totalEmails, tone: "zinc" },
-  { label: "Tổng task", value: ceoOverviewMock.totalTasks, tone: "zinc" },
-  { label: "Đã xử lý", value: ceoOverviewMock.completedTasks, tone: "emerald" },
-  { label: "Đang xử lý", value: ceoOverviewMock.processingTasks, tone: "amber" },
-  { label: "Quá hạn", value: ceoOverviewMock.overdueTasks, tone: "rose" },
-  { label: "AI success", value: `${ceoOverviewMock.aiSuccessRate}%`, tone: "zinc" },
-  { label: "Hoàn thành", value: `${ceoOverviewMock.completionRate}%`, tone: "emerald" },
-  { label: "Thiếu data", value: ceoOverviewMock.missingDataRows, tone: "zinc" },
+  { label: "Tổng email", value: ceoOverviewMock.totalEmails },
+  { label: "Tổng task", value: ceoOverviewMock.totalTasks },
+  { label: "Đã xử lý", value: ceoOverviewMock.completedTasks },
+  { label: "Đang xử lý", value: ceoOverviewMock.processingTasks },
+  { label: "Quá hạn", value: ceoOverviewMock.overdueTasks, tone: "rose" as const },
+  { label: "AI success", value: `${ceoOverviewMock.aiSuccessRate}%` },
+  { label: "Hoàn thành", value: `${ceoOverviewMock.completionRate}%` },
+  { label: "Thiếu data", value: ceoOverviewMock.missingDataRows },
 ]
-
-const toneValue: Record<string, string> = {
-  zinc: "text-zinc-900",
-  emerald: "text-emerald-600",
-  amber: "text-amber-600",
-  rose: "text-rose-600",
-}
 
 const levelBadge: Record<string, { label: string; variant: "default" | "secondary" | "destructive" | "outline" }> = {
   low: { label: "Thấp", variant: "secondary" },
@@ -89,7 +82,9 @@ export default function CeoPage() {
   ]
 
   return (
-    <motion.div variants={container} initial="hidden" animate="show" className="flex h-full flex-col gap-6 overflow-auto p-6">
+    <>
+      <div className="grain" />
+      <motion.div variants={container} initial="hidden" animate="show" className="flex h-full flex-col gap-6 overflow-auto p-6">
       <motion.div variants={item} className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-bold tracking-tight text-zinc-900">CEO Dashboard</h1>
@@ -108,7 +103,7 @@ export default function CeoPage() {
             onClick={() => setTimeFilter(opt.value)}
             className={`rounded-full px-3.5 py-1.5 text-xs font-medium transition-colors ${
               timeFilter === opt.value
-                ? "bg-zinc-900 text-white"
+                ? "bg-[#0c549c] text-white"
                 : "border border-zinc-200 bg-white text-zinc-600 hover:bg-zinc-50"
             }`}
           >
@@ -122,10 +117,10 @@ export default function CeoPage() {
         {kpiData.map((k) => (
           <div
             key={k.label}
-            className="flex flex-col justify-between rounded-lg border border-zinc-100 bg-white p-4 transition-shadow hover:shadow-sm"
+            className="group flex flex-col justify-between rounded-lg border border-zinc-100 bg-white p-4 transition-all duration-200 hover:-translate-y-px hover:shadow-[0_2px_8px_-2px_rgba(12,84,156,0.08)]"
           >
             <p className="text-xs text-zinc-500">{k.label}</p>
-            <p className={`mt-2 text-2xl font-semibold tracking-tight ${toneValue[k.tone]}`}>{k.value}</p>
+            <p className={`mt-2 text-2xl font-semibold tracking-tight tabular-nums ${k.tone === "rose" ? "text-rose-600" : "text-[#0c549c]"}`}>{k.value}</p>
           </div>
         ))}
       </motion.div>
@@ -155,21 +150,24 @@ export default function CeoPage() {
             <h2 className="text-sm font-semibold tracking-tight text-zinc-800">Cảnh báo cần chú ý</h2>
           </div>
           <div className="divide-y divide-zinc-100">
-            {ceoAlertsMock.map((alert) => {
-              const cfg = levelBadge[alert.level]
-              return (
-                <div key={alert.id} className="px-4 py-3">
-                  <div className="flex items-center gap-2">
-                    <div className={`h-1.5 w-1.5 rounded-full ${alert.level === "high" || alert.level === "critical" ? "bg-rose-500" : "bg-amber-500"}`} />
-                    <p className="flex-1 text-xs font-medium text-zinc-700">{alert.title}</p>
-                    <Badge variant={cfg.variant} className="text-[9px] px-1.5 py-0">
-                      {cfg.label}
-                    </Badge>
-                  </div>
-                  <p className="mt-1 pl-3.5 text-[11px] text-zinc-500 leading-relaxed">{alert.description}</p>
+            {ceoAlertsMock.map((alert, i) => (
+              <motion.div
+                key={alert.id}
+                initial={{ opacity: 0, x: -6 }}
+                animate={{ opacity: 1, x: 0 }}
+                transition={{ delay: i * 0.06, type: "spring" as const, stiffness: 120, damping: 20 }}
+                className="px-4 py-3 transition-colors hover:bg-zinc-50/40 cursor-pointer"
+              >
+                <div className="flex items-center gap-2">
+                  <div className={`h-1.5 w-1.5 rounded-full ${alert.level === "high" || alert.level === "critical" ? "bg-rose-500" : "bg-[#0c549c]"}`} />
+                  <p className="flex-1 text-xs font-medium text-zinc-700">{alert.title}</p>
+                  <Badge variant={levelBadge[alert.level].variant} className="text-[9px] px-1.5 py-0">
+                    {levelBadge[alert.level].label}
+                  </Badge>
                 </div>
-              )
-            })}
+                <p className="mt-1 pl-3.5 text-[11px] text-zinc-500 leading-relaxed">{alert.description}</p>
+              </motion.div>
+            ))}
           </div>
         </section>
 
@@ -189,20 +187,29 @@ export default function CeoPage() {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {departmentSummaryMock.map((dept) => (
-                  <TableRow key={dept.name} className="text-xs">
-                    <TableCell className="font-medium text-zinc-700">{dept.name}</TableCell>
-                    <TableCell className="text-right text-zinc-600">{dept.totalTasks}</TableCell>
-                    <TableCell className="text-right text-emerald-600">{dept.completedTasks}</TableCell>
-                    <TableCell className="text-right text-amber-600">{dept.processingTasks}</TableCell>
-                    <TableCell className="text-right text-rose-600">{dept.overdueTasks}</TableCell>
-                    <TableCell className="text-right font-medium text-zinc-700">{dept.completionRate}%</TableCell>
+                {departmentSummaryMock.map((dept, i) => (
+                  <motion.tr
+                    key={dept.name}
+                    initial={{ opacity: 0, x: -6 }}
+                    animate={{ opacity: 1, x: 0 }}
+                    transition={{ delay: i * 0.04, type: "spring" as const, stiffness: 120, damping: 20 }}
+                    className="border-b border-zinc-100 text-xs transition-colors hover:bg-zinc-50/60 group"
+                  >
+                    <TableCell className="relative font-medium text-zinc-800">
+                      <span className="absolute left-0 top-1/2 -translate-y-1/2 h-4 w-[2px] bg-[#0c549c] scale-y-0 transition-transform duration-200 group-hover:scale-y-100 rounded-r" />
+                      {dept.name}
+                    </TableCell>
+                    <TableCell className="text-right text-zinc-600 tabular-nums">{dept.totalTasks}</TableCell>
+                    <TableCell className="text-right text-zinc-600 tabular-nums">{dept.completedTasks}</TableCell>
+                    <TableCell className="text-right text-zinc-600 tabular-nums">{dept.processingTasks}</TableCell>
+                    <TableCell className="text-right text-rose-600 tabular-nums">{dept.overdueTasks}</TableCell>
+                    <TableCell className="text-right font-medium text-[#0c549c] tabular-nums">{dept.completionRate}%</TableCell>
                     <TableCell>
                       <Badge variant={dept.alert === "Ổn định" ? "secondary" : "outline"} className="text-[10px]">
                         {dept.alert}
                       </Badge>
                     </TableCell>
-                  </TableRow>
+                  </motion.tr>
                 ))}
               </TableBody>
             </Table>
@@ -227,19 +234,19 @@ export default function CeoPage() {
         <p className="text-[11px] text-zinc-500">Hiệu quả AI theo loại chứng từ</p>
         <div className="mt-3 grid grid-cols-2 gap-3 sm:grid-cols-4">
           <div className="rounded-md border border-zinc-100 bg-zinc-50/50 p-3">
-            <p className="text-xl font-bold text-zinc-800">{aiExtractionSummaryMock.totalFiles}</p>
+            <p className="text-xl font-bold text-zinc-800 tabular-nums">{aiExtractionSummaryMock.totalFiles}</p>
             <p className="text-[10px] text-zinc-500">Tổng file</p>
           </div>
-          <div className="rounded-md border border-emerald-100 bg-emerald-50/50 p-3">
-            <p className="text-xl font-bold text-emerald-700">{aiExtractionSummaryMock.success}</p>
+          <div className="rounded-md border border-[#0c549c]/10 bg-[#0c549c]/3 p-3">
+            <p className="text-xl font-bold text-[#0c549c] tabular-nums">{aiExtractionSummaryMock.success}</p>
             <p className="text-[10px] text-zinc-500">Thành công</p>
           </div>
-          <div className="rounded-md border border-amber-100 bg-amber-50/50 p-3">
-            <p className="text-xl font-bold text-amber-700">{aiExtractionSummaryMock.needReview}</p>
+          <div className="rounded-md border border-zinc-100 bg-zinc-50/50 p-3">
+            <p className="text-xl font-bold text-zinc-800 tabular-nums">{aiExtractionSummaryMock.needReview}</p>
             <p className="text-[10px] text-zinc-500">Cần review</p>
           </div>
           <div className="rounded-md border border-rose-100 bg-rose-50/50 p-3">
-            <p className="text-xl font-bold text-rose-700">{aiExtractionSummaryMock.failed}</p>
+            <p className="text-xl font-bold text-rose-700 tabular-nums">{aiExtractionSummaryMock.failed}</p>
             <p className="text-[10px] text-zinc-500">Lỗi</p>
           </div>
         </div>
@@ -275,9 +282,18 @@ export default function CeoPage() {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {reportSummaryMock.map((row) => (
-                <TableRow key={row.stt} className="text-xs">
-                  <TableCell className="text-zinc-600">{row.stt}</TableCell>
+              {reportSummaryMock.map((row, i) => (
+                <motion.tr
+                  key={row.stt}
+                  initial={{ opacity: 0, x: -6 }}
+                  animate={{ opacity: 1, x: 0 }}
+                  transition={{ delay: i * 0.03, type: "spring" as const, stiffness: 120, damping: 20 }}
+                  className="border-b border-zinc-100 text-xs transition-colors hover:bg-zinc-50/60 group"
+                >
+                  <TableCell className="relative text-zinc-600 tabular-nums">
+                    <span className="absolute left-0 top-1/2 -translate-y-1/2 h-4 w-[2px] bg-[#0c549c] scale-y-0 transition-transform duration-200 group-hover:scale-y-100 rounded-r" />
+                    {row.stt}
+                  </TableCell>
                   <TableCell className="font-medium text-zinc-700">{row.customerName}</TableCell>
                   <TableCell className="text-zinc-600">{row.invoice}</TableCell>
                   <TableCell className="text-zinc-600">{row.bill}</TableCell>
@@ -293,7 +309,7 @@ export default function CeoPage() {
                     </Badge>
                   </TableCell>
                   <TableCell className="text-zinc-500">{row.notes}</TableCell>
-                </TableRow>
+                </motion.tr>
               ))}
             </TableBody>
           </Table>
@@ -306,5 +322,6 @@ export default function CeoPage() {
         onOpenChange={setDrawerOpen}
       />
     </motion.div>
+    </>
   )
 }

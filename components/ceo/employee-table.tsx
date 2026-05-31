@@ -1,5 +1,6 @@
 "use client"
 
+import { motion } from "framer-motion"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import {
@@ -10,8 +11,6 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table"
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
-import { Eye } from "lucide-react"
 import type { EmployeePerformance } from "@/lib/ceo/types"
 
 interface Props {
@@ -19,73 +18,87 @@ interface Props {
   onViewDetail: (emp: EmployeePerformance) => void
 }
 
+const rowVariant = {
+  hidden: { opacity: 0, x: -8 },
+  show: { opacity: 1, x: 0, transition: { type: "spring" as const, stiffness: 120, damping: 18 } },
+}
+
 export function EmployeePerformanceTable({ employees, onViewDetail }: Props) {
   return (
-    <Card>
-      <CardHeader className="pb-3">
-        <CardTitle className="text-sm font-semibold text-neutral-700">Hiệu suất nhân viên</CardTitle>
-        <CardDescription className="text-[11px]">Theo dõi công việc và hiệu suất từng nhân viên</CardDescription>
-      </CardHeader>
-      <CardContent>
-        <div className="rounded-md border">
-          <Table>
-            <TableHeader>
-              <TableRow className="bg-neutral-50 hover:bg-neutral-50">
-                <TableHead className="text-[11px] font-medium text-neutral-500">Nhân viên</TableHead>
-                <TableHead className="text-[11px] font-medium text-neutral-500">Phòng ban</TableHead>
-                <TableHead className="text-[11px] font-medium text-neutral-500 text-right">Tổng task</TableHead>
-                <TableHead className="text-[11px] font-medium text-neutral-500 text-right">Hoàn thành</TableHead>
-                <TableHead className="text-[11px] font-medium text-neutral-500 text-right">Đang xử lý</TableHead>
-                <TableHead className="text-[11px] font-medium text-neutral-500 text-right">Quá hạn</TableHead>
-                <TableHead className="text-[11px] font-medium text-neutral-500 text-right">Tỷ lệ</TableHead>
-                <TableHead className="text-[11px] font-medium text-neutral-500 text-right">Thời gian TB</TableHead>
-                <TableHead className="text-[11px] font-medium text-neutral-500">Cảnh báo</TableHead>
-                <TableHead className="text-[11px] font-medium text-neutral-500 w-10"></TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {employees.map((emp) => {
-                const warning =
-                  emp.overdueTasks >= 5
-                    ? "Cần kiểm tra"
-                    : emp.completionRate < 60
-                    ? "Hiệu suất thấp"
-                    : "Ổn định"
-                return (
-                  <TableRow key={emp.id} className="text-xs">
-                    <TableCell className="font-medium text-neutral-700">{emp.name}</TableCell>
-                    <TableCell className="text-neutral-600">{emp.department}</TableCell>
-                    <TableCell className="text-right text-neutral-600">{emp.totalTasks}</TableCell>
-                    <TableCell className="text-right text-emerald-600">{emp.completedTasks}</TableCell>
-                    <TableCell className="text-right text-amber-600">{emp.processingTasks}</TableCell>
-                    <TableCell className="text-right text-rose-600">{emp.overdueTasks}</TableCell>
-                    <TableCell className="text-right font-medium text-neutral-700">{emp.completionRate}%</TableCell>
-                    <TableCell className="text-right text-neutral-600">{emp.averageProcessingTime}</TableCell>
-                    <TableCell>
-                      <Badge
-                        variant={warning === "Ổn định" ? "secondary" : "destructive"}
-                        className="text-[10px]"
-                      >
-                        {warning}
-                      </Badge>
-                    </TableCell>
-                    <TableCell>
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        className="h-6 w-6 p-0"
-                        onClick={() => onViewDetail(emp)}
-                      >
-                        <Eye className="h-3.5 w-3.5 text-neutral-400" />
-                      </Button>
-                    </TableCell>
-                  </TableRow>
-                )
-              })}
-            </TableBody>
-          </Table>
-        </div>
-      </CardContent>
-    </Card>
+    <section className="rounded-lg border border-zinc-100 bg-white">
+      <div className="px-4 py-3">
+        <h2 className="text-sm font-semibold tracking-tight text-zinc-800">Hiệu suất nhân viên</h2>
+        <p className="text-[11px] text-zinc-500">Theo dõi công việc và hiệu suất từng nhân viên</p>
+      </div>
+      <div className="rounded-md border border-zinc-100 overflow-hidden mx-4 mb-4">
+        <Table>
+          <TableHeader>
+            <TableRow className="bg-zinc-50 hover:bg-zinc-50">
+              <TableHead className="text-[11px] font-medium text-zinc-500">Nhân viên</TableHead>
+              <TableHead className="text-[11px] font-medium text-zinc-500">Phòng ban</TableHead>
+              <TableHead className="text-[11px] font-medium text-zinc-500 text-right tabular-nums">Tổng task</TableHead>
+              <TableHead className="text-[11px] font-medium text-zinc-500 text-right tabular-nums">Hoàn thành</TableHead>
+              <TableHead className="text-[11px] font-medium text-zinc-500 text-right tabular-nums">Đang xử lý</TableHead>
+              <TableHead className="text-[11px] font-medium text-zinc-500 text-right tabular-nums">Quá hạn</TableHead>
+              <TableHead className="text-[11px] font-medium text-zinc-500 text-right tabular-nums">Tỷ lệ</TableHead>
+              <TableHead className="text-[11px] font-medium text-zinc-500 text-right">Thời gian TB</TableHead>
+              <TableHead className="text-[11px] font-medium text-zinc-500">Cảnh báo</TableHead>
+              <TableHead className="text-[11px] font-medium text-zinc-500 w-16 text-right"></TableHead>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {employees.map((emp, i) => {
+              const warning =
+                emp.overdueTasks >= 5
+                  ? "Cần kiểm tra"
+                  : emp.completionRate < 60
+                  ? "Hiệu suất thấp"
+                  : "Ổn định"
+              return (
+                <motion.tr
+                  key={emp.id}
+                  variants={rowVariant}
+                  initial="hidden"
+                  animate="show"
+                  transition={{ delay: i * 0.03 }}
+                  className="border-b border-zinc-100 text-xs transition-colors hover:bg-zinc-50/60 cursor-pointer group"
+                  onClick={() => onViewDetail(emp)}
+                >
+                  <TableCell className="relative font-medium text-zinc-800">
+                    <span className="absolute left-0 top-1/2 -translate-y-1/2 h-4 w-[2px] bg-[#0c549c] scale-y-0 transition-transform duration-200 group-hover:scale-y-100 rounded-r" />
+                    {emp.name}
+                  </TableCell>
+                  <TableCell className="text-zinc-600">{emp.department}</TableCell>
+                  <TableCell className="text-right text-zinc-600 tabular-nums">{emp.totalTasks}</TableCell>
+                  <TableCell className="text-right text-zinc-600 tabular-nums">{emp.completedTasks}</TableCell>
+                  <TableCell className="text-right text-zinc-600 tabular-nums">{emp.processingTasks}</TableCell>
+                  <TableCell className="text-right text-rose-600 tabular-nums">{emp.overdueTasks}</TableCell>
+                  <TableCell className="text-right font-medium text-[#0c549c] tabular-nums">{emp.completionRate}%</TableCell>
+                  <TableCell className="text-right text-zinc-600">{emp.averageProcessingTime}</TableCell>
+                  <TableCell>
+                    <Badge
+                      variant={warning === "Ổn định" ? "secondary" : "destructive"}
+                      className="text-[10px]"
+                    >
+                      {warning}
+                    </Badge>
+                  </TableCell>
+                  <TableCell className="text-right">
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="h-6 px-2 text-[10px] text-[#0c549c] opacity-0 transition-opacity group-hover:opacity-100"
+                      onClick={(e) => { e.stopPropagation(); onViewDetail(emp) }}
+                    >
+                      Chi tiết
+                    </Button>
+                  </TableCell>
+                </motion.tr>
+              )
+            })}
+          </TableBody>
+        </Table>
+      </div>
+    </section>
   )
 }
