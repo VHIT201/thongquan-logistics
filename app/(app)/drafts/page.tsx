@@ -95,6 +95,13 @@ export default function DraftsPage() {
   >([])
   const [chatOpen, setChatOpen] = useState(false)
 
+  // Pagination
+  const [currentPage, setCurrentPage] = useState(1)
+  const PAGE_SIZE = 8
+  useEffect(() => {
+    setCurrentPage(1)
+  }, [searchQuery, statusFilter])
+
   // Auto-seed
   const [hasSeeded, setHasSeeded] = useState(false)
   useEffect(() => {
@@ -113,6 +120,12 @@ export default function DraftsPage() {
       (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
     )
   }, [drafts, searchQuery, statusFilter, searchDrafts])
+
+  const totalPages = Math.max(1, Math.ceil(filteredDrafts.length / PAGE_SIZE))
+  const paginatedDrafts = filteredDrafts.slice(
+    (currentPage - 1) * PAGE_SIZE,
+    currentPage * PAGE_SIZE
+  )
 
   const stats = useMemo(() => {
     return {
@@ -362,7 +375,7 @@ export default function DraftsPage() {
             </div>
           ) : (
             <div className="grid gap-3 sm:grid-cols-2">
-              {filteredDrafts.map((draft) => {
+              {paginatedDrafts.map((draft) => {
                 const status = STATUS_CONFIG[draft.status]
                 return (
                   <button
@@ -441,6 +454,56 @@ export default function DraftsPage() {
                   </button>
                 )
               })}
+            </div>
+          )}
+
+          {/* Pagination */}
+          {filteredDrafts.length > PAGE_SIZE && (
+            <div className="flex items-center justify-center gap-2 pt-2 pb-1">
+              <button
+                onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
+                disabled={currentPage === 1}
+                className="flex h-8 w-8 items-center justify-center rounded-lg border border-neutral-200 bg-white text-neutral-600 transition hover:bg-neutral-50 disabled:opacity-30 disabled:cursor-not-allowed"
+              >
+                <ChevronRight className="h-4 w-4 rotate-180" />
+              </button>
+              <div className="flex items-center gap-1">
+                {Array.from({ length: Math.min(totalPages, 5) }, (_, i) => {
+                  let pageNum: number
+                  if (totalPages <= 5) {
+                    pageNum = i + 1
+                  } else if (currentPage <= 3) {
+                    pageNum = i + 1
+                  } else if (currentPage >= totalPages - 2) {
+                    pageNum = totalPages - 4 + i
+                  } else {
+                    pageNum = currentPage - 2 + i
+                  }
+                  return (
+                    <button
+                      key={pageNum}
+                      onClick={() => setCurrentPage(pageNum)}
+                      className={`flex h-8 w-8 items-center justify-center rounded-lg text-xs font-semibold transition ${
+                        pageNum === currentPage
+                          ? "bg-primary text-white shadow-sm"
+                          : "border border-neutral-200 bg-white text-neutral-600 hover:bg-neutral-50"
+                      }`}
+                    >
+                      {pageNum}
+                    </button>
+                  )
+                })}
+              </div>
+              <button
+                onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
+                disabled={currentPage === totalPages}
+                className="flex h-8 w-8 items-center justify-center rounded-lg border border-neutral-200 bg-white text-neutral-600 transition hover:bg-neutral-50 disabled:opacity-30 disabled:cursor-not-allowed"
+              >
+                <ChevronRight className="h-4 w-4" />
+              </button>
+              <span className="ml-2 text-[11px] text-neutral-400">
+                {filteredDrafts.length} hồ sơ · {PAGE_SIZE}/trang
+              </span>
             </div>
           )}
         </div>
