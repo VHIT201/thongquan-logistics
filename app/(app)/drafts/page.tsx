@@ -95,6 +95,13 @@ export default function DraftsPage() {
   >([])
   const [chatOpen, setChatOpen] = useState(false)
 
+  const suggestedQuestions = [
+    "TK25 có bao nhiêu container?",
+    "Khách hàng của TK25 là ai?",
+    "TK26 qua cảng nào?",
+    "Trạng thái TK25?",
+  ]
+
   // Pagination
   const [currentPage, setCurrentPage] = useState(1)
   const PAGE_SIZE = 8
@@ -661,6 +668,17 @@ export default function DraftsPage() {
               <p className="mt-1 max-w-[220px] text-[11px] leading-relaxed text-neutral-400">
                 Ví dụ: "Tờ khai TK25 có bao nhiêu container?"
               </p>
+              <div className="mt-3 flex flex-wrap justify-center gap-1.5">
+                {suggestedQuestions.map((q) => (
+                  <button
+                    key={q}
+                    onClick={() => { setRagQuery(q); void handleRagSearch() }}
+                    className="cursor-pointer rounded-full border border-neutral-200 bg-white px-3 py-1 text-[10px] text-neutral-600 transition hover:border-primary hover:bg-primary/5 hover:text-primary"
+                  >
+                    {q}
+                  </button>
+                ))}
+              </div>
             </div>
           )}
           {ragMessages.map((msg, i) => (
