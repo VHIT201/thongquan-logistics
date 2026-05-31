@@ -1,7 +1,7 @@
 "use client"
 
-import { useState } from "react"
 import { Badge } from "@/components/ui/badge"
+import { Button } from "@/components/ui/button"
 import {
   Table,
   TableBody,
@@ -10,8 +10,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table"
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import { Button } from "@/components/ui/button"
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
 import { Eye } from "lucide-react"
 import type { EmployeePerformance } from "@/lib/ceo/types"
 
@@ -22,25 +21,26 @@ interface Props {
 
 export function EmployeePerformanceTable({ employees, onViewDetail }: Props) {
   return (
-    <Card className="border-neutral-200">
+    <Card>
       <CardHeader className="pb-3">
         <CardTitle className="text-sm font-semibold text-neutral-700">Hiệu suất nhân viên</CardTitle>
+        <CardDescription className="text-[11px]">Theo dõi công việc và hiệu suất từng nhân viên</CardDescription>
       </CardHeader>
       <CardContent>
         <div className="rounded-md border">
           <Table>
             <TableHeader>
-              <TableRow className="bg-neutral-50">
-                <TableHead className="text-[11px] text-neutral-500">Nhân viên</TableHead>
-                <TableHead className="text-[11px] text-neutral-500">Phòng ban</TableHead>
-                <TableHead className="text-[11px] text-neutral-500 text-right">Tổng task</TableHead>
-                <TableHead className="text-[11px] text-neutral-500 text-right">Hoàn thành</TableHead>
-                <TableHead className="text-[11px] text-neutral-500 text-right">Đang xử lý</TableHead>
-                <TableHead className="text-[11px] text-neutral-500 text-right">Quá hạn</TableHead>
-                <TableHead className="text-[11px] text-neutral-500 text-right">Tỷ lệ</TableHead>
-                <TableHead className="text-[11px] text-neutral-500 text-right">Thời gian TB</TableHead>
-                <TableHead className="text-[11px] text-neutral-500">Cảnh báo</TableHead>
-                <TableHead className="text-[11px] text-neutral-500 w-10"></TableHead>
+              <TableRow className="bg-neutral-50 hover:bg-neutral-50">
+                <TableHead className="text-[11px] font-medium text-neutral-500">Nhân viên</TableHead>
+                <TableHead className="text-[11px] font-medium text-neutral-500">Phòng ban</TableHead>
+                <TableHead className="text-[11px] font-medium text-neutral-500 text-right">Tổng task</TableHead>
+                <TableHead className="text-[11px] font-medium text-neutral-500 text-right">Hoàn thành</TableHead>
+                <TableHead className="text-[11px] font-medium text-neutral-500 text-right">Đang xử lý</TableHead>
+                <TableHead className="text-[11px] font-medium text-neutral-500 text-right">Quá hạn</TableHead>
+                <TableHead className="text-[11px] font-medium text-neutral-500 text-right">Tỷ lệ</TableHead>
+                <TableHead className="text-[11px] font-medium text-neutral-500 text-right">Thời gian TB</TableHead>
+                <TableHead className="text-[11px] font-medium text-neutral-500">Cảnh báo</TableHead>
+                <TableHead className="text-[11px] font-medium text-neutral-500 w-10"></TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -59,7 +59,7 @@ export function EmployeePerformanceTable({ employees, onViewDetail }: Props) {
                     <TableCell className="text-right text-emerald-600">{emp.completedTasks}</TableCell>
                     <TableCell className="text-right text-amber-600">{emp.processingTasks}</TableCell>
                     <TableCell className="text-right text-rose-600">{emp.overdueTasks}</TableCell>
-                    <TableCell className="text-right text-neutral-700">{emp.completionRate}%</TableCell>
+                    <TableCell className="text-right font-medium text-neutral-700">{emp.completionRate}%</TableCell>
                     <TableCell className="text-right text-neutral-600">{emp.averageProcessingTime}</TableCell>
                     <TableCell>
                       <Badge
