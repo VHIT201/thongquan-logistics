@@ -32,23 +32,23 @@ export function EmployeePerformanceTable({ employees, onViewDetail }: Props) {
       transition={{ duration: 0.7, ease: [0.32, 0.72, 0, 1] }}
       className="rounded-2xl bg-white p-5 shadow-[0_2px_24px_-10px_rgba(12,84,156,0.06)] ring-1 ring-slate-200"
     >
-      <span className="inline-block rounded-full px-2.5 py-0.5 text-[9px] font-semibold uppercase tracking-[0.15em] text-[#0c549c] bg-[#0c549c]/5 mb-1">Nhân sự</span>
-      <h2 className="text-sm font-semibold tracking-tight text-slate-800">Hiệu suất nhân viên</h2>
-      <p className="text-[11px] text-slate-500">Theo dõi công việc và hiệu suất từng nhân viên</p>
+      <span className="inline-block rounded-full px-3 py-1 text-[10px] font-semibold uppercase tracking-[0.15em] text-[#0c549c] bg-[#0c549c]/5 mb-1">Nhân sự</span>
+      <h2 className="text-base font-semibold tracking-tight text-slate-800">Hiệu suất nhân viên</h2>
+      <p className="text-sm text-slate-500">Theo dõi công việc và hiệu suất từng nhân viên</p>
       <div className="mt-4 rounded-xl overflow-hidden ring-1 ring-slate-200">
         <Table>
           <TableHeader>
             <TableRow className="bg-slate-50 hover:bg-slate-50">
-              <TableHead className="text-[11px] font-medium text-slate-500">Nhân viên</TableHead>
-              <TableHead className="text-[11px] font-medium text-slate-500">Phòng ban</TableHead>
-              <TableHead className="text-[11px] font-medium text-slate-500 text-right tabular-nums">Tổng task</TableHead>
-              <TableHead className="text-[11px] font-medium text-slate-500 text-right tabular-nums">Hoàn thành</TableHead>
-              <TableHead className="text-[11px] font-medium text-slate-500 text-right tabular-nums">Đang xử lý</TableHead>
-              <TableHead className="text-[11px] font-medium text-slate-500 text-right tabular-nums">Quá hạn</TableHead>
-              <TableHead className="text-[11px] font-medium text-slate-500 text-right tabular-nums">Tỷ lệ</TableHead>
-              <TableHead className="text-[11px] font-medium text-slate-500 text-right">Thời gian TB</TableHead>
-              <TableHead className="text-[11px] font-medium text-slate-500">Cảnh báo</TableHead>
-              <TableHead className="text-[11px] font-medium text-slate-500 w-16 text-right"></TableHead>
+              <TableHead className="text-xs font-medium text-slate-500">Nhân viên</TableHead>
+              <TableHead className="text-xs font-medium text-slate-500">Phòng ban</TableHead>
+              <TableHead className="text-xs font-medium text-slate-500 text-right tabular-nums">Tổng task</TableHead>
+              <TableHead className="text-xs font-medium text-slate-500 text-right tabular-nums">Hoàn thành</TableHead>
+              <TableHead className="text-xs font-medium text-slate-500 text-right tabular-nums">Đang xử lý</TableHead>
+              <TableHead className="text-xs font-medium text-slate-500 text-right tabular-nums">Quá hạn</TableHead>
+              <TableHead className="text-xs font-medium text-slate-500 text-right tabular-nums">Tỷ lệ</TableHead>
+              <TableHead className="text-xs font-medium text-slate-500 text-right">Thời gian TB</TableHead>
+              <TableHead className="text-xs font-medium text-slate-500">Cảnh báo</TableHead>
+              <TableHead className="text-xs font-medium text-slate-500 w-16 text-right"></TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
@@ -66,7 +66,7 @@ export function EmployeePerformanceTable({ employees, onViewDetail }: Props) {
                   initial="hidden"
                   animate="show"
                   transition={{ delay: i * 0.03 }}
-                  className="border-b border-slate-100 text-xs transition-colors hover:bg-slate-50/60 cursor-pointer group"
+                  className="border-b border-slate-100 text-sm transition-colors hover:bg-slate-50/60 cursor-pointer group"
                   onClick={() => onViewDetail(emp)}
                 >
                   <TableCell className="relative font-medium text-slate-800">
