@@ -5,7 +5,14 @@ import { Crown, Mail, FileText, CheckCircle, Clock, AlertTriangle, Bot, BarChart
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
-import { Separator } from "@/components/ui/separator"
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table"
 import { EmployeePerformanceTable } from "@/components/ceo/employee-table"
 import { EmployeeDetailDrawer } from "@/components/ceo/employee-detail-drawer"
 import { TaskStatusChart } from "@/components/ceo/task-status-chart"
@@ -146,31 +153,36 @@ export default function CeoPage() {
           </CardHeader>
           <CardContent>
             <div className="rounded-md border">
-              <div className="grid grid-cols-7 bg-neutral-50 px-3 py-2 text-[11px] font-medium text-neutral-500">
-                <div>Phòng ban</div>
-                <div className="text-right">Tổng task</div>
-                <div className="text-right">Đã xử lý</div>
-                <div className="text-right">Đang xử lý</div>
-                <div className="text-right">Quá hạn</div>
-                <div className="text-right">Hoàn thành</div>
-                <div>Cảnh báo</div>
-              </div>
-              <Separator />
-              {departmentSummaryMock.map((dept) => (
-                <div key={dept.name} className="grid grid-cols-7 items-center px-3 py-2.5 text-xs hover:bg-neutral-50/50 transition-colors">
-                  <div className="font-medium text-neutral-700">{dept.name}</div>
-                  <div className="text-right text-neutral-600">{dept.totalTasks}</div>
-                  <div className="text-right text-emerald-600">{dept.completedTasks}</div>
-                  <div className="text-right text-amber-600">{dept.processingTasks}</div>
-                  <div className="text-right text-rose-600">{dept.overdueTasks}</div>
-                  <div className="text-right font-medium text-neutral-700">{dept.completionRate}%</div>
-                  <div>
-                    <Badge variant={dept.alert === "Ổn định" ? "secondary" : "outline"} className="text-[10px]">
-                      {dept.alert}
-                    </Badge>
-                  </div>
-                </div>
-              ))}
+              <Table>
+                <TableHeader>
+                  <TableRow className="bg-neutral-50 hover:bg-neutral-50">
+                    <TableHead className="text-[11px] font-medium text-neutral-500">Phòng ban</TableHead>
+                    <TableHead className="text-[11px] font-medium text-neutral-500 text-right">Tổng task</TableHead>
+                    <TableHead className="text-[11px] font-medium text-neutral-500 text-right">Đã xử lý</TableHead>
+                    <TableHead className="text-[11px] font-medium text-neutral-500 text-right">Đang xử lý</TableHead>
+                    <TableHead className="text-[11px] font-medium text-neutral-500 text-right">Quá hạn</TableHead>
+                    <TableHead className="text-[11px] font-medium text-neutral-500 text-right">Hoàn thành</TableHead>
+                    <TableHead className="text-[11px] font-medium text-neutral-500">Cảnh báo</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {departmentSummaryMock.map((dept) => (
+                    <TableRow key={dept.name} className="text-xs">
+                      <TableCell className="font-medium text-neutral-700">{dept.name}</TableCell>
+                      <TableCell className="text-right text-neutral-600">{dept.totalTasks}</TableCell>
+                      <TableCell className="text-right text-emerald-600">{dept.completedTasks}</TableCell>
+                      <TableCell className="text-right text-amber-600">{dept.processingTasks}</TableCell>
+                      <TableCell className="text-right text-rose-600">{dept.overdueTasks}</TableCell>
+                      <TableCell className="text-right font-medium text-neutral-700">{dept.completionRate}%</TableCell>
+                      <TableCell>
+                        <Badge variant={dept.alert === "Ổn định" ? "secondary" : "outline"} className="text-[10px]">
+                          {dept.alert}
+                        </Badge>
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
             </div>
           </CardContent>
         </Card>
@@ -225,38 +237,43 @@ export default function CeoPage() {
         </CardHeader>
         <CardContent>
           <div className="rounded-md border">
-            <div className="grid grid-cols-11 bg-neutral-50 px-3 py-2 text-[11px] font-medium text-neutral-500">
-              <div className="col-span-1">STT</div>
-              <div className="col-span-2">Khách hàng</div>
-              <div className="col-span-1">Invoice</div>
-              <div className="col-span-1">Bill</div>
-              <div className="col-span-1">Booking</div>
-              <div className="col-span-1">Loại</div>
-              <div className="col-span-2">Nhân viên</div>
-              <div className="col-span-1">Trạng thái</div>
-              <div className="col-span-1">Ghi chú</div>
-            </div>
-            <Separator />
-            {reportSummaryMock.map((row) => (
-              <div key={row.stt} className="grid grid-cols-11 items-center px-3 py-2.5 text-xs hover:bg-neutral-50/50 transition-colors">
-                <div className="col-span-1 text-neutral-600">{row.stt}</div>
-                <div className="col-span-2 font-medium text-neutral-700">{row.customerName}</div>
-                <div className="col-span-1 text-neutral-600">{row.invoice}</div>
-                <div className="col-span-1 text-neutral-600">{row.bill}</div>
-                <div className="col-span-1 text-neutral-600">{row.booking}</div>
-                <div className="col-span-1 text-neutral-600">{row.type}</div>
-                <div className="col-span-2 text-neutral-600">{row.employee}</div>
-                <div className="col-span-1">
-                  <Badge
-                    variant={row.status === "Hoàn tất" ? "secondary" : row.status === "Đang xử lý" ? "default" : "destructive"}
-                    className="text-[10px]"
-                  >
-                    {row.status}
-                  </Badge>
-                </div>
-                <div className="col-span-1 text-neutral-500">{row.notes}</div>
-              </div>
-            ))}
+            <Table>
+              <TableHeader>
+                <TableRow className="bg-neutral-50 hover:bg-neutral-50">
+                  <TableHead className="text-[11px] font-medium text-neutral-500 w-10">STT</TableHead>
+                  <TableHead className="text-[11px] font-medium text-neutral-500">Khách hàng</TableHead>
+                  <TableHead className="text-[11px] font-medium text-neutral-500">Invoice</TableHead>
+                  <TableHead className="text-[11px] font-medium text-neutral-500">Bill</TableHead>
+                  <TableHead className="text-[11px] font-medium text-neutral-500">Booking</TableHead>
+                  <TableHead className="text-[11px] font-medium text-neutral-500">Loại</TableHead>
+                  <TableHead className="text-[11px] font-medium text-neutral-500">Nhân viên</TableHead>
+                  <TableHead className="text-[11px] font-medium text-neutral-500">Trạng thái</TableHead>
+                  <TableHead className="text-[11px] font-medium text-neutral-500">Ghi chú</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {reportSummaryMock.map((row) => (
+                  <TableRow key={row.stt} className="text-xs">
+                    <TableCell className="text-neutral-600">{row.stt}</TableCell>
+                    <TableCell className="font-medium text-neutral-700">{row.customerName}</TableCell>
+                    <TableCell className="text-neutral-600">{row.invoice}</TableCell>
+                    <TableCell className="text-neutral-600">{row.bill}</TableCell>
+                    <TableCell className="text-neutral-600">{row.booking}</TableCell>
+                    <TableCell className="text-neutral-600">{row.type}</TableCell>
+                    <TableCell className="text-neutral-600">{row.employee}</TableCell>
+                    <TableCell>
+                      <Badge
+                        variant={row.status === "Hoàn tất" ? "secondary" : row.status === "Đang xử lý" ? "default" : "destructive"}
+                        className="text-[10px]"
+                      >
+                        {row.status}
+                      </Badge>
+                    </TableCell>
+                    <TableCell className="text-neutral-500">{row.notes}</TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
           </div>
         </CardContent>
       </Card>
