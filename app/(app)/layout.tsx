@@ -210,6 +210,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
   const navItems: NavItem[] = [
     ...baseNavItems.slice(0, 2),
     { href: "/emails", label: "Email", icon: Mail, permission: "mail.read" },
+    { href: "/drafts", label: "Hồ sơ xử lý", icon: FileText, permission: "mail.read" },
     ...baseNavItems.slice(2),
   ]
 

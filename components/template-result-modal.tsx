@@ -1,11 +1,12 @@
 "use client"
 
 import { useEffect, useMemo, useState } from "react"
-import { X } from "lucide-react"
+import { X, Save } from "lucide-react"
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { MAIL_CONNECTOR_AXIOS } from "@/lib/orval/mail-connector-mutator"
 import * as XLSX from "xlsx"
 import { toast } from "sonner"
+import { useTicketDraftStore } from "@/lib/stores/ticket-draft-store"
 
 export type ExtractionPreviewSources = {
   url?: string | null
@@ -34,6 +35,9 @@ interface TemplateResultModalProps {
   onExport?: () => void
   attachments?: AttachmentItem[]
   messageId?: string
+  emailId?: string
+  emailSubject?: string
+  extractedText?: string
 }
 
 export function TemplateResultModal({
@@ -48,11 +52,21 @@ export function TemplateResultModal({
   onExport,
   attachments = [],
   messageId,
+  emailId,
+  emailSubject,
+  extractedText,
 }: TemplateResultModalProps) {
+  const { createDraft, updateDraft, drafts } = useTicketDraftStore()
   const [localData, setLocalData] = useState<Record<string, string>>({})
   const [selectedAttachmentId, setSelectedAttachmentId] = useState<string | null>(null)
   const [attachmentPreview, setAttachmentPreview] = useState<ExtractionPreviewSources | null>(null)
   const [loadingPreview, setLoadingPreview] = useState(false)
+
+  // Check if this email already has a saved draft
+  const existingDraft = useMemo(() => {
+    if (!emailId) return undefined
+    return drafts.find((d) => d.emailId === emailId)
+  }, [drafts, emailId])
 
   // Sync localData when data changes
   const displayData = { ...data, ...localData }
@@ -61,6 +75,38 @@ export function TemplateResultModal({
     const next = { ...localData, [key]: value }
     setLocalData(next)
     onDataChange({ ...data, ...next })
+  }
+
+  const handleSaveDraft = () => {
+    if (!emailId) {
+      toast.error("Không xác định được email để lưu hồ sơ.")
+      return
+    }
+    const draftAttachments = attachments.map((a) => ({
+      id: a.id,
+      fileName: a.fileName,
+      contentType: a.contentType,
+      fileSize: a.fileSize,
+    }))
+    if (existingDraft) {
+      updateDraft(existingDraft.id, {
+        extractedData: displayData,
+        extractedText,
+        attachments: draftAttachments,
+        updatedAt: new Date().toISOString(),
+      })
+      toast.success("Đã cập nhật hồ sơ xử lý.")
+    } else {
+      createDraft({
+        emailId,
+        emailSubject: emailSubject || "",
+        extractedData: displayData,
+        extractedText,
+        attachments: draftAttachments,
+        status: "draft",
+      })
+      toast.success("Đã lưu hồ sơ xử lý.")
+    }
   }
 
   const exportToExcel = () => {
@@ -267,13 +313,23 @@ export function TemplateResultModal({
           <div className="overflow-y-auto border-r p-4">
             <div className="mb-2 flex items-center justify-between">
               <p className="text-sm font-medium text-neutral-700">Thông tin đã bóc tách</p>
-              <button
-                type="button"
-                onClick={exportToExcel}
-                className="cursor-pointer rounded-md border border-emerald-600 bg-emerald-600 px-2 py-1 text-[11px] font-medium text-white hover:bg-emerald-700"
-              >
-                Xuất Excel
-              </button>
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={handleSaveDraft}
+                  className="cursor-pointer flex items-center gap-1 rounded-md border border-primary bg-primary px-2 py-1 text-[11px] font-medium text-white hover:bg-primary/90"
+                >
+                  <Save className="h-3 w-3" />
+                  {existingDraft ? "Cập nhật hồ sơ" : "Lưu hồ sơ"}
+                </button>
+                <button
+                  type="button"
+                  onClick={exportToExcel}
+                  className="cursor-pointer rounded-md border border-emerald-600 bg-emerald-600 px-2 py-1 text-[11px] font-medium text-white hover:bg-emerald-700"
+                >
+                  Xuất Excel
+                </button>
+              </div>
             </div>
             {fieldEntries.length === 0 ? (
               <p className="text-sm text-neutral-400">Không có trường nào được định nghĩa trong template.</p>

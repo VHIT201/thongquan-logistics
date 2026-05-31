@@ -7,6 +7,7 @@ import { ArrowLeft, Bot, Paperclip, Send, User, X, Play, Sparkles, Tag, FileSear
 import dayjs from "dayjs"
 import { toast } from "sonner"
 import { getErrorMessage } from "@/lib/get-error-message"
+import { useTicketDraftStore } from "@/lib/stores/ticket-draft-store"
 import { usePermission } from "@/hooks/use-permission"
 import { useAuthStore, getTenantIdFromToken } from "@/lib/stores/auth-store"
 import {
@@ -188,6 +189,13 @@ export default function EmailDetailPage() {
   const [extractionFileName, setExtractionFileName] = useState<string | null>(null)
   const [templateResultOpen, setTemplateResultOpen] = useState(false)
   const [templateExtractedData, setTemplateExtractedData] = useState<Record<string, string>>({})
+
+  // Ticket drafts for this email
+  const { getByEmailId } = useTicketDraftStore()
+  const emailDrafts = useMemo(() => {
+    if (!messageId) return []
+    return getByEmailId(messageId)
+  }, [getByEmailId, messageId])
 
   const [aiMode, setAiMode] = useState<"chat" | "template">("chat")
   const [selectedTemplateId, setSelectedTemplateId] = useState("")
@@ -1311,6 +1319,58 @@ export default function EmailDetailPage() {
         </section>
       </div>
 
+      {/* Ticket Drafts Section */}
+      {emailDrafts.length > 0 && (
+        <section className="rounded-2xl border border-neutral-100 bg-white p-4 shadow-sm">
+          <div className="mb-3 flex items-center justify-between">
+            <h2 className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wide text-neutral-500">
+              <FileSearch className="h-3.5 w-3.5" />
+              Hồ sơ xử lý ({emailDrafts.length})
+            </h2>
+          </div>
+          <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
+            {emailDrafts.map((draft) => (
+              <div
+                key={draft.id}
+                className="flex items-center justify-between rounded-lg border border-neutral-100 bg-neutral-50/50 p-3 hover:bg-neutral-50"
+              >
+                <div className="min-w-0 flex-1">
+                  <div className="flex items-center gap-2">
+                    <span
+                      className={`inline-flex rounded-full px-2 py-0.5 text-[10px] font-medium ${
+                        draft.status === "draft"
+                          ? "bg-neutral-100 text-neutral-600"
+                          : draft.status === "reviewing"
+                            ? "bg-blue-50 text-blue-700"
+                            : draft.status === "pending_confirm"
+                              ? "bg-amber-50 text-amber-700"
+                              : "bg-green-50 text-green-700"
+                      }`}
+                    >
+                      {draft.status === "draft" && "Nháp"}
+                      {draft.status === "reviewing" && "Đang xem xét"}
+                      {draft.status === "pending_confirm" && "Chờ xác nhận"}
+                      {draft.status === "archived" && "Đã lưu"}
+                    </span>
+                    <span className="truncate text-xs font-medium text-neutral-700">
+                      {draft.extractedData?.khachHang || draft.extractedData?.customer || "Không tên"}
+                    </span>
+                  </div>
+                  <p className="mt-0.5 truncate text-[11px] text-neutral-400">
+                    {draft.emailSubject || "Không tiêu đề"}
+                  </p>
+                </div>
+                <div className="ml-2 flex shrink-0 items-center gap-1">
+                  <span className="text-[10px] text-neutral-400">
+                    {dayjs(draft.createdAt).format("DD/MM HH:mm")}
+                  </span>
+                </div>
+              </div>
+            ))}
+          </div>
+        </section>
+      )}
+
       <AttachmentViewerModal
         open={!!selectedAttachmentId}
         onOpenChange={(open) => {
@@ -1363,6 +1423,9 @@ export default function EmailDetailPage() {
         onExport={handleExported}
         attachments={attachments}
         messageId={messageId}
+        emailId={messageId}
+        emailSubject={emailData?.subject}
+        extractedText={bodyText}
       />
 
       {/* Admin Reassign Dialog */}
