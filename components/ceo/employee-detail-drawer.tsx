@@ -34,7 +34,7 @@ export function EmployeeDetailDrawer({ employee, open, onOpenChange }: Props) {
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-2xl max-h-[85vh] overflow-y-auto">
         <DialogHeader>
-          <DialogTitle className="text-base font-semibold text-slate-800">{employee.name}</DialogTitle>
+          <DialogTitle className="text-base font-semibold text-balance text-slate-800">{employee.name}</DialogTitle>
         </DialogHeader>
 
         <div className="space-y-4">

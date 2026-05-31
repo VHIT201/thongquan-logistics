@@ -98,10 +98,10 @@ export default function CeoPage() {
       <motion.div variants={container} initial="hidden" animate="show" className="flex h-full flex-col gap-6 overflow-auto p-6 bg-slate-50">
         <motion.div variants={item} className="flex items-center justify-between">
           <div>
-            <h1 className="text-3xl font-bold tracking-tight text-slate-900">CEO Dashboard</h1>
-            <p className="mt-1 text-base text-slate-500">Theo dõi tổng quan vận hành toàn công ty</p>
+            <h1 className="text-3xl font-bold text-balance text-slate-900">CEO Dashboard</h1>
+            <p className="mt-1 text-base text-slate-500 text-pretty">Theo dõi tổng quan vận hành toàn công ty</p>
           </div>
-          <Button variant="outline" size="sm" className="text-sm rounded-full px-5 py-2 h-9 active:scale-[0.98] active:translate-y-px transition-all duration-500 ease-[cubic-bezier(0.32,0.72,0,1)] bg-white shadow-[0_2px_12px_-4px_rgba(12,84,156,0.08)] ring-1 ring-slate-200 border-0 hover:shadow-[0_4px_20px_-6px_rgba(12,84,156,0.12)]">
+          <Button variant="outline" size="sm" className="text-sm rounded-full px-5 py-2 h-9 active:scale-[0.98] active:translate-y-px transition-all duration-200 ease-out bg-white shadow-[0_2px_12px_-4px_rgba(12,84,156,0.08)] ring-1 ring-slate-200 border-0 hover:shadow-[0_4px_20px_-6px_rgba(12,84,156,0.12)]">
             Xuất báo cáo
           </Button>
         </motion.div>
@@ -112,7 +112,7 @@ export default function CeoPage() {
               key={opt.value}
               whileTap={{ scale: 0.97, y: 1 }}
               onClick={() => setTimeFilter(opt.value)}
-              className={`cursor-pointer rounded-full px-4 py-2 text-sm font-medium transition-all duration-500 ease-[cubic-bezier(0.32,0.72,0,1)] ${
+              className={`cursor-pointer rounded-full px-4 py-2 text-sm font-medium transition-all duration-200 ease-out ${
                 timeFilter === opt.value
                   ? "bg-[#0c549c] text-white shadow-[0_2px_12px_-4px_rgba(12,84,156,0.25)]"
                   : "bg-white text-slate-600 shadow-[0_2px_12px_-4px_rgba(0,0,0,0.04)] ring-1 ring-slate-200 hover:shadow-[0_4px_16px_-6px_rgba(0,0,0,0.08)]"
@@ -172,11 +172,11 @@ export default function CeoPage() {
               {kpiData.map((k) => (
                 <motion.div
                   key={k.label}
-                  whileHover={{ y: -2, transition: { duration: 0.4, ease: [0.32, 0.72, 0, 1] } }}
+                  whileHover={{ y: -2, transition: { duration: 0.2 } }}
                   className="group flex flex-col justify-between rounded-2xl bg-white p-4 shadow-[0_2px_20px_-8px_rgba(12,84,156,0.06)] ring-1 ring-slate-200 cursor-default"
                 >
-                  <p className="text-xs font-medium uppercase tracking-wider text-slate-400">{k.label}</p>
-                  <p className={`mt-2 text-3xl font-bold tracking-tight tabular-nums ${k.tone === "rose" ? "text-rose-600" : "text-[#0c549c]"}`}>{k.value}</p>
+                  <p className="text-xs font-medium uppercase  text-slate-400">{k.label}</p>
+                  <p className={`mt-2 text-3xl font-bold  tabular-nums ${k.tone === "rose" ? "text-rose-600" : "text-[#0c549c]"}`}>{k.value}</p>
                 </motion.div>
               ))}
             </motion.div>
@@ -184,29 +184,29 @@ export default function CeoPage() {
             {/* Charts */}
             <motion.div variants={item} className="grid grid-cols-1 gap-4 lg:grid-cols-3">
               <motion.section
-                initial={{ opacity: 0, y: 24, filter: "blur(6px)" }}
-                whileInView={{ opacity: 1, y: 0, filter: "blur(0px)" }}
+                initial={{ opacity: 0, y: 24 }}
+                whileInView={{ opacity: 1, y: 0 }}
                 viewport={{ once: true, margin: "-60px" }}
-                transition={{ duration: 0.7, ease: [0.32, 0.72, 0, 1] }}
+                transition={{ duration: 0.5, ease: "easeOut" }}
                 className="rounded-2xl bg-white p-5 shadow-[0_2px_24px_-10px_rgba(12,84,156,0.06)] ring-1 ring-slate-200 lg:col-span-2"
               >
-                <span className="inline-block rounded-full px-3 py-1 text-[10px] font-semibold uppercase tracking-[0.15em] text-[#0c549c] bg-[#0c549c]/5 mb-2">Phân tích</span>
-                <h2 className="text-base font-semibold tracking-tight text-slate-800">Trạng thái task</h2>
-                <p className="text-sm text-slate-500">Phân bổ task theo trạng thái xử lý</p>
+                <span className="inline-block rounded-full px-3 py-1 text-[10px] font-semibold uppercase  text-[#0c549c] bg-[#0c549c]/5 mb-2">Phân tích</span>
+                <h2 className="text-base font-semibold text-balance text-slate-800">Trạng thái task</h2>
+                <p className="text-sm text-slate-500 text-pretty">Phân bổ task theo trạng thái xử lý</p>
                 <div className="mt-4">
                   <TaskStatusChart />
                 </div>
               </motion.section>
               <motion.section
-                initial={{ opacity: 0, y: 24, filter: "blur(6px)" }}
-                whileInView={{ opacity: 1, y: 0, filter: "blur(0px)" }}
+                initial={{ opacity: 0, y: 24 }}
+                whileInView={{ opacity: 1, y: 0 }}
                 viewport={{ once: true, margin: "-60px" }}
-                transition={{ duration: 0.7, ease: [0.32, 0.72, 0, 1], delay: 0.1 }}
+                transition={{ duration: 0.5, ease: "easeOut", delay: 0.1 }}
                 className="rounded-2xl bg-white p-5 shadow-[0_2px_24px_-10px_rgba(12,84,156,0.06)] ring-1 ring-slate-200"
               >
-                <span className="inline-block rounded-full px-3 py-1 text-[10px] font-semibold uppercase tracking-[0.15em] text-[#0c549c] bg-[#0c549c]/5 mb-2">Hiệu quả</span>
-                <h2 className="text-base font-semibold tracking-tight text-slate-800">Tỷ lệ hoàn thành</h2>
-                <p className="text-sm text-slate-500">Tổng quan tiến độ công việc</p>
+                <span className="inline-block rounded-full px-3 py-1 text-[10px] font-semibold uppercase  text-[#0c549c] bg-[#0c549c]/5 mb-2">Hiệu quả</span>
+                <h2 className="text-base font-semibold text-balance text-slate-800">Tỷ lệ hoàn thành</h2>
+                <p className="text-sm text-slate-500 text-pretty">Tổng quan tiến độ công việc</p>
                 <div className="mt-4">
                   <CompletionRateChart />
                 </div>
@@ -225,11 +225,11 @@ export default function CeoPage() {
               ].map((k) => (
                 <motion.div
                   key={k.label}
-                  whileHover={{ y: -2, transition: { duration: 0.4, ease: [0.32, 0.72, 0, 1] } }}
+                  whileHover={{ y: -2, transition: { duration: 0.2 } }}
                   className="flex flex-col justify-between rounded-2xl bg-white p-4 shadow-[0_2px_20px_-8px_rgba(12,84,156,0.06)] ring-1 ring-slate-200"
                 >
-                  <p className="text-xs font-medium uppercase tracking-wider text-slate-400">{k.label}</p>
-                  <p className={`mt-2 text-3xl font-bold tracking-tight tabular-nums ${k.tone === "rose" ? "text-rose-600" : k.tone === "amber" ? "text-amber-600" : "text-[#0c549c]"}`}>{k.value}</p>
+                  <p className="text-xs font-medium uppercase  text-slate-400">{k.label}</p>
+                  <p className={`mt-2 text-3xl font-bold  tabular-nums ${k.tone === "rose" ? "text-rose-600" : k.tone === "amber" ? "text-amber-600" : "text-[#0c549c]"}`}>{k.value}</p>
                 </motion.div>
               ))}
             </motion.div>
@@ -237,17 +237,17 @@ export default function CeoPage() {
             {/* Alerts list */}
             <motion.div variants={item}>
               <motion.section
-                initial={{ opacity: 0, y: 24, filter: "blur(6px)" }}
-                whileInView={{ opacity: 1, y: 0, filter: "blur(0px)" }}
+                initial={{ opacity: 0, y: 24 }}
+                whileInView={{ opacity: 1, y: 0 }}
                 viewport={{ once: true, margin: "-60px" }}
-                transition={{ duration: 0.7, ease: [0.32, 0.72, 0, 1] }}
+                transition={{ duration: 0.5, ease: "easeOut" }}
                 className="rounded-2xl bg-white shadow-[0_2px_24px_-10px_rgba(12,84,156,0.06)] ring-1 ring-slate-200 overflow-hidden"
               >
                 <div className="px-5 py-4 border-b border-slate-100">
                   <div className="flex items-center justify-between">
                     <div>
-                      <span className="inline-block rounded-full px-3 py-1 text-[10px] font-semibold uppercase tracking-[0.15em] text-rose-600 bg-rose-50 mb-1">Khẩn cấp</span>
-                      <h2 className="text-base font-semibold tracking-tight text-slate-800">Cảnh báo cần xử lý</h2>
+                      <span className="inline-block rounded-full px-3 py-1 text-[10px] font-semibold uppercase  text-rose-600 bg-rose-50 mb-1">Khẩn cấp</span>
+                      <h2 className="text-base font-semibold text-balance text-slate-800">Cảnh báo cần xử lý</h2>
                     </div>
                     <div className="flex items-center gap-3 text-xs font-medium">
                       <span className="flex items-center gap-1.5 text-rose-600"><span className="h-2 w-2 rounded-full bg-rose-500"/>Critical</span>
@@ -294,14 +294,14 @@ export default function CeoPage() {
             {/* Departments */}
             <motion.div variants={item}>
               <motion.section
-                initial={{ opacity: 0, y: 24, filter: "blur(6px)" }}
-                whileInView={{ opacity: 1, y: 0, filter: "blur(0px)" }}
+                initial={{ opacity: 0, y: 24 }}
+                whileInView={{ opacity: 1, y: 0 }}
                 viewport={{ once: true, margin: "-60px" }}
-                transition={{ duration: 0.7, ease: [0.32, 0.72, 0, 1], delay: 0.1 }}
+                transition={{ duration: 0.5, ease: "easeOut", delay: 0.1 }}
                 className="rounded-2xl bg-white p-5 shadow-[0_2px_24px_-10px_rgba(12,84,156,0.06)] ring-1 ring-slate-200"
               >
-                <span className="inline-block rounded-full px-3 py-1 text-[10px] font-semibold uppercase tracking-[0.15em] text-[#0c549c] bg-[#0c549c]/5 mb-1">Tổ chức</span>
-                <h2 className="text-base font-semibold tracking-tight text-slate-800">Tổng quan theo phòng ban</h2>
+                <span className="inline-block rounded-full px-3 py-1 text-[10px] font-semibold uppercase  text-[#0c549c] bg-[#0c549c]/5 mb-1">Tổ chức</span>
+                <h2 className="text-base font-semibold text-balance text-slate-800">Tổng quan theo phòng ban</h2>
                 <div className="mt-4 rounded-xl overflow-hidden ring-1 ring-slate-200">
                   <Table>
                     <TableHeader>
@@ -363,15 +363,15 @@ export default function CeoPage() {
           <TabsContent value="ai-reports" className="flex flex-col gap-6 mt-0">
             {/* AI Extraction */}
             <motion.section
-              initial={{ opacity: 0, y: 24, filter: "blur(6px)" }}
-              whileInView={{ opacity: 1, y: 0, filter: "blur(0px)" }}
+              initial={{ opacity: 0, y: 24 }}
+              whileInView={{ opacity: 1, y: 0 }}
               viewport={{ once: true, margin: "-60px" }}
-              transition={{ duration: 0.7, ease: [0.32, 0.72, 0, 1] }}
+              transition={{ duration: 0.5, ease: "easeOut" }}
               className="rounded-2xl bg-white p-5 shadow-[0_2px_24px_-10px_rgba(12,84,156,0.06)] ring-1 ring-slate-200"
             >
-              <span className="inline-block rounded-full px-3 py-1 text-[10px] font-semibold uppercase tracking-[0.15em] text-[#0c549c] bg-[#0c549c]/5 mb-1">Trí tuệ nhân tạo</span>
-              <h2 className="text-base font-semibold tracking-tight text-slate-800">Thống kê AI bóc tách chứng từ</h2>
-              <p className="text-sm text-slate-500">Hiệu quả AI theo loại chứng từ</p>
+              <span className="inline-block rounded-full px-3 py-1 text-[10px] font-semibold uppercase  text-[#0c549c] bg-[#0c549c]/5 mb-1">Trí tuệ nhân tạo</span>
+              <h2 className="text-base font-semibold text-balance text-slate-800">Thống kê AI bóc tách chứng từ</h2>
+              <p className="text-sm text-slate-500 text-pretty">Hiệu quả AI theo loại chứng từ</p>
               <div className="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-4">
                 <div className="rounded-xl bg-slate-100/60 p-3 ring-1 ring-slate-200">
                   <p className="text-2xl font-bold text-slate-800 tabular-nums">{aiExtractionSummaryMock.totalFiles}</p>
@@ -397,19 +397,19 @@ export default function CeoPage() {
 
             {/* Report */}
             <motion.section
-              initial={{ opacity: 0, y: 24, filter: "blur(6px)" }}
-              whileInView={{ opacity: 1, y: 0, filter: "blur(0px)" }}
+              initial={{ opacity: 0, y: 24 }}
+              whileInView={{ opacity: 1, y: 0 }}
               viewport={{ once: true, margin: "-60px" }}
-              transition={{ duration: 0.7, ease: [0.32, 0.72, 0, 1], delay: 0.1 }}
+              transition={{ duration: 0.5, ease: "easeOut", delay: 0.1 }}
               className="rounded-2xl bg-white p-5 shadow-[0_2px_24px_-10px_rgba(12,84,156,0.06)] ring-1 ring-slate-200"
             >
               <div className="flex items-center justify-between pb-4">
                 <div>
-                  <span className="inline-block rounded-full px-3 py-1 text-[10px] font-semibold uppercase tracking-[0.15em] text-[#0c549c] bg-[#0c549c]/5 mb-1">Hồ sơ</span>
-                  <h2 className="text-base font-semibold tracking-tight text-slate-800">Báo cáo tổng hợp</h2>
-                  <p className="text-sm text-slate-500">Danh sách hồ sơ theo khách hàng</p>
+                  <span className="inline-block rounded-full px-3 py-1 text-[10px] font-semibold uppercase  text-[#0c549c] bg-[#0c549c]/5 mb-1">Hồ sơ</span>
+                  <h2 className="text-base font-semibold text-balance text-slate-800">Báo cáo tổng hợp</h2>
+                  <p className="text-sm text-slate-500 text-pretty">Danh sách hồ sơ theo khách hàng</p>
                 </div>
-                <Button variant="outline" size="sm" className="text-sm rounded-full px-5 py-2 h-9 active:scale-[0.98] active:translate-y-px transition-all duration-500 ease-[cubic-bezier(0.32,0.72,0,1)] bg-white shadow-[0_2px_12px_-4px_rgba(12,84,156,0.08)] ring-1 ring-slate-200 border-0 hover:shadow-[0_4px_20px_-6px_rgba(12,84,156,0.12)]">
+                <Button variant="outline" size="sm" className="text-sm rounded-full px-5 py-2 h-9 active:scale-[0.98] active:translate-y-px transition-all duration-200 ease-out bg-white shadow-[0_2px_12px_-4px_rgba(12,84,156,0.08)] ring-1 ring-slate-200 border-0 hover:shadow-[0_4px_20px_-6px_rgba(12,84,156,0.12)]">
                   Xuất CSV
                 </Button>
               </div>

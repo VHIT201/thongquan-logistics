@@ -26,15 +26,15 @@ const rowVariant = {
 export function EmployeePerformanceTable({ employees, onViewDetail }: Props) {
   return (
     <motion.section
-      initial={{ opacity: 0, y: 24, filter: "blur(6px)" }}
-      whileInView={{ opacity: 1, y: 0, filter: "blur(0px)" }}
+      initial={{ opacity: 0, y: 24 }}
+      whileInView={{ opacity: 1, y: 0 }}
       viewport={{ once: true, margin: "-60px" }}
-      transition={{ duration: 0.7, ease: [0.32, 0.72, 0, 1] }}
+      transition={{ duration: 0.5, ease: "easeOut" }}
       className="rounded-2xl bg-white p-5 shadow-[0_2px_24px_-10px_rgba(12,84,156,0.06)] ring-1 ring-slate-200"
     >
-      <span className="inline-block rounded-full px-3 py-1 text-[10px] font-semibold uppercase tracking-[0.15em] text-[#0c549c] bg-[#0c549c]/5 mb-1">Nhân sự</span>
-      <h2 className="text-base font-semibold tracking-tight text-slate-800">Hiệu suất nhân viên</h2>
-      <p className="text-sm text-slate-500">Theo dõi công việc và hiệu suất từng nhân viên</p>
+      <span className="inline-block rounded-full px-3 py-1 text-[10px] font-semibold uppercase  text-[#0c549c] bg-[#0c549c]/5 mb-1">Nhân sự</span>
+      <h2 className="text-base font-semibold text-balance text-slate-800">Hiệu suất nhân viên</h2>
+      <p className="text-sm text-slate-500 text-pretty">Theo dõi công việc và hiệu suất từng nhân viên</p>
       <div className="mt-4 rounded-xl overflow-hidden ring-1 ring-slate-200">
         <Table>
           <TableHeader>
