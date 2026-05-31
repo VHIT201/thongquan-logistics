@@ -215,94 +215,136 @@ export default function CeoPage() {
           </TabsContent>
 
           <TabsContent value="alerts" className="flex flex-col gap-6 mt-0">
-            {/* Alerts + Departments */}
-        <motion.div variants={item} className="grid grid-cols-1 gap-4 lg:grid-cols-3">
-          <motion.section
-            initial={{ opacity: 0, y: 24, filter: "blur(6px)" }}
-            whileInView={{ opacity: 1, y: 0, filter: "blur(0px)" }}
-            viewport={{ once: true, margin: "-60px" }}
-            transition={{ duration: 0.7, ease: [0.32, 0.72, 0, 1] }}
-            className="rounded-2xl bg-white shadow-[0_2px_24px_-10px_rgba(12,84,156,0.06)] ring-1 ring-slate-200 lg:col-span-1 overflow-hidden"
-          >
-            <div className="px-5 py-4">
-              <span className="inline-block rounded-full px-3 py-1 text-[10px] font-semibold uppercase tracking-[0.15em] text-rose-600 bg-rose-50 mb-1">Khẩn cấp</span>
-              <h2 className="text-base font-semibold tracking-tight text-slate-800">Cảnh báo cần chú ý</h2>
-            </div>
-            <div className="divide-y divide-slate-100">
-              {ceoAlertsMock.map((alert, i) => (
+            {/* Alert KPIs */}
+            <motion.div variants={item} className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+              {[
+                { label: "Tổng cảnh báo", value: ceoAlertsMock.length, tone: "primary" as const },
+                { label: "Nghiêm trọng", value: ceoAlertsMock.filter(a => a.level === "critical").length, tone: "rose" as const },
+                { label: "Cao", value: ceoAlertsMock.filter(a => a.level === "high").length, tone: "rose" as const },
+                { label: "Task quá hạn", value: departmentSummaryMock.reduce((s, d) => s + d.overdueTasks, 0), tone: "amber" as const },
+              ].map((k) => (
                 <motion.div
-                  key={alert.id}
-                  initial={{ opacity: 0, x: -6 }}
-                  animate={{ opacity: 1, x: 0 }}
-                  transition={{ delay: i * 0.06, type: "spring" as const, stiffness: 120, damping: 20 }}
-                  className="px-5 py-3 transition-colors hover:bg-slate-100/40 cursor-pointer"
+                  key={k.label}
+                  whileHover={{ y: -2, transition: { duration: 0.4, ease: [0.32, 0.72, 0, 1] } }}
+                  className="flex flex-col justify-between rounded-2xl bg-white p-4 shadow-[0_2px_20px_-8px_rgba(12,84,156,0.06)] ring-1 ring-slate-200"
                 >
-                  <div className="flex items-center gap-2">
-                    <div className={`h-1.5 w-1.5 rounded-full ${alert.level === "high" || alert.level === "critical" ? "bg-rose-500" : "bg-[#0c549c]"}`} />
-                    <p className="flex-1 text-sm font-medium text-slate-700">{alert.title}</p>
-                    <Badge variant={levelBadge[alert.level].variant} className="text-[10px] px-2 py-0.5">
-                      {levelBadge[alert.level].label}
-                    </Badge>
-                  </div>
-                  <p className="mt-1 pl-3.5 text-sm text-slate-500 leading-relaxed">{alert.description}</p>
+                  <p className="text-xs font-medium uppercase tracking-wider text-slate-400">{k.label}</p>
+                  <p className={`mt-2 text-3xl font-bold tracking-tight tabular-nums ${k.tone === "rose" ? "text-rose-600" : k.tone === "amber" ? "text-amber-600" : "text-[#0c549c]"}`}>{k.value}</p>
                 </motion.div>
               ))}
-            </div>
-          </motion.section>
+            </motion.div>
 
-          <motion.section
-            initial={{ opacity: 0, y: 24, filter: "blur(6px)" }}
-            whileInView={{ opacity: 1, y: 0, filter: "blur(0px)" }}
-            viewport={{ once: true, margin: "-60px" }}
-            transition={{ duration: 0.7, ease: [0.32, 0.72, 0, 1], delay: 0.1 }}
-            className="rounded-2xl bg-white p-5 shadow-[0_2px_24px_-10px_rgba(12,84,156,0.06)] ring-1 ring-slate-200 lg:col-span-2"
-          >
-            <span className="inline-block rounded-full px-3 py-1 text-[10px] font-semibold uppercase tracking-[0.15em] text-[#0c549c] bg-[#0c549c]/5 mb-1">Tổ chức</span>
-            <h2 className="text-base font-semibold tracking-tight text-slate-800">Tổng quan theo phòng ban</h2>
-            <div className="mt-4 rounded-xl overflow-hidden ring-1 ring-slate-200">
-              <Table>
-                <TableHeader>
-                  <TableRow className="bg-slate-100 hover:bg-slate-100">
-                    <TableHead className="text-xs font-medium text-slate-500">Phòng ban</TableHead>
-                    <TableHead className="text-xs font-medium text-slate-500 text-right tabular-nums">Tổng task</TableHead>
-                    <TableHead className="text-xs font-medium text-slate-500 text-right tabular-nums">Đã xử lý</TableHead>
-                    <TableHead className="text-xs font-medium text-slate-500 text-right tabular-nums">Đang xử lý</TableHead>
-                    <TableHead className="text-xs font-medium text-slate-500 text-right tabular-nums">Quá hạn</TableHead>
-                    <TableHead className="text-xs font-medium text-slate-500 text-right tabular-nums">Hoàn thành</TableHead>
-                    <TableHead className="text-xs font-medium text-slate-500">Cảnh báo</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {departmentSummaryMock.map((dept, i) => (
-                    <motion.tr
-                      key={dept.name}
-                      initial={{ opacity: 0, x: -6 }}
-                      animate={{ opacity: 1, x: 0 }}
-                      transition={{ delay: i * 0.04, type: "spring" as const, stiffness: 120, damping: 20 }}
-                      className="border-b border-slate-100 text-sm transition-colors hover:bg-slate-100/60 cursor-pointer group"
-                    >
-                      <TableCell className="relative font-medium text-slate-800">
-                        <span className="absolute left-0 top-1/2 -translate-y-1/2 h-4 w-[2px] bg-[#0c549c] scale-y-0 transition-transform duration-200 group-hover:scale-y-100 rounded-r" />
-                        {dept.name}
-                      </TableCell>
-                      <TableCell className="text-right text-slate-600 tabular-nums">{dept.totalTasks}</TableCell>
-                      <TableCell className="text-right text-slate-600 tabular-nums">{dept.completedTasks}</TableCell>
-                      <TableCell className="text-right text-slate-600 tabular-nums">{dept.processingTasks}</TableCell>
-                      <TableCell className="text-right text-rose-600 tabular-nums">{dept.overdueTasks}</TableCell>
-                      <TableCell className="text-right font-medium text-[#0c549c] tabular-nums">{dept.completionRate}%</TableCell>
-                      <TableCell>
-                        <Badge variant={dept.alert === "Ổn định" ? "secondary" : "outline"} className="text-[10px]">
-                          {dept.alert}
-                        </Badge>
-                      </TableCell>
-                    </motion.tr>
-                  ))}
-                </TableBody>
-              </Table>
-            </div>
-          </motion.section>
-        </motion.div>
+            {/* Alerts list */}
+            <motion.div variants={item}>
+              <motion.section
+                initial={{ opacity: 0, y: 24, filter: "blur(6px)" }}
+                whileInView={{ opacity: 1, y: 0, filter: "blur(0px)" }}
+                viewport={{ once: true, margin: "-60px" }}
+                transition={{ duration: 0.7, ease: [0.32, 0.72, 0, 1] }}
+                className="rounded-2xl bg-white shadow-[0_2px_24px_-10px_rgba(12,84,156,0.06)] ring-1 ring-slate-200 overflow-hidden"
+              >
+                <div className="px-5 py-4 border-b border-slate-100">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <span className="inline-block rounded-full px-3 py-1 text-[10px] font-semibold uppercase tracking-[0.15em] text-rose-600 bg-rose-50 mb-1">Khẩn cấp</span>
+                      <h2 className="text-base font-semibold tracking-tight text-slate-800">Cảnh báo cần xử lý</h2>
+                    </div>
+                    <div className="flex items-center gap-3 text-xs font-medium">
+                      <span className="flex items-center gap-1.5 text-rose-600"><span className="h-2 w-2 rounded-full bg-rose-500"/>Critical</span>
+                      <span className="flex items-center gap-1.5 text-amber-600"><span className="h-2 w-2 rounded-full bg-amber-500"/>High</span>
+                      <span className="flex items-center gap-1.5 text-slate-500"><span className="h-2 w-2 rounded-full bg-slate-400"/>Medium</span>
+                    </div>
+                  </div>
+                </div>
+                <div className="divide-y divide-slate-100">
+                  {ceoAlertsMock.map((alert, i) => {
+                    const isCritical = alert.level === "critical"
+                    const isHigh = alert.level === "high"
+                    const isMedium = alert.level === "medium"
+                    return (
+                      <motion.div
+                        key={alert.id}
+                        initial={{ opacity: 0, x: -6 }}
+                        animate={{ opacity: 1, x: 0 }}
+                        transition={{ delay: i * 0.06, type: "spring" as const, stiffness: 120, damping: 20 }}
+                        className={`px-5 py-3.5 transition-colors cursor-pointer ${isCritical ? "bg-rose-50/60 hover:bg-rose-50" : isHigh ? "bg-amber-50/40 hover:bg-amber-50/60" : "hover:bg-slate-100/40"}`}
+                      >
+                        <div className="flex items-start gap-3">
+                          <div className={`mt-1.5 h-2 w-2 shrink-0 rounded-full ${isCritical ? "bg-rose-600" : isHigh ? "bg-amber-500" : isMedium ? "bg-slate-400" : "bg-slate-300"}`} />
+                          <div className="flex-1 min-w-0">
+                            <div className="flex items-center gap-2 flex-wrap">
+                              <p className={`text-sm font-semibold ${isCritical ? "text-rose-700" : isHigh ? "text-amber-700" : "text-slate-700"}`}>{alert.title}</p>
+                              <Badge
+                                variant={isCritical ? "destructive" : isHigh ? "default" : "secondary"}
+                                className={`text-[10px] px-2 py-0.5 ${isCritical ? "bg-rose-100 text-rose-700 hover:bg-rose-100" : isHigh ? "bg-amber-100 text-amber-700 hover:bg-amber-100" : ""}`}
+                              >
+                                {levelBadge[alert.level].label}
+                              </Badge>
+                            </div>
+                            <p className="mt-1 text-sm text-slate-500 leading-relaxed">{alert.description}</p>
+                          </div>
+                        </div>
+                      </motion.div>
+                    )
+                  })}
+                </div>
+              </motion.section>
+            </motion.div>
 
+            {/* Departments */}
+            <motion.div variants={item}>
+              <motion.section
+                initial={{ opacity: 0, y: 24, filter: "blur(6px)" }}
+                whileInView={{ opacity: 1, y: 0, filter: "blur(0px)" }}
+                viewport={{ once: true, margin: "-60px" }}
+                transition={{ duration: 0.7, ease: [0.32, 0.72, 0, 1], delay: 0.1 }}
+                className="rounded-2xl bg-white p-5 shadow-[0_2px_24px_-10px_rgba(12,84,156,0.06)] ring-1 ring-slate-200"
+              >
+                <span className="inline-block rounded-full px-3 py-1 text-[10px] font-semibold uppercase tracking-[0.15em] text-[#0c549c] bg-[#0c549c]/5 mb-1">Tổ chức</span>
+                <h2 className="text-base font-semibold tracking-tight text-slate-800">Tổng quan theo phòng ban</h2>
+                <div className="mt-4 rounded-xl overflow-hidden ring-1 ring-slate-200">
+                  <Table>
+                    <TableHeader>
+                      <TableRow className="bg-slate-100 hover:bg-slate-100">
+                        <TableHead className="text-xs font-medium text-slate-500">Phòng ban</TableHead>
+                        <TableHead className="text-xs font-medium text-slate-500 text-right tabular-nums">Tổng task</TableHead>
+                        <TableHead className="text-xs font-medium text-slate-500 text-right tabular-nums">Đã xử lý</TableHead>
+                        <TableHead className="text-xs font-medium text-slate-500 text-right tabular-nums">Đang xử lý</TableHead>
+                        <TableHead className="text-xs font-medium text-slate-500 text-right tabular-nums">Quá hạn</TableHead>
+                        <TableHead className="text-xs font-medium text-slate-500 text-right tabular-nums">Hoàn thành</TableHead>
+                        <TableHead className="text-xs font-medium text-slate-500">Cảnh báo</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {departmentSummaryMock.map((dept, i) => (
+                        <motion.tr
+                          key={dept.name}
+                          initial={{ opacity: 0, x: -6 }}
+                          animate={{ opacity: 1, x: 0 }}
+                          transition={{ delay: i * 0.04, type: "spring" as const, stiffness: 120, damping: 20 }}
+                          className="border-b border-slate-100 text-sm transition-colors hover:bg-slate-100/60 cursor-pointer group"
+                        >
+                          <TableCell className="relative font-medium text-slate-800">
+                            <span className="absolute left-0 top-1/2 -translate-y-1/2 h-4 w-[2px] bg-[#0c549c] scale-y-0 transition-transform duration-200 group-hover:scale-y-100 rounded-r" />
+                            {dept.name}
+                          </TableCell>
+                          <TableCell className="text-right text-slate-600 tabular-nums">{dept.totalTasks}</TableCell>
+                          <TableCell className="text-right text-slate-600 tabular-nums">{dept.completedTasks}</TableCell>
+                          <TableCell className="text-right text-slate-600 tabular-nums">{dept.processingTasks}</TableCell>
+                          <TableCell className="text-right text-rose-600 tabular-nums">{dept.overdueTasks}</TableCell>
+                          <TableCell className="text-right font-medium text-[#0c549c] tabular-nums">{dept.completionRate}%</TableCell>
+                          <TableCell>
+                            <Badge variant={dept.alert === "Ổn định" ? "secondary" : "outline"} className="text-[10px]">
+                              {dept.alert}
+                            </Badge>
+                          </TableCell>
+                        </motion.tr>
+                      ))}
+                    </TableBody>
+                  </Table>
+                </div>
+              </motion.section>
+            </motion.div>
           </TabsContent>
 
           <TabsContent value="personnel" className="flex flex-col gap-6 mt-0">
